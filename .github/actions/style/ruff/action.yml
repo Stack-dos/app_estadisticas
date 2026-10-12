@@ -22,7 +22,14 @@ runs:
       shell: bash
       run: uv sync --locked --only-group dev
 
-    - name: Ejecutar Ruff
+    # Las reglas salen de pyproject.toml ([tool.ruff.lint] select): no se repiten aca con --select.
+    - name: Ejecutar Ruff (reglas de estilo)
       shell: bash
       run: |
-        uv run --no-sync ruff check --select E --select I .
+        uv run --no-sync ruff check .
+
+    # --check no modifica nada: falla si algun archivo no esta formateado con "ruff format".
+    - name: Verificar formato (ruff format --check)
+      shell: bash
+      run: |
+        uv run --no-sync ruff format --check .

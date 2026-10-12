@@ -31,9 +31,14 @@ namespaces = true
 
 [tool.ruff]
 line-length = 120
+# docs/ son guias en Markdown (y un submodulo): ruff no las revisa ni las formatea
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
-select = ["E501", "I"]
+# Unica fuente de reglas: el CI, pre-commit y el Makefile corren "ruff check" sin --select.
+# E/W: estilo (pycodestyle) · F: errores reales (pyflakes) · I: orden de imports · B: bugs comunes (bugbear)
+# UP: sintaxis moderna de Python · SIM: simplificaciones · C4: comprensiones · RUF: reglas propias de ruff
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
 
 [tool.ruff.format]
 docstring-code-format = true

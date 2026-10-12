@@ -7,10 +7,11 @@ run_test:
 	uv run pytest -v --cov=src --cov-report=html
 
 run_linter_ruf:
-	uv run ruff check --select E --select I
+	uv run ruff check .
+	uv run ruff format --check .
 
 corregir_linter:
-	uv run ruff check --fix --select E --select I . && uv run ruff format .
+	uv run ruff check --fix . && uv run ruff format .
 	uv run ruff check .
 
 pre_commit:
