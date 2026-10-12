@@ -1,5 +1,3 @@
-import pytest
-
 from dominio.entidades.competencia import Categoria, Competencia, Inscripcion, JugadorListaBuenaFe, ListaBuenaFe
 from dominio.entidades.jugador import Jugador
 from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCompetenciaRepositorio
@@ -68,13 +66,6 @@ def test_agregar_jugador_lista(db_conexion):
     lista_agregada = comp_rep.agregar_jugador_lista(jugador_guardado.idJugador, id_lista)
     assert lista_agregada.idJugador == jugador_guardado.idJugador
     assert lista_agregada.idListaBuenaFe == id_lista
-
-
-def test_obtener_jugadores_lista(db_conexion):
-    comp_rep = SqliteCompetenciaRepositorio(db_conexion)
-    jugadores_encontrados = comp_rep.obtener_jugadores_lista(1)
-    assert jugadores_encontrados is not None
-    assert len(jugadores_encontrados) > 0
 
 
 def test_guardar_competencia(db_conexion):

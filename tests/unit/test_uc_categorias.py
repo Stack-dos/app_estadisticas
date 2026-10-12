@@ -41,7 +41,7 @@ def test_crear_categoria_devuelve_el_dto_con_el_id_asignado(repo_competencia):
 def test_crear_categoria_con_nombre_repetido_lanza_excepcion_y_no_guarda(repo_competencia, nombre_ingresado):
     repo_competencia.obtener_categorias.return_value = [Categoria("U21", idCategoria=1)]
 
-    with pytest.raises(CategoriaDuplicadaError, match="(?i)u21"):
+    with pytest.raises(CategoriaDuplicadaError, match=r"(?i)u21"):
         CrearCategoriaUseCase(repo_competencia).ejecutar(CrearCategoriaDTO(nombre=nombre_ingresado))
 
     repo_competencia.guardar_categoria.assert_not_called()
