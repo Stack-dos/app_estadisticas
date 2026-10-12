@@ -113,6 +113,12 @@ class CredencialesInvalidasError(ErrorDeDominio):
     pass
 
 
+class EmailYaRegistradoError(ErrorDeDominio):
+    """Se lanza cuando se intenta registrar un usuario con un email que ya esta en uso."""
+
+    pass
+
+
 class VinculoActivoExistenteError(ErrorDeDominio):
     """Se lanza cuando se intenta registrar un jugador en un club nuevo cuando todavia tiene un club."""
 
