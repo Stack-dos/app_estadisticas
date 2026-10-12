@@ -29,7 +29,8 @@ este ADR formaliza por escrito lo que ya está funcionando en `.github/workflows
 confirmado como el camino definitivo, sin plan de migrar a runners self-hosted. Ya implementado en
 `.github/workflows/MainAction.yml`: jobs de auditoría de dependencias (`pip-audit`), detección de
 secretos (`gitleaks`), lint y formato (`ruff`), tipos (`mypy --strict`), tests con cobertura en
-Linux/Windows/Docker con matriz de Python 3.11 a 3.14 (Windows solo 3.13), disparado en Pull
+Linux/Windows/Docker (matriz de Python 3.12 a 3.14 solo en Linux; Windows y Docker una corrida
+con 3.13), smoke test de la CLI y un job agregador `ci-ok`, disparado en Pull
 Request, en `push` a `main`/`develop` y manualmente. Dependencias gestionadas con `uv`
 (reproducibles vía `uv.lock`) y actualizadas automáticamente con Dependabot.
 
@@ -51,6 +52,6 @@ Request, en `push` a `main`/`develop` y manualmente. Dependencias gestionadas co
   problema hoy, pero es el primer lugar a mirar si el consumo de minutos se vuelve un costo real
   — en ese momento se podría revisar si vale la pena reducir la matriz o migrar partes a un runner
   propio, pero no es una decisión que haga falta tomar ahora.
-- Todavía faltan, de la auditoría de `docs/ideas-aprendizaje.md` §8.16 (ya convertidas en AC6-AC8
-  de la US-109): job agregador + _required status checks_, `ruff format --check` y el smoke test
-  de la CLI — el pipeline funciona, pero todavía no bloquea un merge con el CI en rojo.
+- El job agregador `ci-ok`, `ruff format --check` y el smoke test de la CLI (AC6-AC8 de la
+  US-109) ya están en el workflow desde el 2026-10-11, pero el bloqueo de un merge con el CI en
+  rojo depende de un paso manual: marcar `ci-ok` como _required status check_ en GitHub.

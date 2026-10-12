@@ -1154,10 +1154,12 @@ test/
 
 ```text
 .github/workflows/MainAction.yml  ✅ existe (jobs: check_dep [pip-audit], gitleaks, lint [ruff], static [mypy],
-                                     tests-linux, tests-windows, tests-docker; matriz de Python 3.11–3.14 (Windows solo 3.13);
-                                     se dispara en PR, push a main/develop y manual;
+                                     tests-linux, tests-windows, tests-docker, ci-ok [agregador];
+                                     matriz de Python 3.12–3.14 solo en tests-linux (Windows y Docker: una corrida con 3.13;
+                                     mypy: una corrida contra 3.12); se dispara en PR, push a main/develop y manual;
                                      con concurrency, permissions y timeout-minutes)
-.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen (versión de ruff/mypy = la de pyproject.toml/uv.lock)
+.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen (versión de ruff/mypy = la de pyproject.toml/uv.lock;
+                                     ruff corre `ruff check .` + `ruff format --check .` con las reglas de pyproject.toml)
 .github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen (todas reciben `python-version`;
                                      la de Linux exige cobertura ≥ 85 % y guarda el reporte HTML)
 .github/dependabot.yml          ✅ existe (uv, github-actions y docker; semanal)
@@ -1205,13 +1207,25 @@ docs/info_modulo/11-flujo-de-trabajo-git.md  ❌ no existe
 > bien hecho, pero no quedó registrado como tal en su momento — de ahí la "Regla de alcance para
 > US-104 a US-109" agregada al principio de esta épica.
 >
-> **Pendiente, ahora como AC6/AC7/AC8 de arriba (antes solo listado en `ideas-aprendizaje.md`
-> §8.16, sin ser tareas explícitas de esta US):** job agregador + _required status checks_ (8.9),
-> `ruff format --check` (8.2), smoke test de la CLI (8.14), sacar `submodules: recursive` de
-> `check_dep`/`lint`/`static` (8.4) y fijar las actions de terceros por hash (8.13, prioridad baja).
-> **Se recomienda cerrar al menos AC6 y AC7 antes de abrir el primer PR de la US-104** — así el
-> gate de CI ya protege desde la primera historia de esta tanda, en vez de depender de la revisión
-> manual.
+> **Aplicado el 2026-10-11 (trabajo adelantado de US-109, hecho en la rama de la US-104 antes de
+> abrir su PR — ver la "Regla de alcance" de arriba):**
+>
+> - **AC6:** job agregador `ci-ok` (falla si algún job falló, se canceló o se salteó). **Falta un
+>   paso manual en GitHub:** marcarlo como _required status check_ en Settings → Branches.
+> - **AC7:** el job `lint` corre también `ruff format --check .`.
+> - **AC8:** smoke test `python src/main.py --help` en los jobs de tests de Linux y Windows.
+> - **8.4:** se sacó `submodules: recursive` de `check_dep`, `lint` y `static`.
+> - **Matriz reducida:** las versiones de Python (3.12, 3.13 y 3.14) se prueban solo en
+>   `tests-linux`; Docker y Windows corren una vez (3.13) y mypy una vez (contra 3.12). La 3.11
+>   dejó de probarse en el CI aunque `pyproject.toml` sigue declarando `requires-python >= 3.11`.
+> - **Ruff más estricto:** las reglas viven solo en `pyproject.toml` (`E`, `W`, `F`, `I`, `B`,
+>   `UP`, `SIM`, `C4`, `RUF`; antes `E501` + `I`, y el CI pasaba `--select E --select I` por su
+>   cuenta). CI, pre-commit y Makefile corren `ruff check` sin `--select`. `docs/` queda excluido.
+>   Al activarlas se corrigió el código existente; entre otras cosas apareció un test duplicado en
+>   `test_repositorios_competencia.py` (mismo nombre dos veces: el primero nunca se ejecutaba).
+> - **mypy** ya era `--strict`; no cambió.
+>
+> **Sigue pendiente:** fijar las actions de terceros por hash (8.13, prioridad baja).
 
 ---
 
@@ -2110,7 +2124,7 @@ Confirmado hoy, con lectura completa de cada archivo, no solo con `mypy`/`pytest
   repositorios.
 - **CI evolucionó bastante desde la última auditoría:** ahora corre `pip-audit`, `gitleaks`,
   `mypy --strict`, `ruff` (lint) y tests en Linux/Windows/Docker con una matriz de Python 3.11 a
-  3.14 (Windows solo con 3.13; `Dockerfile.test` + `.dockerignore` ya armados y correctos), y Dependabot vigila las
+  3.14 (desde el 2026-10-11: 3.12 a 3.14 y solo en Linux; Windows y Docker solo con 3.13; `Dockerfile.test` + `.dockerignore` ya armados y correctos), y Dependabot vigila las
   dependencias. Ruff y mypy usan en todos lados (CI, pre-commit y local) la versión de
   `pyproject.toml`. Ver `docs/ideas-aprendizaje.md` sección 8 para el informe detallado de qué
   falta. Las dependencias ya están fijadas en `pyproject.toml` + `uv.lock` (se eliminó

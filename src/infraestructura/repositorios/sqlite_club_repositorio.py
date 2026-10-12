@@ -98,7 +98,7 @@ class SqliteClubRepositorio(ClubRepositorio):
             nombre (str): Nombre del club que se desea buscar.
 
         Returns:
-            list[Club] | None: Lista de clubes que coinciden con el nombre proporcionado 
+            list[Club] | None: Lista de clubes que coinciden con el nombre proporcionado
             o None si no se encuentra ninguno.
         """
         cursor = self.conexion.cursor()

@@ -11,14 +11,6 @@ proyecto — dominio, aplicación, infraestructura — está escrito en Python; 
 UI que obligue a otro lenguaje implica mantener dos stacks y un puente entre ellos para invocar
 los mismos casos de uso.
 
-**Nota sobre una contradicción que tenía el plan:** el documento fuente (LaTeX) decía que este
-ADR bloqueaba el Hito 2, mientras que la tabla de ADRs lo listaba bloqueando el Hito 4. Revisando
-el contenido real de ambos hitos: el Hito 2 no tiene ninguna tarea de GUI (su propio texto aclara
-explícitamente en más de un lugar que sus comandos funcionan "sin necesidad de la interfaz
-gráfica", y que el motor de gráficos ahí construido es "para la futura GUI"); el trabajo de GUI
-recién arranca en el Hito 4, Épica H4-E1, US-401. Se resuelve la contradicción a favor de
-**Hito 4** — es lo único que el contenido del propio plan respalda.
-
 ## Alternativas Consideradas
 
 - **Flet:** framework de UI en Python puro (basado en Flutter por debajo), permite escribir
@@ -29,9 +21,7 @@ recién arranca en el Hito 4, Épica H4-E1, US-401. Se resuelve la contradicció
 
 ## Decisión Tomada
 
-Se confirma **Flet**. Ya aparece nombrado como la tecnología elegida en varias partes del plan
-(stack principal, composition root de la GUI en `src/infraestructura/ui/flet/app.py`, US-401
-"Tecnología: Flet") — este ADR solo formaliza esa decisión y descarta Compose Multiplatform.
+Se confirma **Flet**.
 
 ## Ventajas y Desventajas
 
