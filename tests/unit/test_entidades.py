@@ -57,8 +57,8 @@ ENTIDADES = [
     ),
     (
         Usuario,
-        {"nombre": "Claudio", "email": "claudio@gmail.com", "pw": "123456"},
-        {"nombre": 10, "email": True, "pw": 123456, "idUsuario": "1"},
+        {"nombre": "Claudio", "email": "claudio@gmail.com", "password_hash": "hash-de-prueba"},
+        {"nombre": 10, "email": True, "password_hash": 123456, "idUsuario": "1"},
     ),
 ]
 
