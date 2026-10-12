@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS jugadorClub (
     FOREIGN KEY (idJugador) REFERENCES jugador (idJugador) ON DELETE CASCADE on UPDATE CASCADE,
     FOREIGN KEY (idClub) REFERENCES club (idClub) ON DELETE CASCADE on UPDATE CASCADE
 ) STRICT;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_jugadorclub_activo_por_jugador
+ON jugadorClub (idJugador)
+WHERE fechaHasta IS NULL;
 -- Tabla competencia
 CREATE TABLE IF NOT EXISTS competencia (
     idCompetencia integer PRIMARY KEY AUTOINCREMENT,
