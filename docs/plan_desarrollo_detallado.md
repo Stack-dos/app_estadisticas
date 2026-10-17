@@ -1163,10 +1163,11 @@ test/
 .github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen (todas reciben `python-version`;
                                      la de Linux exige cobertura ≥ 85 % y guarda el reporte HTML)
 .github/dependabot.yml          ✅ existe (uv, github-actions y docker; semanal)
-pytest.ini                      ✅ existe (pythonpath=src, testpaths=tests)
+pytest.ini / .coveragerc        ➡️ migrados a pyproject.toml ([tool.pytest.ini_options] y [tool.coverage.*], 2026-10-17;
+                                     de paso se corrigió branch=True, que estaba mal ubicado y no medía ramas)
 .pre-commit-config.yaml         ✅ existe (check-yaml, end-of-file-fixer, trailing-whitespace y ruff check/format
                                      ejecutados con `uv run`: misma versión de ruff que el CI)
-pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy; uv.lock; sin requerimientos.txt)
+pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy/pytest/coverage + comando `statspro`; uv.lock; sin requerimientos.txt)
 Makefile                        ✅ existe (instalar_dependencias [uv sync], run_test, run_linter_ruf, corregir_linter, pre_commit, docker_test, static_check)
 docs/catalogo-criticidad.md     ❌ no existe — ver sección 14
 docs/info_modulo/11-flujo-de-trabajo-git.md  ❌ no existe
@@ -1174,7 +1175,7 @@ docs/info_modulo/11-flujo-de-trabajo-git.md  ❌ no existe
 
 - **Criterios de Aceptación:**
   - **AC1.** `make run_test` ejecuta la suite completa y falla si la cobertura baja del piso de
-    `.coveragerc` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro
+    `[tool.coverage.report]` de `pyproject.toml` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro
     `cobertura-minima`; cumple el ≥ 80 % pedido) y guarda el reporte HTML como _artifact_.
   - **AC2.** `make lint`/`run_linter_ruf` falla ante cualquier infracción de estilo.
   - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error
@@ -1839,6 +1840,10 @@ test/test_credential_policy.py
 
 #### US-404 — Empaquetado y Distribución Multiplataforma
 
+> **Adelanto (2026-10-17):** la CLI ya puede instalarse en modo editable (`uv tool install --editable .`,
+> comando `statspro`). El build real de la CLI (paquete raíz `statspro`, DB en la carpeta de datos del
+> usuario, `.sql` como datos del paquete) se investiga en `docs/spike/spike_build_cli.md`.
+
 - **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-401, US-109
 - **Objetivo Funcional:** generar binarios autónomos distribuibles para cada plataforma objetivo
   (Windows, Linux, macOS, Android) sin requerir instalación de Python ni dependencias externas
@@ -2007,7 +2012,8 @@ desarrollo; una sección `[vX.Y.Z] - YYYY-MM-DD` por release con subsecciones `A
 - **Hito 5 · Ecosistema Conectado y Colaborativo (v1.5):** romper el aislamiento local.
   Sincronización cloud híbrida (FastAPI + PostgreSQL, manteniendo la app 100% funcional
   offline); exportación de "Match Cards" para redes sociales; base de datos compartida de
-  scouting entre DTs (con consentimiento explícito).
+  scouting entre DTs (con consentimiento explícito). Investigación previa de la sincronización
+  (local-first con Supabase como alternativa): ver `docs/spike/spike_supabase.md`.
 - **Hito 6 · Inteligencia Táctica con IA (v2.0):** pasar de análisis descriptivo a prescriptivo.
   Motor de recomendación de quinteto (scikit-learn/XGBoost); detección automática de patrones
   (rachas de tiro, degradación defensiva por fatiga, pérdidas en momentos de presión — z-score,
