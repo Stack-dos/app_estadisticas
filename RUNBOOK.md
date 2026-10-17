@@ -73,6 +73,16 @@ uv run python src/main.py jugador --help          # lista las acciones de un gru
 uv run python src/main.py jugador link --help     # lista las opciones de una acción
 ```
 
+**Como comando instalado (opcional):** para usarla desde cualquier carpeta, instalala en modo editable desde la raíz del repo:
+
+```bash
+uv tool install --editable .     # deja disponible el comando "statspro"
+statspro club list
+uv tool uninstall statspro-basketball   # para quitarlo
+```
+
+Al ser editable, usa el código de esta carpeta y la **misma** `estadisticas.db` de la raíz del repo. Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos. El empaquetado real (wheel instalable en otra máquina) se investiga en `docs/spike/spike_build_cli.md`.
+
 **Cómo leer los ejemplos de esta guía:** para abreviar, escriben `stats jugador add ...`; el comando real es `uv run python src/main.py jugador add ...`.
 
 **Primera ejecución:** la base de datos (`estadisticas.db`, en la raíz del repositorio) se crea sola, con todas sus tablas, la primera vez que corrés cualquier comando. No hay nada que preparar antes.
