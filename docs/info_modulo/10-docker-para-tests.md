@@ -39,7 +39,7 @@ RUN uv sync --locked --no-install-project
 (el más lento) se **reusa** sin reinstalar nada. Si se copiara todo el código antes, cualquier cambio en un `.py` invalidaría el caché y habría que reinstalar todo cada vez.
 
 - `--locked`: falla si `uv.lock` no coincide con `pyproject.toml` (garantiza las versiones exactas del lockfile).
-- `--no-install-project`: instala solo las **dependencias**; el código propio se usa directo desde `src/` (así lo configura `pytest.ini` con `pythonpath = src`).
+- `--no-install-project`: instala solo las **dependencias**; el código propio se usa directo desde `src/` (así lo configura `[tool.pytest.ini_options]` de `pyproject.toml` con `pythonpath = src`).
 
 ```dockerfile
 ENV PATH="/app/.venv/bin:$PATH"
