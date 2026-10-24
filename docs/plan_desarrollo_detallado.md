@@ -551,12 +551,6 @@ src/
 
 ### Épica H1-E2: Lógica de Aplicación y CLI
 
-> **Nota de numeración (2026-10-03):** esta épica tenía 5 historias (US-103 a US-107). La
-> "US-104 — Autenticación y Sesión Local" original se dividió en **US-104 (Autenticación de
-> Usuarios)** y **US-105 (Sesión Persistente y Club Activo)** — ver el motivo en el recuadro al
-> inicio de la nueva US-104 — y el resto se corrió un número (vieja US-105→106, vieja US-106→107).
-> Por eso esta épica pasó de 5 a 6 historias.
-
 #### US-103 — Gestión de Entidades (Casos de Uso Administrativos)
 
 **Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-101, US-102
@@ -707,81 +701,34 @@ src/infraestructura/ui/cli/
 
 **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103
 
-> **Alcance de esta US y por qué se separó de la sesión:** hasta el 2026-10-03 esto era una sola
-> historia ("US-104 — Autenticación y Sesión Local") que mezclaba dos preocupaciones distintas:
-> demostrar quién es el usuario (acá) y recordar el contexto entre ejecuciones de la CLI (club
-> activo, ahora US-105). Se separaron para no repetir el problema de la US-103 (una historia que
-> terminó siendo una PR enorme): esta US termina en un usuario que puede registrarse y loguearse;
-> **todavía no persiste nada entre ejecuciones de la CLI** (eso es la US-105). No toca `club_list`
-> ni ningún comando existente.
+**Objetivo Funcional:** permitir el registro y el acceso seguro de entrenadores al sistema, con contraseñas hasheadas y nunca almacenadas en texto plano.
 
-**Objetivo Funcional:** permitir el registro y el acceso seguro de entrenadores al sistema, con
-contraseñas hasheadas y nunca almacenadas en texto plano.
-
-**Narrativa:** Como usuario, quiero poder registrarme y loguearme de forma local, con mis
-credenciales protegidas.
-
-**Estado real verificado (2026-10-03):** nada de esta US existe todavía en el código (no hay
-`src/infraestructura/security/`, no hay `password_hasher.py`, no hay subparser `auth` en
-`src/main.py`). Sí existen y se reusan tal cual: la entidad `Usuario`
-(`src/dominio/entidades/usuario.py`, hoy con un único campo de contraseña, `pw` — ver más abajo),
-`UsuarioRepositorio`/`SqliteUsuarioRepositorio` (`encontrar_por_mail`, `encontrar_por_id`,
-`guardar` — **en español**, no `get_by_email`/`get_by_id`/`save` como decía el texto viejo de esta
-US) y las excepciones `UsuarioNoEncontradoError`/`CredencialesInvalidasError` (en
-`src/dominio/exceptions.py`, ya están, reusables sin cambios).
+**Narrativa:** Como usuario, quiero poder registrarme y loguearme de forma local, con mis credenciales protegidas.
 
 **Capa de Dominio:**
 
-- **Entidad `Usuario`:** se renombra el campo `pw` a `password_hash` (claridad, sin agregar un
-  campo `salt` separado: el salt va embebido en el propio string que devuelve `PasswordHasher.hash()`,
-  formato estándar de `pbkdf2`/`bcrypt` — no hace falta tocar la columna `contrasenia` de la tabla
-  `usuario`, es un cambio de nombre de atributo Python, no de esquema). Se agregan las
-  validaciones de valor que al resto de las entidades (`Club`, `Jugador`, etc.) ya les llegaron en
-  la US-103 y a `Usuario` no: `nombre`/`email` no vacíos (`DatoInvalidoError`), con el mismo
-  `__post_init__` que ya usan las demás entidades.
-- **Excepción nueva:** `EmailYaRegistradoError` (hija de `ErrorDeDominio`, junto a las que ya
-  existen).
+- **Entidad `Usuario`:** se renombra el campo `pw` a `password_hash` (claridad, sin agregar un campo `salt` separado: el salt va embebido en el propio string que devuelve `PasswordHasher.hash()`, formato estándar de `pbkdf2`/`bcrypt` — no hace falta tocar la columna `contrasenia` de la tabla `usuario`). Se agregan las validaciones de valor que al resto de las entidades (`Club`, `Jugador`, etc.) ya les llegaron en la US-103 y a `Usuario` no: `nombre`/`email` no vacíos (`DatoInvalidoError`), con el mismo `__post_init__` que ya usan las demás entidades.
+- **Excepción nueva:** `EmailYaRegistradoError` (hija de `ErrorDeDominio`).
 
 **Capa de Aplicación:**
 
-- **Casos de uso:** `RegistrarEntrenadorUseCase` (rechaza email duplicado con
-  `EmailYaRegistradoError`, usando `UsuarioRepositorio.encontrar_por_mail`), `LoginLocalUseCase`
-  (`CredencialesInvalidasError` si el email no existe o la contraseña no verifica — sin distinguir
-  cuál de los dos pasó, para no filtrar si un email está registrado).
+- **Casos de uso:** `RegistrarEntrenadorUseCase` (rechaza email duplicado con `EmailYaRegistradoError`, usando `UsuarioRepositorio.encontrar_por_mail`), `LoginLocalUseCase` (`CredencialesInvalidasError` si el email no existe o la contraseña no verifica, sin distinguir cuál de los dos pasó, para no filtrar si un email está registrado).
 - **DTOs:** `RegistrarDTO`, `LoginDTO`.
 
 **Capa de Infraestructura:**
 
-- **Seguridad:** `PasswordHasher` en `src/infraestructura/security/password_hasher.py`, con solo
-  dos métodos públicos: `hash(password) -> str` y `verify(password, hash) -> bool`. **Decisión
-  tomada (resuelve la contradicción que tenía el ADR-006 — ver sección 8 de ADRs):** v0.1 usa
-  `hashlib.pbkdf2_hmac` con **salt dinámico** (uno distinto por usuario, generado con `os.urandom`
-  al registrarse y guardado junto al hash en el mismo string) — no salt fijo. Migrar a
-  `bcrypt`/`argon2-cffi` queda para v1.0, sin cambiar la interfaz pública de `PasswordHasher`.
-- **Persistencia:** `SqliteUsuarioRepositorio` — ya existe, sin cambios (sigue guardando lo que
-  reciba en la columna `contrasenia`; ahora va a recibir el resultado de `PasswordHasher.hash()`
-  en vez de texto plano).
-- **CLI:** `stats auth register`, `stats auth login`, `stats auth logout`. Se registran como
-  subparsers nuevos en `construir_parser()` de `src/main.py` (no se recrea el parser). Siguiendo la
-  convención **un archivo por acción**, se crean `auth_register.py`, `auth_login.py`,
-  `auth_logout.py` en `ui/cli/commands/`. `auth_logout` en esta US solo informa "no hay sesión que
-  cerrar" (todavía no hay nada que persista entre comandos) — borrar la sesión real es de la US-105.
-
-**Base de Datos:** tabla `usuario` (`idUsuario`, `nombre`, `email`, `contrasenia`) — ya existe, sin
-cambios de esquema.
+- **Seguridad:** `PasswordHasher` en `src/infraestructura/security/password_hasher.py`, con solo dos métodos públicos: `hash(password) -> str` y `verify(password, hash) -> bool`.
+  - **Decisión tomada:** v0.1 usa `hashlib.pbkdf2_hmac` con **salt dinámico** (uno distinto por usuario, generado con `os.urandom` al registrarse y guardado junto al hash en el mismo string) — no salt fijo. Migrar a `bcrypt`/`argon2-cffi` queda para v1.0, sin cambiar la interfaz pública de `PasswordHasher`.
+- **CLI:** `stats auth register`, `stats auth login`, `stats auth logout`. Se registran como subparsers nuevos en `construir_parser()` de `src/main.py`. Siguiendo la convención **un archivo por acción**, se crean `auth_register.py`, `auth_login.py`, `auth_logout.py` en `ui/cli/commands/`. `auth_logout` en esta US solo informa "no hay sesión que cerrar" (todavía no hay nada que persista entre comandos).
 
 **Criterios de Aceptación:**
 
-- **AC1 — Seguridad de Credenciales:** las contraseñas NUNCA se almacenan ni se loguean en texto
-  plano. Hashing con salt dinámico por usuario.
-- **AC2 — Validaciones:** email único (`EmailYaRegistradoError`); contraseña con requisitos
-  mínimos (≥6 caracteres en v0.1; ≥12 con complejidad en v1.0, ver US-403).
+- **AC1 — Seguridad de Credenciales:** las contraseñas NUNCA se almacenan ni se loguean en texto plano. Hashing con salt dinámico por usuario.
+- **AC2 — Validaciones:** email único (`EmailYaRegistradoError`); contraseña con requisitos mínimos (≥6 caracteres en v0.1; ≥12 con complejidad en v1.0, ver US-403).
 
 **Testing Mínimo:**
 
-- _Unitarias:_ `hash`/`verify` de `PasswordHasher` (incluye que dos hashes de la misma contraseña
-  sean distintos, por el salt dinámico); `RegistrarEntrenadorUseCase`/`LoginLocalUseCase` con
-  `UsuarioRepositorio` mock (camino feliz + `EmailYaRegistradoError` + `CredencialesInvalidasError`).
+- _Unitarias:_ `hash`/`verify` de `PasswordHasher` (incluye que dos hashes de la misma contraseña sean distintos, por el salt dinámico); `RegistrarEntrenadorUseCase`/`LoginLocalUseCase` con `UsuarioRepositorio` mock (camino feliz + `EmailYaRegistradoError` + `CredencialesInvalidasError`).
 - _Integración:_ flujo completo registro → login con DB `:memory:`.
 
 **Archivos a crear:**
@@ -812,71 +759,35 @@ tests/integration/
 
 **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104
 
-**Objetivo Funcional:** mantener un estado de sesión persistente entre ejecuciones de la CLI, para
-no pedir credenciales ni el club activo en cada comando.
+**Objetivo Funcional:** mantener un estado de sesión persistente entre ejecuciones de la CLI, para no pedir credenciales ni el club activo en cada comando.
 
-**Narrativa:** Como usuario, quiero que la CLI recuerde que ya inicié sesión y con qué club estoy
-trabajando, entre una ejecución y la siguiente.
+**Narrativa:** Como usuario, quiero que la CLI recuerde que ya inicié sesión y con qué club estoy trabajando, entre una ejecución y la siguiente.
 
-**Por qué hace falta una CLI arranca-y-termina:** cada comando (`stats club list`, `stats jugador
-add`, etc.) es un proceso nuevo — nada en memoria sobrevive de un comando al siguiente. Por eso
-"estar logueado" y "tener un club activo" tienen que persistirse en disco y releerse al arrancar
-cada comando. Esa es la razón de ser del `SessionManager`.
+**Por qué hace falta una CLI arranca-y-termina:** cada comando (`stats club list`, `stats jugador add`, etc.) es un proceso nuevo — nada en memoria sobrevive de un comando al siguiente. Por eso "estar logueado" y "tener un club activo" tienen que persistirse en disco y releerse al arrancar cada comando. Esa es la razón de ser del `SessionManager`.
 
-**Decisiones tomadas (antes eran preguntas abiertas, documentadas en el historial de esta US —
-ver `docs/explicacion_us/us104-explicacion.md` hasta el 2026-10-03, ya absorbido acá):**
+**Decisiones tomadas:**
 
-1. **Dónde se persiste:** archivo **JSON**, no la misma base SQLite — es el mecanismo estándar
-   para este tipo de estado de CLI (`~/.aws/credentials`, `~/.netrc`), no compite por locks con la
-   base, y permite borrar la sesión a mano sin tocar datos de negocio.
-2. **Ruta única:** `~/.statspro/session.json`, resuelta con `pathlib.Path.home()` (funciona igual
-   en Windows, que es donde corre el entorno de desarrollo de este proyecto). Se elimina la ruta
-   alternativa `~/.statspro_session.json` y la de `./data/session.json` que aparecían en dos
-   lugares distintos del plan viejo — quedaba sin resolver cuál era la real.
-3. **Sin token ni expiración:** `SessionDTO` queda tal como ya lo define esta historia —
-   `usuario_id`, `email`, `club_activo_id` — sin `session_token_hash` ni `expires_at`. Ese esquema
-   es el de una sesión **web** (cliente y servidor en procesos/máquinas distintas); acá el mismo
-   proceso local lee y escribe su propio archivo, no hay token que viajar ni nadie de quien
-   protegerse salvo los permisos del propio archivo.
-4. **Configurable, no hardcodeado:** se agrega un loader de configuración mínimo —
-   `src/config/settings.py` + `.env.example` (idea tomada de `docs/ideas-aprendizaje.md`, sección
-   4: "Loader de configuración por variables de entorno", encaja justo acá porque los tests de
-   integración necesitan apuntar la sesión a un archivo temporal sin parchear código) — con al
-   menos `STATSPRO_SESSION_PATH` (default `~/.statspro/session.json`) y `STATSPRO_DB_PATH`
-   (default: lo que ya calcula `config/rutas.py`, sin romper nada existente).
+1. **Dónde se persiste:** archivo **JSON**, no la misma base SQLite — es el mecanismo estándar para este tipo de estado de CLI (`~/.aws/credentials`, `~/.netrc`), no compite por locks con la base, y permite borrar la sesión a mano sin tocar datos de negocio.
+2. **Ruta única:** `~/.statspro/session.json`, resuelta con `pathlib.Path.home()` (funciona igual en Windows, que es donde corre el entorno de desarrollo de este proyecto). Se elimina la ruta alternativa `~/.statspro_session.json` y la de `./data/session.json` que aparecían en dos lugares distintos del plan viejo — quedaba sin resolver cuál era la real.
+3. **Sin token ni expiración:** `SessionDTO` queda tal como ya lo define esta historia — `usuario_id`, `email`, `club_activo_id` — sin `session_token_hash` ni `expires_at`. Ese esquema es el de una sesión **web** (cliente y servidor en procesos/máquinas distintas); acá el mismo proceso local lee y escribe su propio archivo, no hay token que viajar ni nadie de quien protegerse salvo los permisos del propio archivo.
+4. **Configurable, no hardcodeado:** se agrega un loader de configuración mínimo — `src/config/settings.py` + `.env.example` (idea tomada de `docs/ideas-aprendizaje.md`, sección 4: "Loader de configuración por variables de entorno", encaja justo acá porque los tests de integración necesitan apuntar la sesión a un archivo temporal sin parchear código) — con al menos `STATSPRO_SESSION_PATH` (default `~/.statspro/session.json`) y `STATSPRO_DB_PATH` (default: lo que ya calcula `config/rutas.py`, sin romper nada existente).
 
-**Gap real encontrado y su corrección (no es alcance nuevo, es un bug de una pieza ya cerrada de
-US-103):** `CrearClubUseCase` (`src/aplicacion/casos_uso/crear_club.py`, ya implementado en
-US-103) crea el club pero **nunca inserta en `usuarioClub`** — la tabla N:M que vincula usuario y
-club con `rolEntrenador`. Sin ese vínculo, `club list` (que hace `JOIN usuarioClub`) y
-`club select` (de esta misma US) no encuentran ningún club para ningún usuario real. Se corrige
-acá, **documentado explícitamente como fix**, extendiendo `CrearClubUseCase` para que reciba el
-`idUsuario` de la sesión y lo vincule como entrenador al crear el club.
+**Gap real encontrado y su corrección (no es alcance nuevo, es un bug de una pieza ya cerrada de US-103):** `CrearClubUseCase` (`src/aplicacion/casos_uso/crear_club.py`, ya implementado en US-103) crea el club pero **nunca inserta en `usuarioClub`** — la tabla N:M que vincula usuario y club con `rolEntrenador`. Sin ese vínculo, `club list` (que hace `JOIN usuarioClub`) y `club select` (de esta misma US) no encuentran ningún club para ningún usuario real. Se corrige acá, **documentado explícitamente como fix**, extendiendo `CrearClubUseCase` para que reciba el `idUsuario` de la sesión y lo vincule como entrenador al crear el club.
 
 **Capa de Aplicación:**
 
-- **Servicio:** `SessionManager` (`load_session`/`get_current`, `save_session`,
-  `is_authenticated`, `clear_session`/`destroy`, `set_active_club`/`set_club_activo`). `clear_session()`
-  es idempotente (no falla sin sesión previa); `set_active_club()` falla si no hay sesión previa.
-- **Caso de uso extendido:** `CrearClubUseCase` (US-103) pasa a recibir `idUsuario` y vincular en
-  `usuarioClub` — no se crea un caso de uso nuevo para esto.
+- **Servicio:** `SessionManager` (`load_session`/`get_current`, `save_session`, `is_authenticated`, `clear_session`/`destroy`, `set_active_club`/`set_club_activo`). `clear_session()` es idempotente (no falla sin sesión previa); `set_active_club()` falla si no hay sesión previa.
+- **Caso de uso extendido:** `CrearClubUseCase` (US-103) pasa a recibir `idUsuario` y vincular en `usuarioClub` — no se crea un caso de uso nuevo para esto.
 
 **Capa de Infraestructura:**
 
-- **CLI:** `stats club select <id>` (usa `CambiarClubActivoUseCase`, de US-103, que solo valida
-  pertenencia; acá se le suma guardar el club elegido en `SessionManager`); módulo de guards
-  compartido `require_auth()`/`require_active_club()` (cada comando arma su propio `SessionManager`,
-  igual que ya arma su propio repositorio si no se le inyecta uno — mismo patrón que ya usan). Se
-  le saca el `--id-usuario` provisorio a `club_list.py`, que pasa a leer el usuario autenticado de
-  la sesión.
+- **CLI:** `stats club select <id>` (usa `CambiarClubActivoUseCase`, de US-103, que solo valida pertenencia; acá se le suma guardar el club elegido en `SessionManager`); módulo de guards compartido `require_auth()`/`require_active_club()` (cada comando arma su propio `SessionManager`, igual que ya arma su propio repositorio si no se le inyecta uno — mismo patrón que ya usan). Se le saca el `--id-usuario` provisorio a `club_list.py`, que pasa a leer el usuario autenticado de la sesión.
 
 **Criterios de Aceptación:**
 
-- **AC1 — Persistencia de Sesión:** la sesión sobrevive al cierre de la CLI; al reiniciar,
-  `is_authenticated()` retorna `True` si había sesión activa.
+- **AC1 — Persistencia de Sesión:** la sesión sobrevive al cierre de la CLI; al reiniciar, `is_authenticated()` retorna `True` si había sesión activa.
 - **AC2 — Manejo de Contexto:** el archivo de sesión recuerda el club activo actual.
-- **AC3 — Club realmente vinculado:** después de `club add` seguido de `club select`, el club
-  aparece en `club list` del mismo usuario (cierra el gap de `usuarioClub`).
+- **AC3 — Club realmente vinculado:** después de `club add` seguido de `club select`, el club aparece en `club list` del mismo usuario (cierra el gap de `usuarioClub`).
 
 **Reglas de Negocio:**
 
@@ -886,10 +797,8 @@ acá, **documentado explícitamente como fix**, extendiendo `CrearClubUseCase` p
 
 **Testing Mínimo:**
 
-- _Unitarias:_ `SessionManager` con archivo temporal (no con DB `:memory:` — es estado de archivo,
-  no de base); guards `require_auth()`/`require_active_club()` con sesión mock.
-- _Integración:_ flujo completo registro → login → `club add` → `club select` → `club list` (ya
-  muestra el club) usando DB `:memory:` y un archivo de sesión temporal.
+- _Unitarias:_ `SessionManager` con archivo temporal (no con DB `:memory:` — es estado de archivo, no de base); guards `require_auth()`/`require_active_club()` con sesión mock.
+- _Integración:_ flujo completo registro → login → `club add` → `club select` → `club list` (ya muestra el club) usando DB `:memory:` y un archivo de sesión temporal.
 
 **Archivos a crear:**
 
@@ -916,79 +825,30 @@ tests/integration/
 #### US-106 — Carga Atómica de Partido (CargarPartido)
 
 - **Esfuerzo:** S (1-3 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, US-105
-- **Objetivo Funcional:** registrar un evento de partido y sus estadísticas individuales
-  asociadas garantizando la integridad de los datos mediante una transacción atómica (todo o
-  nada).
-- **Narrativa:** Como DT, quiero registrar un partido completo con todas las estadísticas de los
-  jugadores en una única operación; si falla una sola estadística, nada se persiste.
+- **Objetivo Funcional:** registrar un evento de partido y sus estadísticas individuales asociadas garantizando la integridad de los datos mediante una transacción atómica (todo o nada).
+- **Narrativa:** Como DT, quiero registrar un partido completo con todas las estadísticas de los jugadores en una única operación; si falla una sola estadística, nada se persiste.
 
-> **Estado real verificado (2026-10-03) — esta US quedó mucho más chica de lo que decía el texto
-> viejo.** El texto anterior describía un bloqueo real inexistente ("`SqliteJuegoRepositorio` no
-> funcional, tabla `Juego` inexistente"). El repositorio real se llama `SqlitePartidoRepositorio`
-> (`src/infraestructura/repositorios/sqlite_partido_repositorio.py`), la tabla es `partido` (con
-> sus `CHECK`/FK correctos en `schema.sql`), y **ya existe y ya funciona** `guardar_partido` y
-> `guardar_boxscore`. Más importante: **el método atómico que esta US pide ya está implementado**
-> — `save_with_boxscore(partido, boxscore)`, con `with self.conexion:` (COMMIT/ROLLBACK automático
-> de `sqlite3`), validando competencia/clubes/jugadores existentes antes de insertar — y **ya está
-> probado** (`tests/integration/test_repositorios_partido.py::test_save_with_boxscore_rollback_no_deja_partido_huerfano`).
-> La entidad `JugadorPartido` (`src/dominio/entidades/partido.py`) ya valida con `DatoInvalidoError`
-> todo lo que pide la sección de Reglas de Negocio de más abajo (fórmula de puntos, convertidos ≤
-> lanzados, minutos 0-48, no negativos). Este trabajo se hizo durante la US-103 ("Auditoría de
-> cierre de la US-103", sección 18) sin que el texto de esta US se actualizara — es el mismo
-> problema de historias pisándose entre sí que motivó esta revisión completa, en sentido inverso
-> (acá ya se hizo de más, no de menos). **Lo único que falta de verdad es la capa de aplicación y
-> el comando CLI**, descritos abajo.
-
-- **Capa de Dominio:** nada nuevo — `Partido`/`JugadorPartido` y sus validaciones ya existen
-  (ver arriba).
+- **Capa de Dominio:** nada nuevo — `Partido`/`JugadorPartido` y sus validaciones ya existen (ver arriba).
 - **Capa de Aplicación (lo que realmente falta):**
-  - **Caso de uso:** `CargarPartidoUseCase` — orquesta: valida que el boxscore solo tenga
-    jugadores habilitados (`CompetenciaRepositorio.obtener_jugadores_lista`, ya existe de
-    US-103) y llama a `PartidoRepositorio.save_with_boxscore`.
-  - **DTOs:** `PartidoDTO` (de carga — el de solo lectura que ya existe se llama
-    `PartidoResumenDTO`, no se toca), `BoxscoreDTO`, `EstadisticaInputDTO`.
+  - **Caso de uso:** `CargarPartidoUseCase` — orquesta: valida que el boxscore solo tenga jugadores habilitados (`CompetenciaRepositorio.obtener_jugadores_lista`, ya existe de US-103) y llama a `PartidoRepositorio.save_with_boxscore`.
+  - **DTOs:** `PartidoDTO` (de carga — el de solo lectura que ya existe se llama `PartidoResumenDTO`, no se toca), `BoxscoreDTO`, `EstadisticaInputDTO`.
 - **Capa de Infraestructura:**
-  - **CLI:** `stats partido add` con flujo interactivo multi-paso. **Decisión tomada (resuelve una
-    pregunta que quedaba abierta entre esta US y la US-105):** el club **local** es siempre el
-    club activo de la sesión (`SessionManager`, US-105) — no se vuelve a pedir; el club
-    **visitante** se pide como argumento/paso del formulario.
+  - **CLI:** `stats partido add` con flujo interactivo multi-paso. **Decisión tomada (resuelve una pregunta que quedaba abierta entre esta US y la US-105):** el club **local** es siempre el club activo de la sesión (`SessionManager`, US-105) — no se vuelve a pedir; el club **visitante** se pide como argumento/paso del formulario.
 - **Criterios de Aceptación:**
-  - **AC1 — Atomicidad Garantizada (ya cumplido a nivel repositorio, falta ejercitarlo desde el
-    caso de uso):** si falla la inserción del boxscore en cualquier punto, no se guarda el partido
-    huérfano. `save_with_boxscore` ya lo garantiza; falta el test desde `CargarPartidoUseCase`.
-  - **AC2 — Validaciones Pre-persistencia:** la validación de boxscore contra la lista de buena fe
-    ocurre ANTES de llamar al repositorio; el mensaje de error especifica qué jugador causó el
-    error.
-  - **AC3 — Independencia:** el caso de uso no contiene SQL embebido — se delega totalmente al
-    repositorio.
-- **Reglas de Negocio (ya implementadas en `JugadorPartido.__post_init__`, se listan para
-  trazabilidad):**
+  - **AC1 — Atomicidad Garantizada (ya cumplido a nivel repositorio, falta ejercitarlo desde el caso de uso):** si falla la inserción del boxscore en cualquier punto, no se guarda el partido huérfano. `save_with_boxscore` ya lo garantiza; falta el test desde `CargarPartidoUseCase`.
+  - **AC2 — Validaciones Pre-persistencia:** la validación de boxscore contra la lista de buena fe ocurre ANTES de llamar al repositorio; el mensaje de error especifica qué jugador causó el error.
+  - **AC3 — Independencia:** el caso de uso no contiene SQL embebido — se delega totalmente al repositorio.
+- **Reglas de Negocio (ya implementadas en `JugadorPartido.__post_init__`, se listan para trazabilidad):**
   - `(T1C×1) + (T2C×2) + (T3C×3)` = puntos totales.
   - `convertidos ≤ lanzados` para T1, T2, T3.
   - Todos los campos numéricos `≥ 0`.
   - `minutosJugados` entre 0 y 48.
-  - No se puede cargar un partido si los clubes involucrados no existen en la DB (ya lo valida
-    `save_with_boxscore`).
-  - **Solo pueden figurar en el boxscore jugadores habilitados en la lista de buena fe** del club
-    (regla de la sección 3). Los datos ya se pueden cargar desde la US-103 (`stats lista add`);
-    esta US los usa para validar (`CompetenciaRepositorio.obtener_jugadores_lista`) y lanza una
-    excepción de dominio si un jugador no está habilitado. **Esta es la única decisión que sigue
-    de verdad pendiente:** el partido guarda competencia y clubes, pero **no la categoría**; si un
-    club tiene inscripciones en más de una categoría de la misma competencia, hay que definir
-    contra qué lista se valida (por ejemplo, agregar la categoría al partido o validar contra la
-    unión de las listas del club en esa competencia) — a resolver antes de escribir
-    `CargarPartidoUseCase`.
-  - **Nota (campo propuesto, no implementado todavía):** si se agrega a `Partido` un resultado
-    final (`puntosLocalFinal`/`puntosVisitanteFinal`, ver sección 20 y el DER en
-    `docs/diagramas/diagramas.md`), esta US sería el lugar natural para completarlo — junto con
-    una regla que valide que la suma de puntos del boxscore por club coincide con ese resultado
-    final antes de persistir.
+  - No se puede cargar un partido si los clubes involucrados no existen en la DB (ya lo valida `save_with_boxscore`).
+  - **Solo pueden figurar en el boxscore jugadores habilitados en la lista de buena fe** del club (regla de la sección 3). Los datos ya se pueden cargar desde la US-103 (`stats lista add`); esta US los usa para validar (`CompetenciaRepositorio.obtener_jugadores_lista`) y lanza una excepción de dominio si un jugador no está habilitado. **Esta es la única decisión que sigue de verdad pendiente:** el partido guarda competencia y clubes, pero **no la categoría**; si un club tiene inscripciones en más de una categoría de la misma competencia, hay que definir contra qué lista se valida (por ejemplo, agregar la categoría al partido o validar contra la unión de las listas del club en esa competencia) — a resolver antes de escribir `CargarPartidoUseCase`.
+  - **Nota (campo propuesto, no implementado todavía):** si se agrega a `Partido` un resultado final (`puntosLocalFinal`/`puntosVisitanteFinal`, ver sección 20 y el DER en `docs/diagramas/diagramas.md`), esta US sería el lugar natural para completarlo — junto con una regla que valide que la suma de puntos del boxscore por club coincide con ese resultado final antes de persistir.
 - **Testing Mínimo:**
-  - _Unitarias:_ `CargarPartidoUseCase` rechaza un jugador no habilitado en la lista de buena fe
-    (mock de `CompetenciaRepositorio`), camino feliz llama a `save_with_boxscore` con los DTOs
-    traducidos.
-  - _Integración:_ flujo completo (partido + boxscore) en DB `:memory:` con repositorios reales —
-    puede reusar el fixture ya existente de `tests/integration/test_repositorios_partido.py`.
+  - _Unitarias:_ `CargarPartidoUseCase` rechaza un jugador no habilitado en la lista de buena fe (mock de `CompetenciaRepositorio`), camino feliz llama a `save_with_boxscore` con los DTOs traducidos.
+  - _Integración:_ flujo completo (partido + boxscore) en DB `:memory:` con repositorios reales — puede reusar el fixture ya existente de `tests/integration/test_repositorios_partido.py`.
 
 **Archivos a crear:**
 
@@ -1009,16 +869,8 @@ tests/integration/
 #### US-107 — CLI con Command Pattern
 
 - **Esfuerzo:** S (1-3 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, US-105, US-106
-- **Narrativa:** Como administrador, quiero una CLI estructurada con subcomandos claros para
-  gestionar todas las entidades, que muestre los datos en tablas formateadas.
-- **Objetivo Funcional:** **no crea la CLI desde cero** — `main.py` (el composition root) y la
-  mayoría de `commands/` ya existen desde la US-103 (club, jugador, competencia y partido list),
-  la US-104 (auth) y la US-105 (club select). Esta US cierra lo que falta (`partido boxscore`, ya
-  que `partido add` lo agrega la US-106) y hace el pulido final: aplica `require_auth()`/
-  `require_active_club()` (US-105) a todos los comandos que corresponda, muestra DNI y club
-  activo en `jugador list` (pendiente desde la US-103), y confirma que el patrón de subcomandos
-  desacoplados se sostuvo sin bloques `if/else` a lo largo de todas las historias anteriores.
-  **Convención adoptada:** un archivo por acción en `commands/`.
+- **Narrativa:** Como administrador, quiero una CLI estructurada con subcomandos claros para gestionar todas las entidades, que muestre los datos en tablas formateadas.
+- **Objetivo Funcional:** **no crea la CLI desde cero** — `main.py` (el composition root) y la mayoría de `commands/` ya existen desde la US-103 (club, jugador, competencia y partido list), la US-104 (auth) y la US-105 (club select). Esta US cierra lo que falta (`partido boxscore`, ya que `partido add` lo agrega la US-106) y hace el pulido final: aplica `require_auth()`/ `require_active_club()` (US-105) a todos los comandos que corresponda, muestra DNI y club activo en `jugador list` (pendiente desde la US-103), y confirma que el patrón de subcomandos desacoplados se sostuvo sin bloques `if/else` a lo largo de todas las historias anteriores. **Convención adoptada:** un archivo por acción en `commands/`.
 - **Comandos (usar `argparse`):**
 
 ```text
@@ -1071,27 +923,17 @@ src/infraestructura/ui/cli/
 ```
 
 - **Criterios de Aceptación:**
-  - **AC1 — Command Pattern:** agregar un nuevo comando (ej. `stats categoria add`)
-    solo requiere crear su archivo en `commands/` y registrarlo en `construir_parser()` de
-    `main.py` — sin modificar ningún otro comando. Las excepciones de dominio nunca muestran tracebacks al
-    usuario final.
-  - **AC2 — Visualización con vistas SQL:** `stats partido list` usa `v_partidos_resumen` (nombres
-    de clubes, no IDs); `stats partido boxscore <id>` usa `v_boxscore_completo`; `stats jugador list`
-    muestra el club activo del jugador (del historial `jugadorClub`).
-  - **AC3 — Flujo de sesión:** los comandos `club`, `jugador` y `partido` ejecutan `require_auth()`
-    al inicio (de `auth_guards.py`, US-105); `partido` y `jugador list` ejecutan
-    `require_active_club()`.
+  - **AC1 — Command Pattern:** agregar un nuevo comando (ej. `stats categoria add`) solo requiere crear su archivo en `commands/` y registrarlo en `construir_parser()` de `main.py` — sin modificar ningún otro comando. Las excepciones de dominio nunca muestran tracebacks al usuario final.
+  - **AC2 — Visualización con vistas SQL:** `stats partido list` usa `v_partidos_resumen` (nombres de clubes, no IDs); `stats partido boxscore <id>` usa `v_boxscore_completo`; `stats jugador list` muestra el club activo del jugador (del historial `jugadorClub`).
+  - **AC3 — Flujo de sesión:** los comandos `club`, `jugador` y `partido` ejecutan `require_auth()` al inicio (de `auth_guards.py`, US-105); `partido` y `jugador list` ejecutan `require_active_club()`.
 - **Testing Mínimo:**
-  - _Unitario:_ `jugador list` muestra DNI y club activo; `partido boxscore` formatea
-    `v_boxscore_completo`.
-  - _Integración:_ ejecución de cada subcomando con DB en memoria, verificando salida esperada;
-    comando sin sesión → mensaje de error controlado (usa los guards de US-105).
+  - _Unitario:_ `jugador list` muestra DNI y club activo; `partido boxscore` formatea `v_boxscore_completo`.
+  - _Integración:_ ejecución de cada subcomando con DB en memoria, verificando salida esperada; comando sin sesión → mensaje de error controlado (usa los guards de US-105).
 
 #### US-108 — Monitoreo y Trazabilidad Operativa
 
 - **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-107
-- **Objetivo Funcional:** proveer observabilidad transversal estructurada para depuración y
-  soporte, con correlación de eventos extremo-a-extremo por ejecución de comando.
+- **Objetivo Funcional:** proveer observabilidad transversal estructurada para depuración y soporte, con correlación de eventos extremo-a-extremo por ejecución de comando.
 - **Archivos a crear:**
 
 ```text
@@ -1109,25 +951,16 @@ test/
 └── test_logging_redaction.py
 ```
 
-- **Eventos de log obligatorios:** inicio/fin de comando CLI (resultado + duración);
-  `LoginLocalUseCase`/`auth_logout`, `SessionManager.set_active_club` (US-104/105), fallos de
-  autenticación; inicio/fin de transacciones críticas (`CargarPartidoUseCase` de US-106,
-  importación Excel, backup/restore); creación/actualización de entidades principales;
-  excepciones de dominio y errores de infraestructura, clasificados por severidad.
+- **Eventos de log obligatorios:** inicio/fin de comando CLI (resultado + duración); `LoginLocalUseCase`/`auth_logout`, `SessionManager.set_active_club` (US-104/105), fallos de autenticación; inicio/fin de transacciones críticas (`CargarPartidoUseCase` de US-106, importación Excel, backup/restore); creación/actualización de entidades principales; excepciones de dominio y errores de infraestructura, clasificados por severidad.
 - **Criterios de Aceptación:**
   - **AC1.** Niveles DEBUG/INFO/WARNING/ERROR en formato JSON estructurado.
-  - **AC2.** `correlation_id` UUIDv4 generado al inicio de cada comando y propagado hasta
-    repositorios.
-  - **AC3.** Secretos (passwords, tokens, hashes sensibles) redactados en todos los niveles de
-    log.
-  - **AC4.** Selección de sink (local-file o Seq) por configuración, sin cambiar código de
-    negocio.
+  - **AC2.** `correlation_id` UUIDv4 generado al inicio de cada comando y propagado hasta repositorios.
+  - **AC3.** Secretos (passwords, tokens, hashes sensibles) redactados en todos los niveles de log.
+  - **AC4.** Selección de sink (local-file o Seq) por configuración, sin cambiar código de negocio.
   - **AC5.** En modo Seq, eventos filtrables por `correlation_id`, `command_name` y nivel.
 - **Testing Mínimo:**
-  - _Unitario:_ creación y propagación de `execution_context`; redacción de secretos en campos
-    conocidos.
-  - _Integración:_ flujo CLI completo → verificar que cada evento tiene el mismo
-    `correlation_id`.
+  - _Unitario:_ creación y propagación de `execution_context`; redacción de secretos en campos conocidos.
+  - _Integración:_ flujo CLI completo → verificar que cada evento tiene el mismo `correlation_id`.
 
 > **Estado real:** el proyecto ya tiene un logger funcional (`src/infraestructura/logger.py`,
 > rotación 10MB/5 backups, formato `asctime - name - levelname - message`) — es más simple que lo
@@ -1147,9 +980,7 @@ test/
 #### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
 - **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Dependencias:** —
-- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con
-  linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de
-  calidad del proyecto.
+- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto.
 - **Archivos a crear/existentes:**
 
 ```text
@@ -1169,32 +1000,18 @@ pytest.ini / .coveragerc        ➡️ migrados a pyproject.toml ([tool.pytest.i
                                      ejecutados con `uv run`: misma versión de ruff que el CI)
 pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy/pytest/coverage + comando `statspro`; uv.lock; sin requerimientos.txt)
 Makefile                        ✅ existe (instalar_dependencias [uv sync], run_test, run_linter_ruf, corregir_linter, pre_commit, docker_test, static_check)
-docs/catalogo-criticidad.md     ❌ no existe — ver sección 14
 docs/info_modulo/11-flujo-de-trabajo-git.md  ❌ no existe
 ```
 
 - **Criterios de Aceptación:**
-  - **AC1.** `make run_test` ejecuta la suite completa y falla si la cobertura baja del piso de
-    `[tool.coverage.report]` de `pyproject.toml` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro
-    `cobertura-minima`; cumple el ≥ 80 % pedido) y guarda el reporte HTML como _artifact_.
+  - **AC1.** `make run_test` ejecuta la suite completa y falla si la cobertura baja del piso de `[tool.coverage.report]` de `pyproject.toml` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro `cobertura-minima`; cumple el ≥ 80 % pedido) y guarda el reporte HTML como _artifact_.
   - **AC2.** `make lint`/`run_linter_ruf` falla ante cualquier infracción de estilo.
-  - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error
-    de linting o de tipos, dependencias con vulnerabilidades conocidas o secretos en el historial.
-  - **AC4.** `pre-commit install` configura hooks locales en un único comando (los hooks de ruff
-    se ejecutan con `uv run`: usan la versión fijada en `pyproject.toml`, la misma del CI).
-  - **AC5.** `docs/catalogo-criticidad.md` inicializado con al menos los módulos de autenticación
-    y persistencia.
-  - **AC6 — Job agregador y required status checks (nuevo, antes solo vivía en
-    `ideas-aprendizaje.md` §8.9):** un job final `ci-ok` que depende de todos los demás y falla si
-    alguno falló; registrado como _required status check_ de la rama, para que un PR con el CI en
-    rojo no se pueda mergear.
-  - **AC7 — `ruff format --check` (nuevo, antes §8.2):** el job `lint` también falla si algún
-    archivo no está formateado con `ruff format`, no solo si viola reglas de estilo.
-  - **AC8 — Smoke test de la CLI (nuevo, antes §8.14):** un paso que corre
-    `uv run python src/main.py --help` y falla si el import se rompe.
-- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint
-  intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje
-  explicativo; un PR con un job en rojo no puede mergearse (AC6).
+  - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error de linting o de tipos, dependencias con vulnerabilidades conocidas o secretos en el historial.
+  - **AC4.** `pre-commit install` configura hooks locales en un único comando (los hooks de ruff se ejecutan con `uv run`: usan la versión fijada en `pyproject.toml`, la misma del CI)..
+  - **AC6 — Job agregador y required status checks (nuevo, antes solo vivía en `ideas-aprendizaje.md` §8.9):** un job final `ci-ok` que depende de todos los demás y falla si alguno falló; registrado como _required status check_ de la rama, para que un PR con el CI en rojo no se pueda mergear.
+  - **AC7 — `ruff format --check` (nuevo, antes §8.2):** el job `lint` también falla si algún archivo no está formateado con `ruff format`, no solo si viola reglas de estilo.
+  - **AC8 — Smoke test de la CLI (nuevo, antes §8.14):** un paso que corre `uv run python src/main.py --help` y falla si el import se rompe.
+- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6).
 
 > **Estado real:** ver `docs/ideas-aprendizaje.md` sección 8 (informe de CI) para el detalle
 > técnico de cada punto. Ya aplicado (2026-09-20): `mypy`, `pip-audit`, build de Docker, una sola
