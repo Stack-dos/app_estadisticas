@@ -1,12 +1,12 @@
 # Spike: Sincronización Local-First con Supabase
 
-| Campo           | Valor                                                                   |
-| --------------- | ----------------------------------------------------------------------- |
-| Estado          | Propuesto (no iniciado)                                                 |
-| Fecha           | 2026-10-17                                                              |
-| Rama sugerida   | `spike/sync-supabase`                                                   |
-| Timebox         | 2–3 días de trabajo. Si se pasa, se corta y se documenta lo aprendido. |
-| Relacionado con | ADR-001 (Local-First), NFR-6 (Offline), Hito 5 del roadmap (sección 16) |
+| Campo           | Valor                                                                              |
+| --------------- | ---------------------------------------------------------------------------------- |
+| Estado          | Propuesto (no iniciado)                                                            |
+| Fecha           | 2026-10-17                                                                         |
+| Rama sugerida   | `spike/sync-supabase`                                                              |
+| Timebox         | 2–3 días de trabajo. Si se pasa, se corta y se documenta lo aprendido.             |
+| Relacionado con | ADR-001 (Local-First), NFR-6 (Offline), Hito 5 del roadmap (sección 16)            |
 | Entregable      | Este documento completado + borrador de `docs/adr/ADR-010-sincronizacion-cloud.md` |
 
 ---
@@ -70,12 +70,12 @@ real del Hito 5.
 
 ### Cambios de esquema que exige
 
-| Cambio | Por qué | Costo si se hace tarde |
-| ------ | ------- | ---------------------- |
-| **PK UUID** (texto) en vez de `INTEGER AUTOINCREMENT` | Dos dispositivos offline generarían el mismo `idPartido = 5` | **Alto**: hay que reescribir todas las FKs con datos reales de usuarios |
-| Columna `updated_at` (ISO-8601 UTC) | Saber qué cambió desde el último pull y resolver conflictos | Medio |
-| Borrado lógico `deleted_at` | Un `DELETE` físico no se puede sincronizar (no queda nada que subir) | Medio |
-| Tablas `outbox` y `sync_estado` | Cola de cambios pendientes y marca del último pull | Bajo (son nuevas) |
+| Cambio                                                | Por qué                                                              | Costo si se hace tarde                                                  |
+| ----------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| **PK UUID** (texto) en vez de `INTEGER AUTOINCREMENT` | Dos dispositivos offline generarían el mismo `idPartido = 5`         | **Alto**: hay que reescribir todas las FKs con datos reales de usuarios |
+| Columna `updated_at` (ISO-8601 UTC)                   | Saber qué cambió desde el último pull y resolver conflictos          | Medio                                                                   |
+| Borrado lógico `deleted_at`                           | Un `DELETE` físico no se puede sincronizar (no queda nada que subir) | Medio                                                                   |
+| Tablas `outbox` y `sync_estado`                       | Cola de cambios pendientes y marca del último pull                   | Bajo (son nuevas)                                                       |
 
 > `jugadorPartido` ya tiene PK compuesta `(idJugador, idPartido)`: si esas dos son UUID, la PK
 > compuesta sirve tal cual.
@@ -267,28 +267,28 @@ Sin implementarlo, bocetar en el ADR cómo quedaría en el proyecto real:
 
 ## 6. Escenarios de prueba (criterios de éxito)
 
-| # | Escenario | Resultado esperado |
-| - | --------- | ------------------ |
-| E1 | Celu crea partido + 10 estadísticas offline → push → PC hace pull | PC tiene el partido y las 10 filas, con los mismos UUID |
-| E2 | Celu y PC crean partidos distintos offline → ambos sincronizan | Ambos tienen los 2 partidos, sin choque de IDs |
-| E3 | Se corta la red a mitad del push (simular con excepción) → reintento | Sin duplicados ni pérdidas; outbox vacío al final |
-| E4 | Mismo partido editado en celu (10:00) y en PC (10:05) → ambos sincronizan | Gana la edición de las 10:05 en los dos dispositivos |
-| E5 | Celu borra un partido → sincroniza → PC hace pull | En PC queda con `deleted_at` y las consultas lo ocultan |
-| E6 | Push/pull ejecutados dos veces seguidas sin cambios | No se modifica nada (idempotencia) |
-| E7 | Sin red, la app sigue creando y consultando datos | Funciona igual (NFR-6), solo crece el outbox |
+| #   | Escenario                                                                 | Resultado esperado                                      |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------- |
+| E1  | Celu crea partido + 10 estadísticas offline → push → PC hace pull         | PC tiene el partido y las 10 filas, con los mismos UUID |
+| E2  | Celu y PC crean partidos distintos offline → ambos sincronizan            | Ambos tienen los 2 partidos, sin choque de IDs          |
+| E3  | Se corta la red a mitad del push (simular con excepción) → reintento      | Sin duplicados ni pérdidas; outbox vacío al final       |
+| E4  | Mismo partido editado en celu (10:00) y en PC (10:05) → ambos sincronizan | Gana la edición de las 10:05 en los dos dispositivos    |
+| E5  | Celu borra un partido → sincroniza → PC hace pull                         | En PC queda con `deleted_at` y las consultas lo ocultan |
+| E6  | Push/pull ejecutados dos veces seguidas sin cambios                       | No se modifica nada (idempotencia)                      |
+| E7  | Sin red, la app sigue creando y consultando datos                         | Funciona igual (NFR-6), solo crece el outbox            |
 
 **El spike es exitoso si pasan E1–E7.** Si E3 o E4 no se pueden resolver de forma simple, es una
 señal fuerte para evaluar PowerSync/ElectricSQL o postergar.
 
 ## 7. Alternativas a evaluar en el ADR
 
-| Opción | A favor | En contra |
-| ------ | ------- | --------- |
-| **Sync propio + Supabase (este spike)** | Control total, Python puro, sin dependencias raras | Hay que escribir y testear la lógica de sync |
-| **PowerSync** (integración oficial con Supabase) | Resuelve outbox, conflictos y reintentos | Sin SDK Python/Flet; obligaría a cambiar de stack de UI (contradice ADR-002) |
-| **ElectricSQL** | Sync Postgres ↔ cliente | Orientado a JS/web; mismo problema que PowerSync |
-| **FastAPI + Postgres propio** (lo que dice el Hito 5) | Sin dependencia de proveedor | Hay que operar un servidor; más trabajo que Supabase |
-| **Exportar/importar archivo** (Drive, mail, etc.) | Trivial, ya existe base con ADR-008 | Manual, sin merge: pisa los datos del otro dispositivo |
+| Opción                                                | A favor                                            | En contra                                                                    |
+| ----------------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Sync propio + Supabase (este spike)**               | Control total, Python puro, sin dependencias raras | Hay que escribir y testear la lógica de sync                                 |
+| **PowerSync** (integración oficial con Supabase)      | Resuelve outbox, conflictos y reintentos           | Sin SDK Python/Flet; obligaría a cambiar de stack de UI (contradice ADR-002) |
+| **ElectricSQL**                                       | Sync Postgres ↔ cliente                            | Orientado a JS/web; mismo problema que PowerSync                             |
+| **FastAPI + Postgres propio** (lo que dice el Hito 5) | Sin dependencia de proveedor                       | Hay que operar un servidor; más trabajo que Supabase                         |
+| **Exportar/importar archivo** (Drive, mail, etc.)     | Trivial, ya existe base con ADR-008                | Manual, sin merge: pisa los datos del otro dispositivo                       |
 
 ## 8. Costos y plan gratis (a verificar en el spike)
 
@@ -322,13 +322,13 @@ Limitaciones del plan Free que sí importan para producción:
 
 La sync tiene costo recurrente, así que es candidata natural a ser la parte paga:
 
-| Modelo | Idea | A favor | En contra |
-| ------ | ---- | ------- | --------- |
+| Modelo                            | Idea                                                                      | A favor                                                              | En contra                                     |
+| --------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------- |
 | **Freemium local + sync paga** ⭐ | App completa gratis offline; sync, backup cloud y multi-dispositivo pagos | Usuarios gratis no generan costo de servidor; se cobra lo que cuesta | Hay que convencer de que la sync vale la pena |
-| Suscripción por DT | ~USD 3–5/mes | Simple, recurrente | Alta sensibilidad al precio en formativas |
-| Plan por club | El club paga por varios DTs/categorías | Ticket más alto; encaja con `usuarioClub` | Venta más lenta |
-| Licencia única | Pago único por la app local | Sin costo recurrente para el usuario | No cubre servidores |
-| B2B federaciones | Hito 8 | Contratos grandes | Muy lejano |
+| Suscripción por DT                | ~USD 3–5/mes                                                              | Simple, recurrente                                                   | Alta sensibilidad al precio en formativas     |
+| Plan por club                     | El club paga por varios DTs/categorías                                    | Ticket más alto; encaja con `usuarioClub`                            | Venta más lenta                               |
+| Licencia única                    | Pago único por la app local                                               | Sin costo recurrente para el usuario                                 | No cubre servidores                           |
+| B2B federaciones                  | Hito 8                                                                    | Contratos grandes                                                    | Muy lejano                                    |
 
 Notas: Google Play exige su facturación para suscripciones dentro de la app (~15%). A USD 4/mes,
 unos 7–10 suscriptores cubren Supabase Pro. **El riesgo real es la disposición a pagar**:
@@ -350,13 +350,13 @@ _(Completar al terminar el spike.)_
 
 | Escenario | Resultado | Observaciones |
 | --------- | --------- | ------------- |
-| E1 | | |
-| E2 | | |
-| E3 | | |
-| E4 | | |
-| E5 | | |
-| E6 | | |
-| E7 | | |
+| E1        |           |               |
+| E2        |           |               |
+| E3        |           |               |
+| E4        |           |               |
+| E5        |           |               |
+| E6        |           |               |
+| E7        |           |               |
 
 **Espacio medido:** _…_
 

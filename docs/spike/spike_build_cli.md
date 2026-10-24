@@ -1,13 +1,13 @@
 # Spike: Empaquetado e Instalación de la CLI
 
-| Campo           | Valor                                                                          |
-| --------------- | ------------------------------------------------------------------------------ |
-| Estado          | Propuesto (no iniciado)                                                        |
-| Fecha           | 2026-10-17                                                                     |
-| Rama sugerida   | `spike/build-cli`                                                              |
-| Timebox         | 1–2 días. Si se pasa, se corta y se documenta lo aprendido.                    |
-| Relacionado con | US-404 (Empaquetado y Distribución), ADR-001 (Local-First), ADR-008 (Backup)  |
-| Entregable      | Este documento completado + lista de cambios a llevar a una US/tarea real      |
+| Campo           | Valor                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| Estado          | Propuesto (no iniciado)                                                      |
+| Fecha           | 2026-10-17                                                                   |
+| Rama sugerida   | `spike/build-cli`                                                            |
+| Timebox         | 1–2 días. Si se pasa, se corta y se documenta lo aprendido.                  |
+| Relacionado con | US-404 (Empaquetado y Distribución), ADR-001 (Local-First), ADR-008 (Backup) |
+| Entregable      | Este documento completado + lista de cambios a llevar a una US/tarea real    |
 
 ---
 
@@ -98,12 +98,12 @@ escritura.
 
 **Solución:** carpeta de datos del usuario, con `platformdirs`:
 
-| Sistema | Ubicación típica de `user_data_dir("StatsPro")` |
-| ------- | ----------------------------------------------- |
-| Windows | `C:\Users\<user>\AppData\Local\StatsPro\StatsPro` |
-| Linux   | `~/.local/share/StatsPro` |
-| macOS   | `~/Library/Application Support/StatsPro` |
-| Android (Flet, Hito 4) | carpeta privada de la app |
+| Sistema                | Ubicación típica de `user_data_dir("StatsPro")`   |
+| ---------------------- | ------------------------------------------------- |
+| Windows                | `C:\Users\<user>\AppData\Local\StatsPro\StatsPro` |
+| Linux                  | `~/.local/share/StatsPro`                         |
+| macOS                  | `~/Library/Application Support/StatsPro`          |
+| Android (Flet, Hito 4) | carpeta privada de la app                         |
 
 Sugerencia de diseño:
 
@@ -142,13 +142,13 @@ schema = files("statspro.infraestructura.persistencia").joinpath("sql/schema.sql
 
 ## 4. Formas de distribución a comparar
 
-| Opción | Cómo se instala | A favor | En contra |
-| ------ | --------------- | ------- | --------- |
-| **`uv tool install` desde el wheel o desde git** ⭐ | `uv tool install statspro_basketball-0.1.0-py3-none-any.whl` o `uv tool install git+https://github.com/<repo>` | Entorno aislado, actualización simple (`uv tool upgrade`), multiplataforma | Requiere tener `uv` (y que uv baje Python si no hay) |
-| `pipx install` | Igual que la anterior, con pipx | Conocido | Otra herramienta más; el proyecto ya usa uv |
-| `pip install` en un venv | Manual | Universal | El usuario maneja el venv; poco amigable para un DT |
-| **Ejecutable único** (PyInstaller / Nuitka) | Descargar `statspro.exe` | No requiere Python | Binario pesado (pandas: ~50–100 MB), uno por SO, antivirus que marcan falsos positivos |
-| Publicar en PyPI | `uv tool install statspro-basketball` | Lo más cómodo | Público; prematuro para v0.1 |
+| Opción                                              | Cómo se instala                                                                                                | A favor                                                                    | En contra                                                                              |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **`uv tool install` desde el wheel o desde git** ⭐ | `uv tool install statspro_basketball-0.1.0-py3-none-any.whl` o `uv tool install git+https://github.com/<repo>` | Entorno aislado, actualización simple (`uv tool upgrade`), multiplataforma | Requiere tener `uv` (y que uv baje Python si no hay)                                   |
+| `pipx install`                                      | Igual que la anterior, con pipx                                                                                | Conocido                                                                   | Otra herramienta más; el proyecto ya usa uv                                            |
+| `pip install` en un venv                            | Manual                                                                                                         | Universal                                                                  | El usuario maneja el venv; poco amigable para un DT                                    |
+| **Ejecutable único** (PyInstaller / Nuitka)         | Descargar `statspro.exe`                                                                                       | No requiere Python                                                         | Binario pesado (pandas: ~50–100 MB), uno por SO, antivirus que marcan falsos positivos |
+| Publicar en PyPI                                    | `uv tool install statspro-basketball`                                                                          | Lo más cómodo                                                              | Público; prematuro para v0.1                                                           |
 
 Para probadores (vos, colegas DTs con algo de manejo técnico), `uv tool install` desde git o
 desde un wheel adjunto a un GitHub Release alcanza. El ejecutable único es más relevante para
@@ -240,15 +240,15 @@ Un job de GitHub Actions que corra `uv build`, instale el wheel en un entorno li
 
 ## 6. Criterios de éxito
 
-| # | Criterio | Resultado esperado |
-| - | -------- | ------------------ |
-| C1 | `uv build` | Genera wheel con un solo paquete raíz `statspro` y los `.sql` adentro |
-| C2 | Instalar el wheel fuera del repo | `statspro --help` y `statspro --version` funcionan |
-| C3 | Primera ejecución | La DB se crea en la carpeta de datos del usuario, con esquema completo |
-| C4 | `STATSPRO_HOME=/tmp/x statspro club list` | Usa esa carpeta |
-| C5 | Desinstalar y reinstalar | La base y sus datos siguen ahí |
-| C6 | Suite de tests, ruff y mypy | Todo verde después del refactor, cobertura ≥ 85 % en Linux |
-| C7 | Windows y Linux/WSL | Funciona en ambos, cada uno con su propia DB |
+| #   | Criterio                                  | Resultado esperado                                                     |
+| --- | ----------------------------------------- | ---------------------------------------------------------------------- |
+| C1  | `uv build`                                | Genera wheel con un solo paquete raíz `statspro` y los `.sql` adentro  |
+| C2  | Instalar el wheel fuera del repo          | `statspro --help` y `statspro --version` funcionan                     |
+| C3  | Primera ejecución                         | La DB se crea en la carpeta de datos del usuario, con esquema completo |
+| C4  | `STATSPRO_HOME=/tmp/x statspro club list` | Usa esa carpeta                                                        |
+| C5  | Desinstalar y reinstalar                  | La base y sus datos siguen ahí                                         |
+| C6  | Suite de tests, ruff y mypy               | Todo verde después del refactor, cobertura ≥ 85 % en Linux             |
+| C7  | Windows y Linux/WSL                       | Funciona en ambos, cada uno con su propia DB                           |
 
 ## 7. Riesgos
 
@@ -275,13 +275,13 @@ _(Completar al terminar el spike.)_
 
 | Criterio | Resultado | Observaciones |
 | -------- | --------- | ------------- |
-| C1 | | |
-| C2 | | |
-| C3 | | |
-| C4 | | |
-| C5 | | |
-| C6 | | |
-| C7 | | |
+| C1       |           |               |
+| C2       |           |               |
+| C3       |           |               |
+| C4       |           |               |
+| C5       |           |               |
+| C6       |           |               |
+| C7       |           |               |
 
 **Archivos tocados por el refactor de imports:** _…_
 
