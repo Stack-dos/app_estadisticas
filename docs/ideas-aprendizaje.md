@@ -20,7 +20,7 @@ backoff exponencial que aparece en sistemas distribuidos reales (la vimos en det
 proyecto con MQTT/reconexión de red).
 
 **Dónde encajaría:** en `infraestructura/ingest/` (Hito 2, US-201), envolviendo la lectura del
-Excel de Ges Deportivo — si el archivo está momentáneamente bloqueado (por ejemplo, todavía
+Excel de Gesdeportiva — si el archivo está momentáneamente bloqueado (por ejemplo, todavía
 abierto en Excel), reintenta un par de veces antes de fallar.
 
 ## 2. Cache simple en memoria para consultas de solo lectura
@@ -95,7 +95,7 @@ Uniendo lo que hoy ya existe (derivado, no como variable de entorno todavía) co
 | Carpeta de logs                                  | Calculada en `rutas.py`                    | Igual — parte del código                                                                                       |
 | Nivel de logging                                 | Fijo en `logger.py` (INFO al archivo)      | `STATSPRO_LOG_LEVEL` — `DEBUG` en desarrollo, `INFO` o `WARNING` en producción, sin tocar código               |
 | Modo de base de datos                            | Implícito en cada test (`:memory:` a mano) | `STATSPRO_ENV=test` podría hacer que `Settings` fuerce `:memory:` automáticamente                              |
-| Configuración de Ges Deportivo (Hito 2+)         | No existe todavía                          | Si el formato de columnas cambia entre clubes, podría parametrizarse acá en vez de hardcodear en el parser     |
+| Configuración de Gesdeportiva (Hito 2+)         | No existe todavía                          | Si el formato de columnas cambia entre clubes, podría parametrizarse acá en vez de hardcodear en el parser     |
 
 La regla general: **si dos personas del equipo, o dos entornos (tu máquina / CI / la compu del
 usuario final), necesitarían un valor distinto para lo mismo, es candidato a variable de
@@ -151,6 +151,8 @@ secundarios) son lo más fácil de testear que existe en programación — ideal
 `__post_init__` de las entidades que lo necesiten.
 
 ## 6. Un comando CLI mínimo, antes de construir toda la US-106
+
+> **Obsoleta (2026-10-31):** la CLI ya se construyó en la US-103 y se retira en la US-105. Queda como registro de la idea.
 
 **Qué es:** antes de armar toda la infraestructura de Command Pattern que pide la US-106, un
 experimento chico: un único archivo con `argparse` que soporte `stats club list` y lea
@@ -214,7 +216,7 @@ introducción al concepto de _supply chain security_ sin ninguna complejidad de 
 Un paso (ej. con la acción `gitleaks`) que escanea el diff del PR buscando patrones de
 contraseñas, tokens o claves que se hayan subido por error. Particularmente relevante acá porque
 el proyecto maneja hashes de contraseñas y, más adelante, quizás credenciales de la base de datos
-o de algún servicio externo (Ges Deportivo). Es un solo paso de YAML, sin configuración adicional
+o de algún servicio externo (Gesdeportiva). Es un solo paso de YAML, sin configuración adicional
 para el caso base.
 
 ### 7.6 Validar que el schema/vistas SQL siguen siendo válidos, aislado de pytest
@@ -701,6 +703,8 @@ Prioridad baja: hacerlo solo para las actions de terceros es un buen punto medio
 ---
 
 ### 8.14 Probar que la CLI "prende" (_smoke test_)
+
+> **Aplicada el 2026-10-11; cambia en la US-105:** con la CLI retirada, el paso deja de ser `main.py --help` y pasa a importar el composition root de la GUI (`app.py`) sin abrir ninguna ventana. La idea (probar que el programa arranca fuera de pytest) es la misma.
 
 **Qué es.** Un _smoke test_ ("prueba de humo") verifica solo lo mínimo: que el programa arranca. Viene de la electrónica: enchufás el aparato y mirás si sale humo.
 
