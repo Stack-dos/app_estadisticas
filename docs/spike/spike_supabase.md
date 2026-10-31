@@ -294,7 +294,7 @@ señal fuerte para evaluar PowerSync/ElectricSQL o postergar.
 
 Estimación previa: una fila de `jugadorPartido` ≈ 0,5 KB con índices → una temporada-equipo
 (15 jugadores × 30 partidos) ≈ 225 KB → **500 MB ≈ 2.000 temporadas-equipo**. El espacio no
-parece ser el límite si **no** se suben los Excel de Ges Deportivo (se procesan localmente).
+parece ser el límite si **no** se suben los Excel de Gesdeportiva (se procesan localmente).
 
 Limitaciones del plan Free que sí importan para producción:
 
