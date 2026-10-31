@@ -227,3 +227,6 @@ diagrama_flujo*
 skills-lock.json
 docs/diagramas/
 .opencode/
+
+# Archivos reales de Gesdeportiva: nombres de jugadores menores de edad, no se suben
+data/
