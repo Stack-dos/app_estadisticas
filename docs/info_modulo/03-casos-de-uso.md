@@ -72,6 +72,10 @@ un campo sería sobre-ingeniería. Los listados 11 y 12 no reciben nada (devuelv
 
 ### 3.1 `RegistrarJugadorUseCase`
 
+> **Aviso (2026-10-31):** los jugadores dejan de tener DNI y el año de nacimiento pasa a ser
+> opcional. Lo cambia el ajuste previo a la US-105 (ver el PRD), que también actualiza esta sección.
+> Hasta entonces, lo de abajo describe el código actual.
+
 Registra un jugador nuevo.
 
 - **Constructor:** `RegistrarJugadorUseCase(jugador_repo: JugadorRepositorio)`
