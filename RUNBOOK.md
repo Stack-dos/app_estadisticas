@@ -1,7 +1,9 @@
 # RUNBOOK — cómo operar StatsPro Basketball
 
 Un *runbook* es la guía práctica de **cómo se usa y se mantiene** algo: qué comandos correr, qué esperar como resultado y qué hacer cuando algo falla. Este documento cubre la CLI
-(`stats`), la base de datos, los tests y las herramientas de calidad. Para entender **por qué** el código está organizado como está, ver [docs/info_modulo/04-arquitectura.md](docs/info_modulo/04-arquitectura.md).
+(`stats`), la base de datos, los tests y las herramientas de calidad.
+
+> **Aviso (2026-10-31):** la CLI se retira en la **US-105**, que la reemplaza por una app de escritorio (Flet). Lo que este documento cuenta sobre el uso de la CLI sigue siendo válido hasta esa US y se reescribe en ella; lo de base de datos, tests y calidad no cambia. Para entender **por qué** el código está organizado como está, ver [docs/info_modulo/04-arquitectura.md](docs/info_modulo/04-arquitectura.md).
 
 ## Índice
 
@@ -598,8 +600,8 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 
 El estado del proyecto por historia de usuario está en el [README](README.md). Hoy, desde la CLI:
 
-- **No hay login ni sesión** (US-104): por eso `club list` pide `--id-usuario` y no existe `club select`. Los clubes creados no quedan vinculados a ningún usuario.
+- **No hay sesión** (US-106): el registro y el login existen (US-104), pero nada recuerda al usuario entre un comando y otro; por eso `club list` pide `--id-usuario` y no existe `club select`. Los clubes creados no quedan vinculados a ningún usuario.
 - **No se puede editar ni borrar** clubes, competencias ni jugadores (el PRD solo pide crear, listar y vincular): un dato mal cargado hoy solo se corrige en la base.
 - **No hay un comando para ver el historial de clubes de un jugador** (`jugador list` muestra solo los actuales de un club); el dato está guardado y el repositorio ya lo expone.
-- **No se pueden cargar partidos ni estadísticas** (US-105): `partido list` solo muestra los que ya estén en la base (por ejemplo, los del seed).
+- **No se pueden cargar partidos ni estadísticas** (US-108): `partido list` solo muestra los que ya estén en la base (por ejemplo, los del seed).
 - **Errores de nombre repetido de club** muestran un mensaje genérico (`no se pudo guardar el club`).
