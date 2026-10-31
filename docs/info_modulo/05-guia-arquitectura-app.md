@@ -152,7 +152,7 @@ Para mantener orden, aquí está el mapa de Casos de Uso orquestadores. Cada uno
 A medida que el proyecto crezca, el diseño orientado a Casos de Uso brilla, porque añadir una nueva funcionalidad es simplemente agregar una nueva clase en la capa de Aplicación, sin tocar las demás.
 
 **Hito 2: Ingesta y Motor Analítico**
-*   `IngestarExcelGesDeportivoUseCase`: (Dep: `ExcelParserService`, `PartidoRepo`) -> Lee un excel y lo transforma en entidades del dominio.
+*   `ImportarPlanillaPartidoUseCase`: (Dep: parsers de Excel y PDF, `CargarPartidoUseCase`) -> Lee una planilla de partido de Gesdeportiva y la transforma en entidades del dominio.
 *   `CalcularMetricasAvanzadasUseCase`: (Dep: `EstadisticasRepo`, `MotorAnaliticoService`) -> Recalcula PER, TS%, USG% tras un partido.
 *   `SincronizarDatosNubeUseCase`: (Dep: `NubeSyncPort`) -> Sube el SQLite local a un almacenamiento en la nube.
 
@@ -199,7 +199,7 @@ lo que sigue es el mapa entre el concepto y lo que **realmente existe** en el re
 | :--- | :--- |
 | Caso de Uso como **clase** con un método | Clases en `src/aplicacion/casos_uso/`; el método se llama **`ejecutar()`** (no `execute`) |
 | Inyección de dependencias por constructor | `RegistrarJugadorUseCase(jugador_repo)`, `InscribirClubEnCompetenciaUseCase(repo_competencia, repo_club)` |
-| *Composition Root* | Cada **comando de la CLI** arma el repositorio real y se lo pasa al caso de uso (ver [04-arquitectura.md](04-arquitectura.md), sección 10) |
+| *Composition Root* | Hoy cada **comando de la CLI** arma el repositorio real y se lo pasa al caso de uso (ver [04-arquitectura.md](04-arquitectura.md), sección 10); desde la US-105 lo hace `ui/flet/app.py` una sola vez al arrancar la GUI |
 | Puerto de salida (interfaz en el Dominio) | Clases `ABC` en `src/dominio/repositorios/` (`JugadorRepositorio`, `ClubRepositorio`, ...), no `Protocol` (ver [07-protocolos.md](07-protocolos.md)) |
 | Entidad con invariantes | `dataclass` en `src/dominio/entidades/` que valida en `__post_init__` (tipos, rangos, reglas del boxscore) |
 | DTO de entrada / salida | `dataclass` simples en `src/aplicacion/dtos/` (`CrearJugadorDTO` entra, `JugadorDTO` sale). **No** son `frozen=True` |
@@ -208,7 +208,7 @@ lo que sigue es el mapa entre el concepto y lo que **realmente existe** en el re
 
 **Dos decisiones que conviene conocer:**
 
-- **Los casos de uso devuelven DTOs, no entidades** (con una excepción hoy: `VincularJugadorAClubUseCase` devuelve la entidad `JugadorClub`). Así la CLI no queda acoplada a la forma interna del dominio.
+- **Los casos de uso devuelven DTOs, no entidades** (con una excepción hoy: `VincularJugadorAClubUseCase` devuelve la entidad `JugadorClub`). Así la interfaz (hoy la CLI, desde la US-105 la GUI) no queda acoplada a la forma interna del dominio.
 - **Las entidades declaran su ID como `int | None`** (antes de guardarse no lo tienen) pero los DTOs de salida exigen `int`. La función `id_persistido()` de `src/utils.py` deja esa garantía explícita en un solo lugar.
 
 El catálogo real de casos de uso (qué recibe y qué devuelve cada uno, paso a paso) está en [03-casos-de-uso.md](03-casos-de-uso.md). La tabla de la sección 3 de esta guía

@@ -176,6 +176,8 @@ No obstante, la decisión de adoptar el patrón debe sopesarse cuidadosamente fr
 
 ## **Cómo lo aplica este proyecto (la CLI de StatsPro)**
 
+> **Aviso (2026-10-31):** la CLI se retira en la **US-105**. Esta sección describe cómo quedó aplicada hasta entonces; la teoría de arriba sigue valiendo. En la GUI el mismo objetivo (agregar una acción sin tocar las demás) lo cumple la convención "una pantalla por archivo" registrada en la tabla de rutas de `app.py`.
+
 Todo lo anterior es la teoría general del patrón. En este proyecto se usa una variante **funcional y liviana**, la tercera columna de la tabla de arriba
 (*"referencia a función sin clases adicionales"*), apoyada en `argparse`. No hay una clase por comando: cada comando es una **función `ejecutar`** y el parser
 `argparse` cumple el rol de *Invoker*.

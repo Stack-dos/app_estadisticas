@@ -212,7 +212,7 @@ inscripcion
 
 ### Las vistas se recrean en cada arranque
 
-`views.sql` empieza con `DROP VIEW IF EXISTS` para las cuatro vistas y luego las crea de nuevo. Como `main()` ejecuta el esquema y las vistas **cada vez que arranca la CLI**,
+`views.sql` empieza con `DROP VIEW IF EXISTS` para las cuatro vistas y luego las crea de nuevo. Como el esquema y las vistas se ejecutan **cada vez que arranca la aplicación** (hoy la CLI, desde la US-105 la GUI),
 las vistas siempre quedan con su definición más reciente sin necesidad de migraciones. Esto es seguro porque una vista **no guarda datos** (solo una consulta).
 Con las **tablas** es al revés: `schema.sql` **no** borra nada (solo `CREATE TABLE IF NOT EXISTS`), porque borrar una tabla borraría los datos del usuario.
 

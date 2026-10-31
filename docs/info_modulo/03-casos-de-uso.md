@@ -545,26 +545,31 @@ caso_uso = InscribirClubEnCompetenciaUseCase(
 En un test se pasa un repositorio falso en lugar del SQLite: como el constructor recibe la interfaz, el
 caso de uso no se entera de la diferencia.
 
-## 7. Estado en la CLI
+## 7. Estado en la interfaz
 
-| Caso de uso                          | Comando CLI                   | Estado                                                        |
-| ------------------------------------ | ----------------------------- | ------------------------------------------------------------- |
-| `RegistrarJugadorUseCase`            | `stats jugador add`           | ✅ Implementado                                               |
-| `CrearClubUseCase`                   | `stats club add`              | ✅ Implementado                                               |
-| `VincularJugadorAClubUseCase`        | `stats jugador link`          | ✅ Implementado                                               |
-| `CrearCompetenciaUseCase`            | `stats competencia add`       | ✅ Implementado                                               |
-| `InscribirClubEnCompetenciaUseCase`  | `stats competencia inscribir` | ✅ Implementado                                               |
-| `ListarClubesUsuarioUseCase`         | `stats club list`             | ✅ Implementado (con `--id-usuario` provisorio hasta la US-104) |
-| `ListarJugadoresClubUseCase`         | `stats jugador list`          | ✅ Implementado                                               |
-| `ListarPartidosPorClubUseCase`       | `stats partido list`          | ✅ Implementado                                               |
-| `CambiarClubActivoUseCase`           | `stats club select`           | ⬜ Pendiente (necesita el `SessionManager` de la US-104)      |
-| `CrearCategoriaUseCase`              | `stats categoria add`         | ✅ Implementado                                               |
-| `ListarCategoriasUseCase`            | `stats categoria list`        | ✅ Implementado                                               |
-| `ListarCompetenciasUseCase`          | `stats competencia list`      | ✅ Implementado                                               |
-| `ListarInscripcionesClubUseCase`     | `stats inscripcion list`      | ✅ Implementado                                               |
-| `AgregarJugadorAListaBuenaFeUseCase` | `stats lista add`             | ✅ Implementado                                               |
-| `ListarListaBuenaFeUseCase`          | `stats lista list`            | ✅ Implementado                                               |
-| `DesvincularJugadorDeClubUseCase`    | `stats jugador unlink`        | ✅ Implementado                                               |
-| `QuitarJugadorDeListaBuenaFeUseCase` | `stats lista remove`          | ✅ Implementado                                               |
+> **Aviso (2026-10-31):** la CLI se retira en la **US-105**. La columna "Comando CLI" describe la interfaz actual; la columna
+> "Pantalla (GUI)" indica dónde queda cada caso de uso después del retiro.
 
-La referencia de uso de cada comando (opciones, ejemplos, errores) está en el [RUNBOOK](../../RUNBOOK.md).
+| Caso de uso                          | Comando CLI (hasta la US-105) | Pantalla (GUI)                     | Estado                                                        |
+| ------------------------------------ | ----------------------------- | ---------------------------------- | ------------------------------------------------------------- |
+| `RegistrarEntrenadorUseCase`         | `stats auth register`         | `RegistroScreen` (US-105)          | ✅ Implementado (US-104)                                      |
+| `LoginLocalUseCase`                  | `stats auth login`            | `LoginScreen` (US-105)             | ✅ Implementado (US-104)                                      |
+| `RegistrarJugadorUseCase`            | `stats jugador add`           | `JugadoresScreen` (US-107)         | ✅ Implementado |
+| `CrearClubUseCase`                   | `stats club add`              | `ClubesScreen` (US-106)            | ✅ Implementado |
+| `VincularJugadorAClubUseCase`        | `stats jugador link`          | `JugadoresScreen` (US-107)         | ✅ Implementado |
+| `CrearCompetenciaUseCase`            | `stats competencia add`       | `CompetenciasScreen` (US-107)      | ✅ Implementado |
+| `InscribirClubEnCompetenciaUseCase`  | `stats competencia inscribir` | `InscripcionesScreen` (US-107)     | ✅ Implementado |
+| `ListarClubesUsuarioUseCase`         | `stats club list`             | `ClubesScreen` (US-106)            | ✅ Implementado (la CLI usa `--id-usuario` provisorio; la sesión llega en la US-106) |
+| `ListarJugadoresClubUseCase`         | `stats jugador list`          | `JugadoresScreen` (US-107)         | ✅ Implementado |
+| `ListarPartidosPorClubUseCase`       | `stats partido list`          | `PartidosScreen` (US-107)          | ✅ Implementado |
+| `CambiarClubActivoUseCase`           | `stats club select`           | `ClubesScreen` (US-106)            | ✅ Implementado (validación); guardar el club en la sesión es de la US-106 |
+| `CrearCategoriaUseCase`              | `stats categoria add`         | `CompetenciasScreen` (US-107)      | ✅ Implementado |
+| `ListarCategoriasUseCase`            | `stats categoria list`        | `CompetenciasScreen` (US-107)      | ✅ Implementado |
+| `ListarCompetenciasUseCase`          | `stats competencia list`      | `CompetenciasScreen` (US-107)      | ✅ Implementado |
+| `ListarInscripcionesClubUseCase`     | `stats inscripcion list`      | `InscripcionesScreen` (US-107)     | ✅ Implementado |
+| `AgregarJugadorAListaBuenaFeUseCase` | `stats lista add`             | `ListaBuenaFeScreen` (US-107)      | ✅ Implementado |
+| `ListarListaBuenaFeUseCase`          | `stats lista list`            | `ListaBuenaFeScreen` (US-107)      | ✅ Implementado |
+| `DesvincularJugadorDeClubUseCase`    | `stats jugador unlink`        | `JugadoresScreen` (US-107)         | ✅ Implementado |
+| `QuitarJugadorDeListaBuenaFeUseCase` | `stats lista remove`          | `ListaBuenaFeScreen` (US-107)      | ✅ Implementado |
+
+La referencia de uso de cada comando (opciones, ejemplos, errores) está en el [RUNBOOK](../../RUNBOOK.md) hasta la US-105.

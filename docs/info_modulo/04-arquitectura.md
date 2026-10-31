@@ -4,7 +4,9 @@
 
 Para cumplir con los requerimientos de **portabilidad**, **testabilidad** y **ejecución local-first** definidos en el PRD, el sistema adopta una **Arquitectura Limpia (Clean Architecture)** con un enfoque **Hexagonal**.
 
-Esta estructura permite que la lógica de negocio (reglas del básquet y cálculos estadísticos) sea independiente de la base de datos (SQLite), de la interfaz de usuario (CLI o GUI) y de las librerías externas (Pandas).
+Esta estructura permite que la lógica de negocio (reglas del básquet y cálculos estadísticos) sea independiente de la base de datos (SQLite), de la interfaz de usuario (CLI hoy, GUI Flet desde la US-105) y de las librerías externas (Pandas).
+
+> **Aviso (2026-10-31):** la CLI se retira en la **US-105** y la interfaz pasa a ser una app de escritorio (Flet). Lo que este documento cuenta sobre la CLI describe el código actual y se reescribe en esa US.
 
 !!! note "Nombres reales del proyecto"
     La primera versión de esta guía se escribió como diseño previo y usaba nombres en inglés (`domain`, `use_cases`, `Protocol`).
@@ -125,12 +127,13 @@ Ver [el detalle del patrón](../arquitectura/01-repository-pattern.md).
 
 ### 5.3 Factory Pattern
 
-*(Todavía no se usa.)* Está previsto para la US-104: por ejemplo, una fábrica que asegure que las contraseñas se hasheen antes de crear el objeto `Usuario`.
+*(Todavía no se usa.)* La US-104 resolvió el hasheo sin fábrica: `RegistrarEntrenadorUseCase` recibe un `PasswordHasher` por constructor y hashea antes de crear el `Usuario`.
 
-### 5.4 Command Pattern (Crucial para la CLI)
+### 5.4 Command Pattern (en la CLI, hasta la US-105)
 
 Cada acción del usuario (ej: `jugador add`, `club list`) se encapsula en su propio archivo dentro de `ui/cli/commands/`, y `main.py` la registra en el parser con `set_defaults(func=...)`.
 Esto facilita la extensión de la CLI sin llenar el código de sentencias `if/else` gigantes. Detalle en [06-patron-command.md](06-patron-command.md).
+En la GUI (US-105 en adelante) cumple ese rol la convención **una pantalla por archivo** en `ui/flet/screens/`, registrada en la tabla de rutas de `app.py`.
 
 ---
 
@@ -194,8 +197,8 @@ La CLI se diseñó para ser rápida y "amigable" bajo las siguientes premisas:
 1. **Navegación por Comandos:** Uso de subcomandos claros (ej: `club add`, `jugador list`), con `--help` en cada nivel. La referencia completa está en el [RUNBOOK](../../RUNBOOK.md).
 2. **Errores sin traceback:** los errores de negocio se muestran como un mensaje (`Error: ...`) en stderr y terminan con código de salida 1.
 3. **Salida Tabulada:** los listados se muestran como tablas de consola con `tabulate` (`formatters/table_formatter.py`).
-4. **Formularios Interactivos:** *(pendiente, US-106)* para entidades complejas (como un Partido), la CLI guiará al usuario campo por campo en lugar de pedir 20 argumentos en una línea.
-5. **Manejo de Sesión:** *(pendiente, US-104)* un archivo temporal o una tabla de `config` en SQLite guardará el `idUsuario` y el `idClubActivo` para no pedirlos en cada comando.
+4. **Formularios:** la carga de partido no se hace en la CLI: es una pantalla de la GUI (US-108).
+5. **Manejo de Sesión:** no existe en la CLI; en la GUI la sesión vive en memoria (US-105) y se puede recordar entre aperturas junto con el club activo (US-106, archivo `~/.statspro/session.json`).
 
 ---
 

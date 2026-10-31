@@ -499,6 +499,8 @@ Fixtures **nativas** de pytest que se usan mucho: `tmp_path` (carpeta temporal),
 
 ## 9. Testeando comandos CLI (`ejecutar`, `main()` y de punta a punta)
 
+> **Aviso (2026-10-31):** la CLI y sus tests se borran en la **US-105**. Esta sección queda como referencia hasta entonces; en la GUI, la lógica se testea en los casos de uso y en el `SessionManager`, y las pantallas se mantienen finas (ver la US-105 en el PRD).
+
 Hay tres niveles, del más chico al más grande:
 
 ### 9.1 El comando solo: `Namespace` a mano + repo falso + `capsys`
