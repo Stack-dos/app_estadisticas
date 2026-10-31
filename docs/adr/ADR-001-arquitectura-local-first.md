@@ -54,7 +54,7 @@ implementado (capa de infraestructura, `database_manager.py`, esquema y vistas e
   momento se pide ese caso de uso (hoy no está en el alcance de ningún hito del PRD).
 - **No soporta multi-usuario concurrente real.** SQLite permite varios procesos leyendo a la vez,
   pero las escrituras concurrentes desde dos procesos distintos sobre el mismo archivo son
-  limitadas — no es un problema hoy (un usuario, un proceso CLI por comando) pero sí sería una
+  limitadas — no es un problema hoy (un usuario, un solo proceso de la app abierto) pero sí sería una
   restricción a revisar si el proyecto evoluciona hacia un escenario con varios entrenadores
   compartiendo el mismo club al mismo tiempo.
 - Backups y migraciones de esquema son responsabilidad manual de la aplicación (no hay un

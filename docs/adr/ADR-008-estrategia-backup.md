@@ -29,7 +29,7 @@ contradicción a favor de **Hito 4**.
 
 ## Decisión Tomada
 
-Exportación **manual**, a iniciativa del usuario (comando CLI / botón en la GUI, como ya describe
+Exportación **manual**, a iniciativa del usuario (botón en la GUI, como ya describe
 la US-402), usando el mecanismo de copia segura de SQLite (`VACUUM INTO` o la API de backup
 online, a elegir en el momento de implementar `backup_service.py` — ambas evitan el riesgo de
 copiar un archivo a mitad de escritura) en vez de una copia directa del archivo. Cada backup

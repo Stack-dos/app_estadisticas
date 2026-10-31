@@ -9,7 +9,7 @@ La US-204 (Hito 2) pide que el esquema de la base evolucione entre versiones sin
 mecanismo que aplique cambios de esquema en orden, sepa qué versión está instalada
 (`schema_version`) y, en lo posible, permita volver atrás. Hoy el esquema completo vive en un
 único archivo (`src/infraestructura/persistencia/sql/schema.sql`), sin ningún versionado — cada
-arranque de la CLI simplemente ejecuta ese archivo contra la base.
+arranque de la aplicación simplemente ejecuta ese archivo contra la base.
 
 **Dato técnico relevante para esta decisión:** el proyecto no usa ningún ORM. Los 5 repositorios
 (`src/infraestructura/repositorios/`) trabajan directo contra `sqlite3.Connection` con SQL crudo
