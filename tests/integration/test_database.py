@@ -10,7 +10,7 @@ def test_schema_sql_ejecuta_sin_errores():
     """Smoke test: schema.sql se aplica en DB vacía sin excepciones."""
     conexion = sqlite3.connect(":memory:")
     conexion.execute("PRAGMA foreign_keys = ON;")
-    with open(ruta.SCHEMA_SQL, "r", encoding="utf-8") as f:
+    with open(ruta.SCHEMA_SQL, encoding="utf-8") as f:
         conexion.executescript(f.read())
     conexion.close()
 
@@ -18,9 +18,9 @@ def test_schema_sql_ejecuta_sin_errores():
 def test_views_sql_ejecuta_sin_errores():
     """Smoke test: views.sql se aplica luego del schema sin excepciones."""
     conexion = sqlite3.connect(":memory:")
-    with open(ruta.SCHEMA_SQL, "r", encoding="utf-8") as f:
+    with open(ruta.SCHEMA_SQL, encoding="utf-8") as f:
         conexion.executescript(f.read())
-    with open(ruta.VISTA_SQL, "r", encoding="utf-8") as f:
+    with open(ruta.VISTA_SQL, encoding="utf-8") as f:
         conexion.executescript(f.read())
     conexion.close()
 

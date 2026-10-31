@@ -14,13 +14,13 @@ def db_conexion():
     cursor = conexion.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
 
-    with open(ruta.SCHEMA_SQL, "r") as schema:
+    with open(ruta.SCHEMA_SQL) as schema:
         cursor.executescript(schema.read())
 
-    with open(ruta.VISTA_SQL, "r") as schema:
+    with open(ruta.VISTA_SQL) as schema:
         cursor.executescript(schema.read())
 
-    with open(ruta.SEED_SQL, "r") as seed:
+    with open(ruta.SEED_SQL) as seed:
         cursor.executescript(seed.read())
     conexion.row_factory = sqlite3.Row
 
@@ -34,10 +34,10 @@ def db_conexion_sin_seed():
     cursor = conexion.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
 
-    with open(ruta.SCHEMA_SQL, "r") as schema:
+    with open(ruta.SCHEMA_SQL) as schema:
         cursor.executescript(schema.read())
 
-    with open(ruta.VISTA_SQL, "r") as schema:
+    with open(ruta.VISTA_SQL) as schema:
         cursor.executescript(schema.read())
 
     conexion.row_factory = sqlite3.Row

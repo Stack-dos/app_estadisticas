@@ -11,10 +11,12 @@ import pytest
 from dominio.entidades.club import Club
 from dominio.entidades.competencia import Categoria, Competencia
 from dominio.entidades.jugador import Jugador
+from dominio.entidades.usuario import Usuario, normalizar_email
 from dominio.exceptions import DatoInvalidoError, ErrorDeDominio
 
 ANIO_ACTUAL = date.today().year
 JUGADOR_VALIDO = {"nombre": "Manu", "apellido": "Ginobili", "dni": 20111222, "anioNacimiento": 1977}
+USUARIO_VALIDO = {"nombre": "Claudio", "email": "claudio@gmail.com", "password_hash": "hash-de-prueba"}
 
 
 @pytest.mark.parametrize(
@@ -35,6 +37,18 @@ JUGADOR_VALIDO = {"nombre": "Manu", "apellido": "Ginobili", "dni": 20111222, "an
             Competencia, {"nombre": "Liga", "anio": 2026}, "nombre", "", "competencia", id="competencia-nombre-vacio"
         ),
         pytest.param(Categoria, {"nombre": "U21"}, "nombre", "  ", "categoria", id="categoria-nombre-vacio"),
+        pytest.param(Usuario, USUARIO_VALIDO, "nombre", "", "nombre del usuario", id="usuario-nombre-vacio"),
+        pytest.param(Usuario, USUARIO_VALIDO, "nombre", "  ", "nombre del usuario", id="usuario-nombre-solo-espacios"),
+        pytest.param(Usuario, USUARIO_VALIDO, "email", "", "email del usuario", id="usuario-email-vacio"),
+        pytest.param(Usuario, USUARIO_VALIDO, "email", "   ", "email del usuario", id="usuario-email-solo-espacios"),
+        pytest.param(Usuario, USUARIO_VALIDO, "email", "claudio", "formato valido", id="usuario-email-sin-arroba"),
+        pytest.param(Usuario, USUARIO_VALIDO, "email", "claudio@gmail", "formato valido", id="usuario-email-sin-punto"),
+        pytest.param(
+            Usuario, USUARIO_VALIDO, "email", "cla udio@gmail.com", "formato valido", id="usuario-email-espacio"
+        ),
+        pytest.param(
+            Usuario, USUARIO_VALIDO, "email", "a@b@gmail.com", "formato valido", id="usuario-email-dos-arrobas"
+        ),
     ],
 )
 def test_entidad_con_valor_invalido_lanza_dato_invalido(clase, validos, campo, valor, fragmento):
@@ -64,6 +78,20 @@ def test_el_tipo_incorrecto_sigue_siendo_type_error_y_no_dato_invalido():
     # Un tipo incorrecto es un error de programacion (un bug), no un error de negocio del usuario
     with pytest.raises(TypeError):
         Jugador(**{**JUGADOR_VALIDO, "nombre": None})
+
+
+# ----------------------------------------------------------------------------- email del usuario
+
+
+def test_usuario_guarda_el_email_normalizado():
+    # Sin esto "Claudio@Gmail.com" y "claudio@gmail.com" serian dos cuentas (el UNIQUE distingue mayusculas)
+    usuario = Usuario(**{**USUARIO_VALIDO, "email": "  Claudio@Gmail.COM "})
+
+    assert usuario.email == "claudio@gmail.com"
+
+
+def test_normalizar_email_saca_espacios_y_pasa_a_minusculas():
+    assert normalizar_email("  Claudio@Gmail.COM ") == "claudio@gmail.com"
 
 
 # ----------------------------------------------------------------------------- propiedades calculadas

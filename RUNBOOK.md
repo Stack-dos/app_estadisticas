@@ -73,6 +73,16 @@ uv run python src/main.py jugador --help          # lista las acciones de un gru
 uv run python src/main.py jugador link --help     # lista las opciones de una acción
 ```
 
+**Como comando instalado (opcional):** para usarla desde cualquier carpeta, instalala en modo editable desde la raíz del repo:
+
+```bash
+uv tool install --editable .     # deja disponible el comando "statspro"
+statspro club list
+uv tool uninstall statspro-basketball   # para quitarlo
+```
+
+Al ser editable, usa el código de esta carpeta y la **misma** `estadisticas.db` de la raíz del repo. Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos. El empaquetado real (wheel instalable en otra máquina) se investiga en `docs/spike/spike_build_cli.md`.
+
 **Cómo leer los ejemplos de esta guía:** para abreviar, escriben `stats jugador add ...`; el comando real es `uv run python src/main.py jugador add ...`.
 
 **Primera ejecución:** la base de datos (`estadisticas.db`, en la raíz del repositorio) se crea sola, con todas sus tablas, la primera vez que corrés cualquier comando. No hay nada que preparar antes.
@@ -497,7 +507,8 @@ uv run pytest tests/unit                        # solo los unitarios (no usan ba
 uv run pytest -k "vincular"                     # solo los tests cuyo nombre contiene "vincular"
 uv run pytest -v --cov=src --cov-report=html    # con cobertura; abrir reportes_cobertura/html/index.html   (make run_test)
 
-uv run ruff check --select E --select I .       # estilo e imports ordenados                                 (make run_linter_ruf)
+uv run ruff check .                             # estilo, imports y errores comunes (reglas: pyproject.toml) (make run_linter_ruf)
+uv run ruff format --check .                    # avisa si algún archivo no está formateado, sin tocarlo     (make run_linter_ruf)
 uv run ruff format .                            # formatea el código                                         (make corregir_linter)
 uv run mypy src/ --strict --explicit-package-bases   # revisión de tipos                                     (make static_check)
 
@@ -505,7 +516,8 @@ uv run mypy src/ --strict --explicit-package-bases   # revisión de tipos       
 ```
 
 Estos mismos chequeos se ejecutan automáticamente en GitHub (`.github/workflows/MainAction.yml`) en cada Pull Request y en cada `push` a `main` o `develop`: lint, tipos, tests en Linux, Windows y Docker,
-auditoría de dependencias (`pip-audit`) y detección de secretos (`gitleaks`). Los tests de Linux, los tipos (mypy) y Docker se repiten con **Python 3.11, 3.12, 3.13 y 3.14**; Windows corre solo con la 3.13.
+auditoría de dependencias (`pip-audit`) y detección de secretos (`gitleaks`). Los tests de Linux se repiten con **Python 3.12, 3.13 y 3.14**; Windows y Docker corren una sola vez (3.13) y mypy una sola vez (contra la 3.12). El lint incluye `ruff format --check`, y los jobs de tests prueban antes que la CLI arranque (`python src/main.py --help`).
+Un job final, `ci-ok`, queda en rojo si cualquiera de los anteriores falló: es el que se marca como obligatorio en GitHub para que un PR con el CI en rojo no se pueda mergear.
 En Linux la cobertura mínima es **85 %** y el reporte HTML queda para descargar (pestaña _Actions_ → la corrida → sección _Artifacts_). Además, [Dependabot](.github/dependabot.yml) abre PR cuando hay versiones nuevas de las dependencias.
 
 ### Hooks de pre-commit (opcional)
@@ -531,7 +543,7 @@ docker build -f Dockerfile.test -t app-estadisticas-tests .
 docker run --rm app-estadisticas-tests
 ```
 
-La imagen usa Python 3.11 por defecto. Para probar con otra versión (el CI prueba de la 3.11 a la 3.14):
+La imagen usa Python 3.11 por defecto. Para probar con otra versión (el CI usa la 3.13):
 
 ```bash
 make docker_test PYTHON_VERSION=3.13

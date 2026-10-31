@@ -1,7 +1,5 @@
 import sqlite3
 
-import pytest
-
 
 def test_conexion(db_conexion_sandbox):
     assert isinstance(db_conexion_sandbox, sqlite3.Connection)

@@ -5,17 +5,9 @@
 - **Producto:** StatsPro Basketball
 - **Ingeniería:** equipo de 2 ingenieros
 - **Clasificación:** interno
-- **Stack principal:** SQLite · Python/Pandas · Flet (UI, pendiente ADR-002)
+- **Stack principal:** SQLite · Python/Pandas · Flet (UI, ver ADR-002)
 
-> **Qué es este documento:** transcripción completa y fusionada del PRD del proyecto — todas las
-> historias de usuario, épicas e hitos, con sus criterios de aceptación, archivos a crear y
-> funciones/métodos involucrados. Combina dos fuentes que viven en el submódulo git
-> `docs/documentacion_app_estadistica/`
->
-> Donde una fuente tenía más detalle que la otra para la misma sección, se usó la más completa;
-> donde ambas aportaban algo distinto, se fusionó. **No es un resumen** — la única compresión
-> respecto a las fuentes originales es quitar el formato LaTeX (cajas de color, `tcolorbox`) y
-> reemplazarlo por Markdown plano.
+> **Qué es este documento:** transcripción completa y fusionada del PRD del proyecto, todas las historias de usuario, épicas e hitos, con sus criterios de aceptación, archivos a crear y funciones/métodos involucrados.
 >
 > Al final del documento hay una sección **"Estado real del código vs. plan"** con los hallazgos
 > e inconsistencias encontrados al hacer esta transcripción — ver sección 20.
@@ -154,25 +146,15 @@ El sistema usa una base de datos relacional local (**SQLite**) con esquema norma
 
 ### Agregados estadísticos: por jugador (existe) y por club (falta, propuesto)
 
-Hoy solo existe un agregado pre-calculado a nivel **jugador**: `v_jugador_totales_temporada`
-(suma todas sus filas de `jugadorPartido` agrupadas por año). No existe ningún agregado
-equivalente a nivel **club/equipo** — todo lo que hay hoy sobre clubes es o bien por-partido
-(`v_partidos_resumen`, un cruce puntual) o inexistente para series de tiempo/competencias.
+Hoy solo existe un agregado pre-calculado a nivel **jugador**: `v_jugador_totales_temporada` (suma todas sus filas de `jugadorPartido` agrupadas por año). No existe ningún agregado equivalente a nivel **club/equipo** — todo lo que hay hoy sobre clubes es o bien por-partido (`v_partidos_resumen`, un cruce puntual) o inexistente para series de tiempo/competencias.
 
-Para que la app pueda responder "¿cómo viene mi equipo en toda la competencia?" o "¿cómo viene mi
-equipo este año, sumando todas las competencias?" (ver Hito 2/3, US-202/203/301), hace falta un
-agregado análogo, sumando **todos los jugadores de un club** en vez de uno solo. Conceptualmente
-sería una vista (o un cálculo equivalente en Pandas, ver nota de US-203) con esta forma:
+Para que la app pueda responder "¿cómo viene mi equipo en toda la competencia?" o "¿cómo viene mi equipo este año, sumando todas las competencias?" (ver Hito 2/3, US-202/203/301), hace falta un agregado análogo, sumando **todos los jugadores de un club** en vez de uno solo. Conceptualmente sería una vista (o un cálculo equivalente en Pandas, ver nota de US-203) con esta forma:
 
-- Agrupada por `idClub` + (`idCompetencia` **o** `anio`, según qué recorte se pida — nunca los dos
-  mezclados, para no repetir el bug ya documentado en sección 20).
-- Mismas métricas que `v_jugador_totales_temporada` (puntos, T1/T2/T3, rebotes, asistencias,
-  recuperos, pérdidas, tapones, faltas, porcentajes), sumadas a nivel equipo en vez de individual.
-- No requiere ninguna tabla ni columna nueva — sale enteramente de `jugadorPartido` join `club`,
-  igual que el agregado de jugador.
+- Agrupada por `idClub` + (`idCompetencia` **o** `anio`, según qué recorte se pida — nunca los dos mezclados, para no repetir el bug ya documentado en sección 20).
+- Mismas métricas que `v_jugador_totales_temporada` (puntos, T1/T2/T3, rebotes, asistencias, recuperos, pérdidas, tapones, faltas, porcentajes), sumadas a nivel equipo en vez de individual.
+- No requiere ninguna tabla ni columna nueva — sale enteramente de `jugadorPartido` join `club`, igual que el agregado de jugador.
 
-**No se define el SQL exacto acá a propósito** — es una decisión de implementación para cuando se
-aborde la US-203, no algo a resolver en esta revisión del PRD.
+**No se define el SQL exacto acá a propósito** — es una decisión de implementación para cuando se aborde la US-203, no algo a resolver en esta revisión del PRD.
 
 ---
 
@@ -200,45 +182,54 @@ dominio  ←  aplicación  ←  infraestructura
 
 ### Estructura de directorios de referencia
 
-```text
-src/
-├── main.py                    # ✅ punto de entrada y composition root de la CLI (parser + manejo de errores)
-├── utils.py                   # ✅ helpers puros compartidos (id_persistido, abortar, fecha_iso)
-├── config/
-│   └── rutas.py               # ✅ rutas de la base, scripts SQL y logs
-├── dominio/
-│   ├── entidades/          # @dataclass puras, sin imports externos
-│   ├── repositorios/       # interfaces (ABC) de repositorios
-│   ├── exceptions.py       # excepciones de negocio
-│   └── services/           # lógica de dominio compleja (opcional)
-├── aplicacion/
-│   ├── casos_uso/           # ✅ orquestadores (reciben repos por DI), un archivo por acción
-│   ├── dtos/                 # ✅ dataclasses de entrada/salida entre capas
-│   └── services/             # servicios de aplicación (ej. SessionManager) — pendiente, US-104
-├── infraestructura/
-│   ├── logger.py              # ✅ configuración central del logging
-│   ├── repositorios/         # implementaciones SQLite de las interfaces de dominio
-│   ├── persistencia/
-│   │   ├── database_manager.py   # SQLiteManager y abrir_conexion()
-│   │   └── sql/               # schema.sql, views.sql, seed.sql, limpieza.sql
-│   ├── analytics/             # motor Pandas
-│   ├── ingest/                 # parser Excel
-│   ├── reports/                 # generador PDF
-│   ├── security/                 # PasswordHasher
-│   └── ui/
-│       ├── cli/                   # interfaz de línea de comandos
-│       │   ├── commands/            # ✅ un archivo por acción (club_add.py, jugador_link.py, ...)
-│       │   └── formatters/          # ✅ table_formatter.py (wrapper de tabulate)
-│       └── flet/                   # GUI
+```mermaid
+---
+config:
+  treeView:
+    showIcons: true
+---
+treeView-beta
+  src/
+    main.py :::highlight icon(logos:python) ## punto de entrada y composition root de la CLI (parser + manejo de errores)
+    utils.py ## helpers puros compartidos (id_persistido, abortar, fecha_iso)
+    config/
+      rutas.py ## rutas de la base, scripts SQL y logs
+    dominio/
+      entidades/ ## @dataclass puras, sin imports externos
+      repositorios/ ## interfaces (ABC) de repositorios
+      exceptions.py ## excepciones de negocio
+      services/ ## lógica de dominio compleja (opcional)
+    aplicacion/
+      dtos/ ## dataclasses de entrada/salida entre capas
+      services/ ## servicios de aplicación (ej. SessionManager) — pendiente, US-105
+      casos_usos/ ## orquestadores (reciben repos por DI), un archivo por acción
+    infraestructura/
+      logger.py ## ✅ configuración central del logging
+      repositorios/ ## implementaciones SQLite de las interfaces de dominio
+      persistencia/
+        databases_manager.py ## SQLiteManager y abrir_conexion()
+        sql/
+          schema.sql
+          views.sql
+          seed.sql
+          limpieza.sql
+      analytics/ ## motor Pandas
+      ingest/ ## parser Excel
+      reports/ ## generador PDF
+      security/ ## PasswordHasher
+      ui/
+        cli/ ## interfaz de línea de comandos
+          commands/ ## un archivo por acción (club_add.py, jugador_link.py, ...)
+          formatters/ ## table_formatter.py (wrapper de tabulate)
+        flet/ ## GUI
 tests/
-├── unit/          # ✅ sin DB, con mocks (entidades, casos de uso, comandos CLI, helpers)
-├── integration/   # ✅ con SQLite real en memoria (repositorios, esquema) y CLI de punta a punta
-└── conftest.py    # ✅ fixtures compartidas y fábricas de datos (**overrides)
+  unit/ ## sin DB, con mocks (entidades, casos de uso, comandos CLI, helpers)
+  integration/ ## con SQLite real en memoria (repositorios, esquema) y CLI de punta a punta
+  conftest.py ## fixtures compartidas y fábricas de datos (**overrides)
 ```
 
 > **Convención de la CLI: un archivo por acción.** Cada comando vive en su propio archivo de `commands/` (`club_add.py`, `jugador_link.py`, …) y `main.py` lo registra en
-> `construir_parser()` con `set_defaults(func=...)`. Es lo que quedó construido y documentado en `docs/context_ia/2026-08-29-us103-argparse-comandos-flujo-completo.md`; reemplaza
-> la propuesta original de un archivo por entidad (`club_commands.py`, `player_commands.py`, …) y de un `main_cli.py` separado: el composition root de la CLI es `src/main.py`.
+> `construir_parser()` con `set_defaults(func=...)`.
 
 ### ¿Qué va en cada capa? Guía práctica
 
@@ -311,9 +302,7 @@ La sesión local persistirá en un archivo JSON en `~/.statspro/session.json` (o
 
 El **Composition Root** es el único lugar del sistema donde se instancian todas las dependencias y se conectan entre sí. En esta arquitectura, ese lugar es `src/main.py` (CLI) y será `src/infraestructura/ui/flet/app.py` (GUI, Hito 4).
 
-> **Cómo quedó en la CLI:** como cada ejecución de la CLI es un proceso nuevo que corre **un único comando**, `main.py` solo inicializa la base, arma el parser y despacha el comando elegido
-> (`args.func(args)`); **cada comando arma las dependencias que necesita** (`ejecutar(args, repo=None)`: si no se le inyecta un repositorio, arma el real con `abrir_conexion()`). Así no se construyen
-> repositorios que no se van a usar, y los tests inyectan repositorios falsos. Los errores de negocio (`ErrorDeDominio`) se atrapan en un único `except` de `main()`.
+> **Cómo quedó en la CLI:** como cada ejecución de la CLI es un proceso nuevo que corre **un único comando**, `main.py` solo inicializa la base, arma el parser y despacha el comando elegido (`args.func(args)`); **cada comando arma las dependencias que necesita** (`ejecutar(args, repo=None)`: si no se le inyecta un repositorio, arma el real con `abrir_conexion()`). Así no se construyen repositorios que no se van a usar, y los tests inyectan repositorios falsos. Los errores de negocio (`ErrorDeDominio`) se atrapan en un único `except` de `main()`.
 
 **¿Por qué es importante?** Porque en todos los demás archivos, las clases reciben sus dependencias como argumentos (nunca las crean con instanciación directa). Esto hace el sistema
 testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modificar el código de producción.
@@ -321,9 +310,9 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 **Flujo de ensamblaje esperado en `main.py`** (crece con cada US):
 
 1. **US-101/102:** se instancia `SQLiteManager`, se ejecutan las migraciones/inicialización, se crean los repositorios SQLite pasando la conexión.
-2. **US-103/104:** se crean los servicios de aplicación (`SessionManager`) y los casos de uso administrativos, pasando los repositorios.
-3. **US-105/106:** se crean los casos de uso operativos y se registran todos los subcomandos CLI.
-4. **US-107:** se inicializa el `ExecutionContext` antes de despachar cualquier comando y se conecta el logging.
+2. **US-103/104/105:** se crean los servicios de aplicación (`SessionManager`) y los casos de uso administrativos, pasando los repositorios.
+3. **US-106/107:** se crean los casos de uso operativos y se registran todos los subcomandos CLI.
+4. **US-108:** se inicializa el `ExecutionContext` antes de despachar cualquier comando y se conecta el logging.
 5. **US-401 (GUI):** mismo patrón en `app.py`, pero las pantallas Flet reciben los casos de uso como dependencias.
 
 **Regla de oro:** si una clase crea sus dependencias con `NombreClase()` dentro de un método que no sea el composition root, hay un problema de acoplamiento que debe corregirse.
@@ -365,8 +354,7 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 
 ## 6. Reglas de Negocio Consolidadas
 
-Centraliza las reglas obligatorias del dominio para que desarrollo y testing sean coherentes en
-todas las historias de usuario.
+Centraliza las reglas obligatorias del dominio para que desarrollo y testing sean coherentes en todas las historias de usuario.
 
 **Identidad y Seguridad**:
 
@@ -404,33 +392,37 @@ todas las historias de usuario.
 
 ## 7. Requisitos No Funcionales (NFR)
 
-| ID    | Requisito           | Medición / Umbral                                                       | Severidad  |
-| ----- | ------------------- | ----------------------------------------------------------------------- | ---------- |
-| NFR-1 | Portabilidad        | Ejecución nativa en Windows 10+, Android 9+, iOS 14+                    | Bloqueante |
-| NFR-2 | Rendimiento Ingesta | Procesamiento de Excel con Pandas < 5 seg                               | Alta       |
-| NFR-3 | Fiabilidad de Datos | Integridad referencial en SQLite (FKs activas)                          | Bloqueante |
-| NFR-4 | Usabilidad          | Carga de partido completo en < 3 clics desde selección de archivo       | Media      |
-| NFR-5 | Arranque            | Tiempo de inicio de la GUI < 3 seg en entorno objetivo                  | Alta       |
-| NFR-6 | Offline             | 100% de funcionalidades críticas sin conexión a internet                | Bloqueante |
-| NFR-7 | Cobertura de Tests  | ≥80% no críticos; ≥95% en módulos críticos (ver Catálogo de Criticidad) | Alta       |
+| ID    | Requisito           | Medición / Umbral                                                                        | Severidad  |
+| ----- | ------------------- | ---------------------------------------------------------------------------------------- | ---------- |
+| NFR-1 | Portabilidad        | Ejecución nativa en Windows 10+, Linux, macOS, Android 9+ (sin iOS — ver nota en US-404) | Bloqueante |
+| NFR-2 | Rendimiento Ingesta | Procesamiento de Excel con Pandas < 5 seg                                                | Alta       |
+| NFR-3 | Fiabilidad de Datos | Integridad referencial en SQLite (FKs activas)                                           | Bloqueante |
+| NFR-4 | Usabilidad          | Carga de partido completo en < 3 clics desde selección de archivo                        | Media      |
+| NFR-5 | Arranque            | Tiempo de inicio de la GUI < 3 seg en entorno objetivo                                   | Alta       |
+| NFR-6 | Offline             | 100% de funcionalidades críticas sin conexión a internet                                 | Bloqueante |
+| NFR-7 | Cobertura de Tests  | ≥80% no críticos; ≥95% en módulos críticos (ver Catálogo de Criticidad)                  | Alta       |
 
 ---
 
 ## 8. Registro de Decisiones Arquitectónicas (ADR)
 
-| ID      | Título                     | Estado       | Decisión                                                                   | Bloquea         |
-| ------- | -------------------------- | ------------ | -------------------------------------------------------------------------- | --------------- |
-| ADR-001 | Arquitectura Local-First   | ✅ Aprobado  | SQLite + offline-first                                                     | Hito 1          |
-| ADR-002 | Framework UI               | ⏳ Pendiente | Flet (Python puro) vs. Compose Multiplatform                               | Hito 4          |
-| ADR-003 | Protocolo de Ingesta Excel | ⏳ Pendiente | Estandarizar mapeo/limpieza de columnas de Ges Deportivo                   | US-201          |
-| ADR-004 | Versionado de DB           | ⏳ Pendiente | Migraciones manuales (`schema_version`) vs. Alembic                        | Hito 2          |
-| ADR-005 | Reportes PDF               | ⏳ Pendiente | `reportlab` (sin dependencias externas) vs. `weasyprint` (HTML→PDF)        | US-302          |
-| ADR-006 | Seguridad y Cifrado        | ⏳ Pendiente | Hash de passwords y eventual cifrado DB (SQLCipher)                        | US-106 / Hito 4 |
-| ADR-007 | Motor de Visualización     | ⏳ Pendiente | `matplotlib` (offline) vs. `plotly` (interactivo, requiere servidor local) | US-301          |
-| ADR-008 | Estrategia de Backup       | ⏳ Pendiente | Exportación/restauración de base local y versiones                         | Hito 4          |
-| ADR-009 | Pipeline CI/CD             | ⏳ Pendiente | GitHub Actions para lint, tests y cobertura automáticos                    | US-108          |
+| ID      | Título                     | Estado                                                                                    | Decisión                                                                                                                                           | Bloquea         |
+| ------- | -------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| ADR-001 | Arquitectura Local-First   | Aprobado (`docs/adr/ADR-001-arquitectura-local-first.md`)                                 | SQLite + offline-first                                                                                                                             | Hito 1          |
+| ADR-002 | Framework UI               | Aprobado (`docs/adr/ADR-002-framework-ui.md`)                                             | Flet (Python puro); se descarta Compose Multiplatform                                                                                              | Hito 4          |
+| ADR-003 | Protocolo de Ingesta Excel | Pendiente — borrador con pregunta abierta (`docs/adr/ADR-003-protocolo-ingesta-excel.md`) | Falta un archivo real de Ges Deportivo para fijar el mapeo de columnas                                                                             | US-201          |
+| ADR-004 | Versionado de DB           | Pendiente — pregunta abierta (`docs/adr/ADR-004-versionado-db.md`)                        | Migraciones manuales vs. Alembic — falta decidir si vale agregar SQLAlchemy solo por el runner                                                     | Hito 2          |
+| ADR-005 | Reportes PDF               | Aprobado (`docs/adr/ADR-005-reportes-pdf.md`)                                             | `reportlab`; se descarta `weasyprint`                                                                                                              | US-302          |
+| ADR-006 | Seguridad y Cifrado        | Aprobado v0.1 / Pendiente v1.0 (`docs/adr/ADR-006-seguridad-cifrado.md`)                  | Hash de passwords con `pbkdf2_hmac` y salt dinámico; cifrado DB (SQLCipher) y migración a bcrypt/argon2 quedan para Hito 4, con preguntas abiertas | US-104 / Hito 4 |
+| ADR-007 | Motor de Visualización     | Aprobado (`docs/adr/ADR-007-motor-visualizacion.md`)                                      | `matplotlib`; se descarta `plotly` para este motor                                                                                                 | US-301          |
+| ADR-008 | Estrategia de Backup       | Aprobado (`docs/adr/ADR-008-estrategia-backup.md`)                                        | Exportación/restauración manual con `VACUUM INTO`/backup online de SQLite                                                                          | Hito 4          |
+| ADR-009 | Pipeline CI/CD             | Aprobado, ya implementado (`docs/adr/ADR-009-pipeline-cicd.md`)                           | GitHub Actions (hosted) para lint, tests y cobertura automáticos                                                                                   | US-109          |
 
-Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Decisión → Alternativas Consideradas → Consecuencia (Positivas / Negativas / Restricciones). Ninguno de los 9 está escrito todavía.
+Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Alternativas Consideradas → Decisión Tomada → Ventajas y Desventajas. Los ADR escritos viven en `docs/adr/` (no en el submódulo de documentación, que es de otro repositorio). **Estado (2026-10-03): los 9 ADR ya están redactados en `docs/adr/`.** Aprobados sin preguntas
+pendientes: ADR-001, ADR-002, ADR-005, ADR-007, ADR-008, ADR-009. Con preguntas abiertas a
+resolver antes de cerrarlos del todo: ADR-003 (falta un archivo real de Ges Deportivo),
+ADR-004 (manuales vs. Alembic) y ADR-006 (viabilidad de SQLCipher en Android y fuente de la lista
+de contraseñas comprometidas, ambas para la parte de v1.0).
 
 ---
 
@@ -438,210 +430,250 @@ Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/temp
 
 **Objetivo del hito:** construir una base técnica funcional por CLI con persistencia robusta, autenticación local, casos de uso operativos, validaciones de integridad y un entorno de calidad que garantice reproducibilidad desde el primer commit. Sistema funcional por línea de comandos con persistencia robusta.
 
-**Épicas:** 3 · **Historias:** 8 · **Esfuerzo total estimado:** ~50 días·persona
+**Épicas:** 3 · **Historias:** 9 (US-101 a US-109; la US-104 original se dividió en Autenticación
+y Sesión el 2026-10-03, ver nota al inicio de la Épica H1-E2) · **Esfuerzo total estimado:** ~50
+días·persona
 
 ### Épica H1-E1: Infraestructura y Persistencia
 
 #### US-101 — Esquema SQLite, Vistas y Datos Semilla
 
-- **Esfuerzo:** L (6-10 días) · **Prioridad:** Urgente (bloqueante)
-- **Objetivo Funcional:** habilitar un esquema relacional local verificable y un conjunto de vistas operativas que sirvan de contrato estable para todo el ciclo del producto, garantizando que Pandas y la capa de aplicación consuman datos sin transformaciones ambiguas.
-- **Narrativa:** Como desarrollador, quiero el esquema relacional completo en SQLite, con sus vistas de análisis y datos de prueba, para tener una base verificable sobre la que construir el sistema.
-- **Capa de Infraestructura:**
-  - **Clase `SQLiteManager`** (`src/infraestructura/persistencia/database_manager.py`):
-    - `connect()` / `conectar()`: retorna una conexión activa con `PRAGMA foreign_keys = ON` y `row_factory = sqlite3.Row`.
-    - `inicializar_schema()` / `inicializar_db()`: ejecuta de forma atómica los scripts `schema.sql`, `views.sql` (y opcionalmente `seed.sql`) usando `executescript()`.
-  - **Scripts SQL** (`src/infraestructura/persistencia/sql/`):
-    - `schema.sql`: DDL completo — tablas con tipos estrictos, PK, FK, `CHECK` constraints, `CREATE TABLE IF NOT EXISTS` y `DROP TABLE IF EXISTS` en orden inverso de dependencias.
-    - `views.sql`: las 4 vistas de análisis estadístico.
-    - `seed.sql`: datos de prueba (1 usuario, 2 clubes, 10 jugadores, 1 competencia, ≥ 2 partidos con boxscore).
-- **Vistas a implementar:**
-  1. `v_partidos_resumen`: une partido con clubes y competencia (reemplaza IDs por nombres).
-  2. `v_boxscore_completo`: une `jugadorPartido` con jugador y club (fuente principal para Pandas).
-  3. `v_jugador_totales_temporada`: acumulados históricos por jugador y año de competencia.
-  4. `v_listas_detalle`: jugadores habilitados por inscripción.
-- **Criterios de Aceptación:**
-  - **AC1.** Schema idempotente: `CREATE TABLE IF NOT EXISTS` en toda la DDL, con `DROP TABLE IF EXISTS` en orden inverso de dependencias.
-  - **AC2.** FKs activas con reglas `ON DELETE/UPDATE CASCADE` en relaciones críticas.
-  - **AC3.** `CHECK` constraints en métricas numéricas (ej. `puntos >= 0`, `minutosJugados BETWEEN 0 AND 48`) y en integridad lógica (ej. `idClubLocal != idClubVisitante`).
-  - **AC4.** El campo `dni` en `jugador` es `UNIQUE` pero permite `NULL`.
-  - **AC5.** Las 4 vistas exponen columnas con nombres y tipos estables, documentados; todas las divisiones usan `NULLIF`/`CASE` para nunca fallar por división por cero.
-  - **AC6.** `seed.sql` se ejecuta limpiamente sobre un schema vacío y puebla todas las tablas con datos significativos para las vistas.
-  - **AC7.** Columnas de vistas estables para consumo desde Pandas sin transformaciones adicionales.
-- **Reglas de Negocio (nivel DB):**
-  - `CHECK(idClubLocal != idClubVisitante)` en `partido`.
-  - `fechaHasta >= fechaDesde` en historial de afiliaciones.
-  - `UNIQUE` en `listaBuenaFe.idInscripcion` (refuerza la relación 1:1).
-- **Entidades/Modelos implicados (tablas):** `usuario`, `club`, `usuarioClub`, `jugador`, `categoria`, `competencia`, `inscripcion`, `listaBuenaFe`, `jugadorListaBuenaFe`, `jugadorClub`, `partido`, `jugadorPartido`.
-- **Testing Mínimo:**
-  - _Integración (`test_database.py`):_ `test_database_schema` (existencia de tablas/vistas), `test_referential_integrity` (FK inexistente → `IntegrityError`), `test_check_constraints` (valores negativos → falla), `test_seed_execution` (vistas devuelven datos tras el seed), `test_division_by_zero` (vistas devuelven 0.0, nunca error).
+**Esfuerzo:** L (6-10 días) · **Prioridad:** Urgente (bloqueante)
+
+**Objetivo Funcional:** habilitar un esquema relacional local verificable y un conjunto de vistas operativas que sirvan de contrato estable para todo el ciclo del producto, garantizando que Pandas y la capa de aplicación consuman datos sin transformaciones ambiguas.
+
+**Narrativa:** Como desarrollador, quiero el esquema relacional completo en SQLite, con sus vistas de análisis y datos de prueba, para tener una base verificable sobre la que construir el sistema.
+
+**Capa de Infraestructura:**
+
+- **Clase `SQLiteManager`** (`src/infraestructura/persistencia/database_manager.py`):
+  - `connect()`: retorna una conexión activa con `PRAGMA foreign_keys = ON` y `row_factory = sqlite3.Row`.
+  - `inicializar_schema()`: ejecuta de forma atómica los scripts `schema.sql`, `views.sql` (y opcionalmente `seed.sql`) usando `executescript()`.
+- **Scripts SQL** (`src/infraestructura/persistencia/sql/`):
+  - `schema.sql`: DDL completo, tablas con tipos estrictos, PK, FK, `CHECK` constraints, `CREATE TABLE IF NOT EXISTS` y `DROP TABLE IF EXISTS` en orden inverso de dependencias.
+  - `views.sql`: las 4 vistas de análisis estadístico.
+  - `seed.sql`: datos de prueba (1 usuario, 2 clubes, 10 jugadores, 1 competencia, ≥ 2 partidos con boxscore).
+
+**Vistas a implementar:**
+
+1. `v_partidos_resumen`: une partido con clubes y competencia (reemplaza IDs por nombres).
+2. `v_boxscore_completo`: une `jugadorPartido` con jugador y club (fuente principal para Pandas).
+3. `v_jugador_totales_temporada`: acumulados históricos por jugador y año de competencia.
+4. `v_listas_detalle`: jugadores habilitados por inscripción.
+
+**Criterios de Aceptación:**
+
+- **AC1.** Schema idempotente: `CREATE TABLE IF NOT EXISTS` en toda la DDL.
+- **AC2.** FKs activas con reglas `ON DELETE/UPDATE CASCADE` en relaciones críticas.
+- **AC3.** `CHECK` constraints en métricas numéricas (ej. `puntos >= 0`, `minutosJugados BETWEEN 0 AND 48`) y en integridad lógica (ej. `idClubLocal != idClubVisitante`).
+- **AC4.** El campo `dni` en `jugador` es `UNIQUE` pero permite `NULL`.
+- **AC5.** Las 4 vistas exponen columnas con nombres y tipos estables, documentados; todas las divisiones usan `NULLIF`/`CASE` para nunca fallar por división por cero.
+- **AC6.** `seed.sql` se ejecuta limpiamente sobre un schema vacío y puebla todas las tablas con datos significativos para las vistas.
+- **AC7.** Columnas de vistas estables para consumo desde Pandas sin transformaciones adicionales.
+
+**Reglas de Negocio (nivel DB):**
+
+- `CHECK(idClubLocal != idClubVisitante)` en `partido`.
+- `fechaHasta >= fechaDesde` en historial de afiliaciones.
+- `UNIQUE` en `listaBuenaFe.idInscripcion` (refuerza la relación 1:1).
+
+**Entidades/Modelos implicados:** `usuario`, `club`, `usuarioClub`, `jugador`, `categoria`, `competencia`, `inscripcion`, `listaBuenaFe`, `jugadorListaBuenaFe`, `jugadorClub`, `partido`, `jugadorPartido`.
+
+**Testing Mínimo:**
+
+- _Integración (`test_database.py`):_ existencia de tablas/vistas, FK inexistente → `IntegrityError`, valores negativos → falla, vistas devuelven datos tras el seed, vistas devuelven 0.0, nunca error.
 
 #### US-102 — DatabaseManager y Patrón Repository
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Urgente (bloqueante) · **Dependencias:** US-101
-- **Objetivo Funcional:** implementar el orquestador de conexión y las interfaces de persistencia bajo Clean Architecture, asegurando que el acceso a datos sea independiente del motor de base
-  de datos y garantizando la integridad referencial.
-- **Narrativa:** Como desarrollador, quiero una capa de infraestructura que gestione el ciclo de vida de la conexión SQLite y exponga repositorios tipados para cada agregado del dominio.
-- **Capa de Dominio — Interfaces (`src/dominio/repositorios/`):** las firmas reales ya migraron de "parámetros sueltos" a **recibir la dataclass completa**
-  - `UsuarioRepositorio` (`UserRepository`): `encontrar_por_mail(email)`/`get_by_email`, `encontrar_por_id(id)`/`get_by_id`, **`guardar(usuario: Usuario)`**/`save`.
-  - `ClubRepositorio` (`ClubRepository`): `buscar_por_id_usuario`/`get_clubs_by_user`, `buscar_por_id`/`get_by_id`, `buscar_por_nombre`, **`guardar(club: Club)`**/`save`, **`link_user_to_club(us_club: UsuarioClub)`**.
-  - `JugadorRepositorio` (`PlayerRepository`): `buscar_por_id`, `buscar_por_dni`/`search_by_dni`, `buscar_por_club`, **`guardar(jugador: Jugador)`**, **`link_to_club(jc: JugadorClub)`**, `club_activo`/`get_active_club`.
-  - `CompetenciaRepositorio` (`CompetitionRepository`): **`guardar_competencia(compe:Competencia)`**/`save_competencia`, `buscar_competencia_por_id`/`get_competencia_by_id`, `obtener_todas_competencias`/`get_all_competencias`, **`guardar_categoria(cat:Categoria)`**/`save_categoria`, `obtener_categorias`/`get_categorias`, **`guardar_inscripcion(inscripcion: Inscripcion)`**/`save_inscripcion`, `buscar_inscripcion_por_id`/`get_inscripcion_by_id`, `obtener_inscripciones_por_club`/`get_inscripciones_by_club`, **`guardar_lista_buena_fe(listaBF: ListaBuenaFe)`**/`save_lista_buena_fe`, `obtener_lista_por_inscripcion`/`get_lista_by_inscripcion` _(tipada `-> ListaBuenaFe` singular, coherente con la relación 1:1)_, `agregar_jugador_lista(idJugador, idListaBuenaFe)`/`add_jugador_to_lista` y `obtener_jugadores_lista`/`get_jugadores_by_lista`.
-  - `JuegoRepositorio` (`GameRepository`): `buscar_por_club`, `buscar_por_id`, **`guardar_partido(partido: Partido)`**/`save_partido`, **`guardar_boxscore(boxscore:JugadorPartido)`**/`save_boxscore`
-- **Capa de Infraestructura:**
-  - **Clase `SQLiteManager`:** administra la conexión (`sqlite3.Connection`); `connect()` activa `PRAGMA foreign_keys` y `row_factory = sqlite3.Row`, retornando la conexión activa si ya existe; `initialize_schema()`/`inicializar_schema()` ejecuta `schema.sql` + `views.sql` en una sola llamada atómica.
-  - **Implementaciones concretas** (`src/infraestructura/repositorios/`): `SqliteUsuarioRepositorio`, `SqliteClubRepositorio`, `SqliteJugadorRepositorio`, `SqliteCompetenciaRepositorio`, `SqliteJuegoRepositorio`. `SqliteCompetenciaRepositorio` maneja `competencia`, `categoria`, `inscripcion`, `listaBuenaFe` y `jugadorListaBuenaFe` como un único agregado competitivo. Cada repositorio mapea manualmente `sqlite3.Row` a las dataclasses de dominio mediante un método privado `_row_to_entity()`.
-- **Criterios de Aceptación:**
-  - **AC1 — Gestión de Conexión:** `connect()` garantiza integridad referencial y acceso por nombre de columna.
-  - **AC2 — Abstracción Total:** la capa `dominio/` no importa `sqlite3`, `pandas` ni ninguna librería de infraestructura.
-  - **AC3 — Mapeo de Datos:** los repositorios retornan objetos `@dataclass` puros, nunca tuplas de SQLite.
-  - **AC4 — Transaccionalidad:** `SqliteJuegoRepositorio.guardar_boxscore()` (y, a futuro, un método combinado tipo `save_with_boxscore`) debe permitir transacciones multi-tabla para asegurar la integridad de la carga de partidos. **Hoy no se cumple, y el problema es previo a la transaccionalidad:** `SqliteJuegoRepositorio` ni siquiera se puede ejecutar tal como está — `guardar_partido` inserta contra una tabla `Juego` que no existe (la real es `partido`) y llama a `self.conexion.obtener_conexion()`, método que no existe sobre un `sqlite3.Connection` crudo (`AttributeError` garantizado); `guardar_boxscore` tiene la lista de columnas del `INSERT` con 19 nombres (falta `idClub`) pero 20 valores en la tupla (`sqlite3.ProgrammingError` garantizado). Antes de pensar en envolver esto en una transacción multi-tabla, hay que corregir estos tres bugs.
-- **Reglas de Negocio:**
-  - Validación de DNI duplicado al guardar un jugador (lanza excepción de dominio).
-  - Uso de `cursor.lastrowid` para retornar la entidad con el ID asignado por la base de datos.
-- **Entidades/Modelos implicados:** `Usuario`, `Club`, `Jugador`, `JugadorClub`, `Competencia`, `Categoria`, `Inscripcion`, `ListaBuenaFe`, `JugadorListaBuenaFe`, `Partido`, `EstadisticaJugadorPartido`.
-- **Vistas SQL necesarias:** `v_partidos_resumen` y `v_boxscore_completo` para optimizar las consultas de lectura en los repositorios.
-- **Testing Mínimo:**
-  - _Integración (`tests/integration/test_repositories.py`):_ CRUD completo por repositorio usando DB `:memory:`; `buscar_por_dni` retorna `None` si no existe, sin lanzar excepción; el `save()` de un partido y sus estadísticas es atómico; los repositorios de lectura usan las vistas SQL correctamente.
+**Esfuerzo:** M (3-5 días). **Prioridad:** Urgente (bloqueante). **Dependencias:** US-101
+
+**Objetivo Funcional:** implementar el orquestador de conexión y las interfaces de persistencia bajo Clean Architecture, asegurando que el acceso a datos sea independiente del motor de base de datos y garantizando la integridad referencial.
+
+**Narrativa:** Como desarrollador, quiero una capa de infraestructura que gestione el ciclo de vida de la conexión SQLite y exponga repositorios tipados para cada agregado del dominio.
+
+**Capa de Dominio — Interfaces (`src/dominio/repositorios/`):** las firmas reales ya migraron de "parámetros sueltos" a **recibir la dataclass completa**
+
+- `UsuarioRepositorio`: `encontrar_por_mail(email)`, `encontrar_por_id(id)`, `guardar(usuario: Usuario)`.
+- `ClubRepositorio`: `buscar_por_id_usuario`, `buscar_por_id`, `buscar_por_nombre`, `guardar(club: Club)`, `link_user_to_club(us_club: UsuarioClub)`.
+- `JugadorRepositorio`: `buscar_por_id`, `buscar_por_dni`, `buscar_por_club`, `guardar(jugador: Jugador)`, `link_to_club(jc: JugadorClub)`, `club_activo`.
+- `CompetenciaRepositorio`: `guardar_competencia(compe:Competencia)`, `buscar_competencia_por_id`, `obtener_todas_competencias`, `guardar_categoria(cat:Categoria)`, `obtener_categorias`, `guardar_inscripcion(inscripcion: Inscripcion)`, `buscar_inscripcion_por_id`, `obtener_inscripciones_por_club`, `guardar_lista_buena_fe(listaBF: ListaBuenaFe)`, `obtener_lista_por_inscripcion` _(tipada `-> ListaBuenaFe` singular, coherente con la relación 1:1)_, `agregar_jugador_lista(idJugador, idListaBuenaFe)` y `obtener_jugadores_lista`.
+- `JuegoRepositorio`: `buscar_por_club`, `buscar_por_id`, `guardar_partido(partido: Partido)`, `guardar_boxscore(boxscore:JugadorPartido)`.
+
+**Capa de Infraestructura:**
+
+- **Clase `SQLiteManager`:** administra la conexión; `connect()` activa `PRAGMA foreign_keys` y `row_factory = sqlite3.Row`, retornando la conexión activa si ya existe; `inicializar_schema()` ejecuta `schema.sql` + `views.sql` en una sola llamada atómica.
+- **Implementaciones concretas** (`src/infraestructura/repositorios/`): `SqliteUsuarioRepositorio`, `SqliteClubRepositorio`, `SqliteJugadorRepositorio`, `SqliteCompetenciaRepositorio`, `SqliteJuegoRepositorio`. `SqliteCompetenciaRepositorio` maneja competencia, categoria, inscripcion, listaBuenaFe y jugadorListaBuenaFe como un único agregado competitivo. Cada repositorio mapea manualmente `sqlite3.Row` a las dataclasses de dominio mediante un método privado `_row_to_entity()`.
+
+**Criterios de Aceptación:**
+
+- **AC1 — Gestión de Conexión:** `connect()` garantiza integridad referencial y acceso por nombre de columna.
+- **AC2 — Abstracción Total:** la capa `dominio/` no importa `sqlite3`, `pandas` ni ninguna librería de infraestructura.
+- **AC3 — Mapeo de Datos:** los repositorios retornan objetos `@dataclass` puros, nunca tuplas de SQLite.
+- **AC4 — Transaccionalidad:** `SqliteJuegoRepositorio.guardar_boxscore()` (y, a futuro, un método combinado tipo `save_with_boxscore`) debe permitir transacciones multi-tabla para asegurar la integridad de la carga de partidos.
+
+**Reglas de Negocio:**
+
+- Validación de DNI duplicado al guardar un jugador (lanza excepción de dominio).
+- Uso de `cursor.lastrowid` para retornar la entidad con el ID asignado por la base de datos.
+
+**Entidades/Modelos implicados:** `Usuario`, `Club`, `Jugador`, `JugadorClub`, `Competencia`, `Categoria`, `Inscripcion`, `ListaBuenaFe`, `JugadorListaBuenaFe`, `Partido`, `EstadisticaJugadorPartido`.
+
+**Vistas SQL necesarias:** `v_partidos_resumen` y `v_boxscore_completo` para optimizar las consultas de lectura en los repositorios.
+
+**Testing Mínimo:**
+
+- _Integración (`tests/integration/test_repositories.py`):_ CRUD completo por repositorio usando DB `:memory:`; `buscar_por_dni` retorna `None` si no existe, sin lanzar excepción; el `save()` de un partido y sus estadísticas es atómico; los repositorios de lectura usan las vistas SQL correctamente.
 
 **Archivos a crear (consolidado, nombres en español):**
 
-```text
-src/dominio/repositorios/
-├── usuario_repositorio.py        ✅ existe
-├── club_repositorio.py           ✅ existe
-├── jugador_repositorio.py        ✅ existe
-├── competencia_repositorio.py    ✅ existe
-└── juego_repositorio.py          ✅ existe
-
-src/infraestructura/repositorios/
-├── sqlite_usuario_repositorio.py     ✅ existe, funcional y testeado
-├── sqlite_club_repositorio.py        ✅ existe, funcional (sin tests dedicados todavía)
-├── sqlite_jugador_repositorio.py     ⚠️ existe, conexión OK, pero `link_to_club` usa atributos
-│                                        que no existen en `JugadorClub` (`id_jugador`/`id_club`
-│                                        en vez de `idJugador`/`idClub`) — ver sección 20
-├── sqlite_competencia_repositorio.py ⚠️ EXISTE  — pero con 3 bugs y 2 métodos
-│                                        sin implementar (`pass`) — ver sección 20
-└── sqlite_juego_repositorio.py       ⚠️ existe, conexión OK, pero no es funcional: tabla/columna
-                                         equivocada, método de conexión inexistente, `INSERT`
-                                         desalineado — ver sección 20
+```mermaid
+---
+config:
+  treeView:
+    showIcons: true
+---
+src/
+  dominio/
+    repositorios/
+      usuario_repositorio.py
+      club_repositorio.py
+      jugador_repositorio.py
+      competencia_repositorio.py
+      juego_repositorio.py
+  infraestructura/
+    repositorios/
+      sqlite_usuario_repositorio.py
+      sqlite_club_repositorio.py
+      sqlite_jugador_repositorio.py
+      sqlite_competencia_repositorio.py
+      sqlite_juego_repositorio.py
 ```
-
-> **Estado real:** las 5 implementaciones ya existen y las 5 usan el mismo patrón de conexión (`sqlite3.Connection` crudo por constructor). Lo que falta es corregir bugs puntuales de tres de ellas.
 
 ### Épica H1-E2: Lógica de Aplicación y CLI
 
 #### US-103 — Gestión de Entidades (Casos de Uso Administrativos)
 
-- **Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-101, US-102
-- **Objetivo Funcional:** implementar la lógica de negocio pura y la interfaz de usuario por comandos para la gestión integral de las entidades del sistema (jugadores, clubes, competencias, inscripciones), asegurando la validación de reglas deportivas y la integridad de los datos.
-- **Narrativa:** Como administrador, quiero disponer de casos de uso con lógica de negocio validada para gestionar el ciclo de vida de los jugadores y sus afiliaciones, así como la estructura de competencias y clubes.
-- **Estado:** ✅ **implementada** — los 17 casos de uso (los 9 originales más 8 agregados el 2026-09-20, ver el recuadro de abajo), sus DTOs, las validaciones de entidad y los comandos de CLI que no dependen de la sesión (US-104).
-  Pendiente dentro de esta US: solo el comando `club select` (necesita el `SessionManager` de la US-104).
-  El detalle de cada caso de uso está en `docs/info_modulo/03-casos-de-uso.md`.
+**Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-101, US-102
 
-  > **Alcance ampliado (2026-09-20).** El pilar 2 del producto promete "gestión organizativa completa: perfil de usuario, club, **categorías**, competencias y **listas de buena fe**", pero ninguna US planificaba
-  > crear ni listar categorías, listar competencias ni administrar la lista de buena fe (las tablas y los métodos del repositorio ya existían desde la US-101/102, sin ningún caso de uso que los usara).
-  > Sin eso, `competencia inscribir` no se podía usar (necesita una categoría) y la regla "solo jugadores habilitados en lista pueden figurar en carga oficial" no tenía de dónde salir. Se incorporó a esta US:
-  > categorías (`CrearCategoriaUseCase`, `ListarCategoriasUseCase`), consultas de apoyo (`ListarCompetenciasUseCase`, `ListarInscripcionesClubUseCase`) y la lista de buena fe
-  > (`AgregarJugadorAListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`).
-  >
-  > **Auditoría de cierre (2026-09-20).** Al revisar la US contra sus propias reglas se completaron cuatro huecos más: (1) **quitar un jugador de la lista de buena fe** (`QuitarJugadorDeListaBuenaFeUseCase`;
-  > sin esto una habilitación por error no se podía deshacer), (2) **el ciclo de vida del vínculo jugador-club**: `DesvincularJugadorDeClubUseCase` cierra el vínculo vigente (antes un jugador que dejaba un club
-  > no se podía pasar a otro), con la regla de que un vínculo nuevo no puede empezar antes de que termine el anterior, (3) **validaciones de valor** en las entidades (nombres vacíos, DNI ≤ 0, año de nacimiento
-  > imposible) y (4) que `partido list` muestre **nombres** (vista `v_partidos_resumen`) en lugar de ids, además de dos propiedades calculadas (`Jugador.nombre_completo`, `JugadorPartido.rebotes_totales`).
+**Objetivo Funcional:** implementar la lógica de negocio pura y la interfaz de usuario por comandos para la gestión integral de las entidades del sistema (jugadores, clubes, competencias, inscripciones), asegurando la validación de reglas deportivas y la integridad de los datos.
 
-- **Capa de Dominio:**
-  - **Entidades:** `Usuario`, `Club`, `Jugador`, `JugadorClub` (historial N:M jugador-club), `Competencia`, `Categoria`, `Inscripcion`, `ListaBuenaFe`, `JugadorListaBuenaFe`, `Partido`, `EstadisticaJugador` (en el código: `JugadorPartido`). `@dataclass` puras, serializables, sin dependencias externas.
-  - **Lógica de validación** ✅ (en `__post_init__` de las entidades): tipos de todos los campos (`TypeError`: es un bug del programa); y **reglas de valor** (`DatoInvalidoError`: es un error del usuario, llega a la CLI
-    como mensaje): nombres de `Club`, `Jugador` (nombre y apellido), `Competencia` y `Categoria` no vacíos (ni solo espacios); `Jugador.dni` mayor a 0; `Jugador.anioNacimiento` mayor a 1900 y no posterior al año actual;
-    `Competencia.anio` mayor a 1900 (mismo criterio que el `CHECK` del schema); en `JugadorPartido`, tiros convertidos ≤ lanzados, minutos entre 0 y 48, valores no negativos y `puntos = T2C·2 + T3C·3 + T1C`.
-  - **Modelo de lectura:** `PartidoResumen` (dataclass sin validación, es lo que devuelve la vista `v_partidos_resumen`: fecha, estadio, competencia, año y nombres de los dos clubes).
-  - **Propiedades calculadas:** `Jugador.nombre_completo` y `JugadorPartido.rebotes_totales` (defensivos + ofensivos); no se guardan en la base.
-  - **Excepciones** ✅ (`src/dominio/exceptions.py`), todas hijas de `ErrorDeDominio`: `DNIDuplicadoError`, `ClubNoEncontradoError`, `JugadorNoEncontradoError`, `CompetenciaNoEncontradaError`,
-    `CategoriaNoEncontradaError`, `InscripcionDuplicadaError`, `VinculoActivoExistenteError`, `CategoriaDuplicadaError`, `InscripcionNoEncontradaError`, `ListaBuenaFeNoEncontradaError`, `JugadorYaEnListaError`,
-    `JugadorNoPerteneceAlClubError`, `JugadorNoEstaEnListaError`, `JugadorSinVinculoActivoError`, `VinculoSuperpuestoError`, `DatoInvalidoError` (además hereda de `ValueError`, para que el código que ya
-    atrapaba `ValueError` siga funcionando), `UsuarioNoEncontradoError` y `CredencialesInvalidasError` (estas dos se usan a partir de la US-104).
-- **Capa de Aplicación** ✅ (`src/aplicacion/`):
-  - **Casos de uso** (`casos_uso/`, método `ejecutar()`): `RegistrarJugadorUseCase` (crea la entidad y el repositorio rechaza el DNI duplicado), `CrearClubUseCase`, `VincularJugadorAClubUseCase` (verifica que existan
-    jugador y club, evita vínculos activos duplicados y que el vínculo nuevo se superponga con uno anterior), `CrearCompetenciaUseCase`, `InscribirClubEnCompetenciaUseCase` (valida club, competencia y categoría, evita la inscripción duplicada y genera la `listaBuenaFe`
-    vacía asociada, 1:1, **de forma atómica** con `CompetenciaRepositorio.inscribir_con_lista`), `ListarClubesUsuarioUseCase`, `ListarJugadoresClubUseCase` (solo vínculos vigentes), `ListarPartidosPorClubUseCase` (devuelve `PartidoResumenDTO` con
-    nombres, desde la vista) y `CambiarClubActivoUseCase` (valida que el club exista y pertenezca al usuario; guardar el club en la sesión es de la US-104). **Agregados el 2026-09-20:** `CrearCategoriaUseCase` (no permite nombres repetidos, sin importar
-    mayúsculas ni espacios de los extremos), `ListarCategoriasUseCase`, `ListarCompetenciasUseCase`, `ListarInscripcionesClubUseCase` (devuelve también el id de la lista de cada inscripción),
-    `AgregarJugadorAListaBuenaFeUseCase` (habilita a un jugador en la lista de una inscripción) y `ListarListaBuenaFeUseCase` (los jugadores habilitados, con su nombre). **Agregados en la auditoría de cierre:**
-    `DesvincularJugadorDeClubUseCase` (cierra el vínculo vigente con una fecha de baja no anterior a su inicio) y `QuitarJugadorDeListaBuenaFeUseCase` (deshace una habilitación).
-  - **DTOs** (`dtos/`): `CrearJugadorDTO`, `JugadorDTO`, `CrearClubDTO`, `ClubDTO`, `VincularJugadorClubDTO`, `CrearCompetenciaDTO`, `CompetenciaDTO`, `InscribirClubDTO`, `InscripcionDTO`, `PartidoResumenDTO`, `CrearCategoriaDTO`, `CategoriaDTO`, `AgregarJugadorListaDTO`, `JugadorEnListaDTO`, `DesvincularJugadorDTO`, `VinculoDTO` y `QuitarJugadorListaDTO`.
-  - **`src/utils.py`:** helpers puros compartidos (`id_persistido`, `abortar`, `fecha_iso`), sin dependencias de `infraestructura`.
-- **Capa de Infraestructura:**
-  - **`src/main.py`** es el composition root de la CLI (no existe un `main_cli.py` separado): arma el parser raíz con un subparser por entidad (`club`, `jugador`, `competencia`, `partido`), inicializa la base
-    y despacha el comando. Un único `except ErrorDeDominio` en `main()` muestra los errores de negocio como `Error: ...` en stderr, con código de salida 1 y sin traceback.
-  - **Comandos CLI** (`src/infraestructura/ui/cli/commands/`): **un archivo por acción** (así quedó construido, ver `docs/context_ia/2026-08-29-us103-argparse-comandos-flujo-completo.md`), con flags de `argparse`
-    (no prompts interactivos): `jugador_add.py`, `jugador_link.py`, `jugador_unlink.py`, `jugador_list.py`, `club_add.py`, `club_list.py` (con `--id-usuario` provisorio hasta que exista la sesión), `competencia_add.py`,
-    `competencia_inscribir.py`, `competencia_list.py`, `categoria_add.py`, `categoria_list.py`, `inscripcion_list.py`, `lista_add.py`, `lista_remove.py`, `lista_list.py` y `game_list.py` (`stats partido list`). Cada uno expone `ejecutar(args, repo=None)`: en producción arma el repositorio real con `abrir_conexion()`; en los tests se le inyecta uno falso.
-  - **Repositorios:** se agregaron `JugadorRepositorio.historial_vinculos` y `cerrar_vinculo`, `CompetenciaRepositorio.quitar_jugador_lista` y `PartidoRepositorio.resumen_por_club` (lee `v_partidos_resumen`,
-    que ahora también expone `id_club_local` e `id_club_visitante` para poder filtrar por club).
-  - **`formatters/table_formatter.py`** ✅: wrapper de `tabulate`; todos los listados pasan por acá (AC4).
-  - **`persistencia/database_manager.py`:** se agregó `abrir_conexion()`. Además se corrigió `schema.sql`, que empezaba con `DROP TABLE` y borraba todos los datos en cada arranque de la CLI.
-  - **Dependencias:** `tabulate` (runtime), declarada en `pyproject.toml` junto con el resto (versiones fijas, `uv.lock`, sin `requerimientos.txt`).
-- **Criterios de Aceptación:**
-  - **AC1 — Independencia de Dominio:** ✅ los archivos en `dominio/entidades/` no importan librerías externas.
-  - **AC2 — Inyección de Dependencias:** ✅ todos los casos de uso reciben sus repositorios vía constructor, usando las interfaces (ABC).
-  - **AC3 — Validación Fail-Fast:** ✅ DNI duplicado o datos inválidos cortan el flujo de la CLI con mensajes de error amigables, sin tracebacks (un solo `except ErrorDeDominio` en `main()`;
-    los valores inválidos de una entidad —nombre vacío, DNI negativo, año imposible— llegan como `DatoInvalidoError`, que es un `ErrorDeDominio`, y se muestran igual).
-  - **AC4 — Formato de Salida:** ✅ los listados se formatean como tablas en consola (`tabulate`). Los comandos que crean algo imprimen una línea de confirmación.
-  - **AC5 — Atomicidad:** ✅ la inscripción y su lista de buena fe se guardan en una única transacción (`inscribir_con_lista`).
-- **Reglas de Negocio:**
-  - DNI de jugadores numérico, positivo y único. Nombre y apellido no vacíos. Año de nacimiento mayor a 1900 y no posterior al año actual.
-  - Un jugador no puede estar vinculado activamente (sin `fecha_hasta`) a más de un club (ni al
-    mismo club dos veces).
-  - **Cambio de club:** para pasar a otro club primero se cierra el vínculo vigente (`jugador unlink --fecha-hasta`); la fecha de baja no puede ser anterior al inicio del vínculo, y el vínculo nuevo no puede
-    empezar antes de la baja del anterior (no se superponen períodos). El historial completo queda en `jugadorClub`.
-    _(La regla de no superposición no estaba en el PRD original: se agregó al implementar el cierre del vínculo, porque el schema solo impide `fechaHasta < fechaDesde` dentro de una fila.)_
-  - Un club no puede inscribirse dos veces en la misma competencia y categoría.
-  - No puede haber dos categorías con el mismo nombre (se compara sin distinguir mayúsculas ni espacios de los extremos).
-  - **Lista de buena fe:** solo se puede habilitar a un jugador que **existe**, que tiene un **vínculo vigente con el club de la inscripción** y que **todavía no está** en esa lista.
-    _(La regla del vínculo vigente no estaba en el PRD original: se propuso al implementar `lista add` para evitar listas con jugadores de otros clubes; si el negocio admite préstamos u otras excepciones, se relaja en `AgregarJugadorAListaBuenaFeUseCase`.)_
-  - **Quitar de la lista:** solo se puede quitar a un jugador que **está** en la lista de esa inscripción (si no, `JugadorNoEstaEnListaError`). Quitarlo no lo borra del sistema ni del club: solo deshace la habilitación.
-  - Porcentajes y totales en estadísticas se validan antes de la persistencia.
-- **Testing Mínimo** ✅ (ver `docs/info_modulo/09-testing.md`):
-  - _Unitarios (`tests/unit/`):_ validación de entidades (tipos, valores —vacíos, rangos— y las reglas de `JugadorPartido`), propiedades calculadas, jerarquía de excepciones de dominio, los 17 casos de uso con repositorios falsos (`unittest.mock`) —camino feliz y una
-    prueba por cada excepción—, comandos de la CLI (con `capsys`) y helpers.
-  - _Integración (`tests/integration/`):_ persistencia real en DB `:memory:` (repositorios, esquema y vistas, atomicidad de la inscripción) y la CLI de punta a punta contra una base temporal.
+**Narrativa:** Como administrador, quiero disponer de casos de uso con lógica de negocio validada para gestionar el ciclo de vida de los jugadores y sus afiliaciones, así como la estructura de competencias y clubes.
+
+**Capa de Dominio:**
+
+- **Entidades:** `Usuario`, `Club`, `Jugador`, `JugadorClub` (historial N:M jugador-club), `Competencia`, `Categoria`, `Inscripcion`, `ListaBuenaFe`, `JugadorListaBuenaFe`, `Partido`, `JugadorPartido`. `@dataclass` puras, serializables, sin dependencias externas.
+- **Lógica de validación** (`__post_init__` de entidades): tipos de todos los campos (`TypeError`: bug del programa); y **reglas de valor** (`DatoInvalidoError`: error del usuario, llega a la CLI como mensaje): nombres de `Club`, `Jugador` (nombre y apellido), `Competencia` y `Categoria` no vacíos (ni solo espacios); `Jugador.dni` mayor a 0; `Jugador.anioNacimiento` mayor a 1900 y no posterior al año actual; `Competencia.anio` mayor a 1900 ; en `JugadorPartido`, tiros convertidos ≤ lanzados, minutos entre 0 y 48, valores no negativos y `puntos = T2C·2 + T3C·3 + T1C`.
+- **Modelo de lectura:** `PartidoResumen` (dataclass sin validación, es lo que devuelve la vista `v_partidos_resumen`: fecha, estadio, competencia, año y nombres de los dos clubes).
+- **Propiedades calculadas:** `Jugador.nombre_completo` y `JugadorPartido.rebotes_totales` (defensivos + ofensivos); no se guardan en la base.
+- **Excepciones** (`src/dominio/exceptions.py`), todas hijas de `ErrorDeDominio`: `DNIDuplicadoError`, `ClubNoEncontradoError`, `JugadorNoEncontradoError`, `CompetenciaNoEncontradaError`, `CategoriaNoEncontradaError`, `InscripcionDuplicadaError`, `VinculoActivoExistenteError`, `CategoriaDuplicadaError`, `InscripcionNoEncontradaError`, `ListaBuenaFeNoEncontradaError`, `JugadorYaEnListaError`, `JugadorNoPerteneceAlClubError`, `JugadorNoEstaEnListaError`, `JugadorSinVinculoActivoError`, `VinculoSuperpuestoError`, `DatoInvalidoError` (además hereda de `ValueError`, para que el código que ya atrapaba `ValueError` siga funcionando), `UsuarioNoEncontradoError` y `CredencialesInvalidasError`.
+
+**Capa de Aplicación** ✅ (`src/aplicacion/`):
+
+- **Casos de uso** (`casos_uso/`, método `ejecutar()`):
+  - `RegistrarJugadorUseCase` (crea la entidad y el repositorio rechaza el DNI duplicado),
+  - `CrearClubUseCase`,
+  - `VincularJugadorAClubUseCase` (verifica que existan jugador y club, evita vínculos activos duplicados y que el vínculo nuevo se superponga con uno anterior),
+  - `CrearCompetenciaUseCase`,
+  - `InscribirClubEnCompetenciaUseCase` (valida club, competencia y categoría, evita la inscripción duplicada y genera la `listaBuenaFe` vacía asociada, 1:1, **de forma atómica** con `CompetenciaRepositorio.inscribir_con_lista`),
+  - `ListarClubesUsuarioUseCase`
+  - `ListarJugadoresClubUseCase` (solo vínculos vigentes),
+  - `ListarPartidosPorClubUseCase` (devuelve `PartidoResumenDTO` con nombres, desde la vista)
+  - `CambiarClubActivoUseCase` (valida que el club exista y pertenezca al usuario; guardar el club en la sesión es de la US-105).
+  - `CrearCategoriaUseCase` (no permite nombres repetidos, sin importar mayúsculas ni espacios de los extremos),
+  - `ListarCategoriasUseCase`,
+  - `ListarCompetenciasUseCase`,
+  - `ListarInscripcionesClubUseCase` (devuelve también el id de la lista de cada inscripción),
+  - `AgregarJugadorAListaBuenaFeUseCase` (habilita a un jugador en la lista de una inscripción)
+  - `ListarListaBuenaFeUseCase` (los jugadores habilitados, con su nombre).
+  - `DesvincularJugadorDeClubUseCase` (cierra el vínculo vigente con una fecha de baja no anterior a su inicio)
+  - `QuitarJugadorDeListaBuenaFeUseCase` (deshace una habilitación).
+- **DTOs** (`dtos/`):
+  - `CrearJugadorDTO`
+  - `JugadorDTO`
+  - `CrearClubDTO`
+  - `ClubDTO`
+  - `VincularJugadorClubDTO`
+  - `CrearCompetenciaDTO`
+  - `CompetenciaDTO`
+  - `InscribirClubDTO`
+  - `InscripcionDTO`
+  - `PartidoResumenDTO`
+  - `CrearCategoriaDTO`
+  - `CategoriaDTO`
+  - `AgregarJugadorListaDTO`
+  - `JugadorEnListaDTO`
+  - `DesvincularJugadorDTO`
+  - `VinculoDTO`
+  - `QuitarJugadorListaDTO`.
+- **`src/utils.py`:** helpers puros compartidos (`id_persistido`, `abortar`, `fecha_iso`), sin dependencias de `infraestructura`.
+
+**Capa de Infraestructura:**
+
+- **`src/main.py`** es el composition root de la CLI (no existe un `main_cli.py` separado): arma el parser raíz con un subparser por entidad (`club`, `jugador`, `competencia`, `partido`), inicializa la base y despacha el comando. Un único `except ErrorDeDominio` en `main()` muestra los errores de negocio como `Error: ...` en stderr, con código de salida 1 y sin traceback.
+- **Comandos CLI** (`src/infraestructura/ui/cli/commands/`): **un archivo por acción** con flags de `argparse` (no prompts interactivos): `jugador_add.py`, `jugador_link.py`, `jugador_unlink.py`, `jugador_list.py`, `club_add.py`, `club_list.py` (con `--id-usuario` provisorio hasta que exista la sesión), `competencia_add.py`, `competencia_inscribir.py`, `competencia_list.py`, `categoria_add.py`, `categoria_list.py`, `inscripcion_list.py`, `lista_add.py`, `lista_remove.py`, `lista_list.py` y `game_list.py` (`stats partido list`). Cada uno expone `ejecutar(args, repo=None)`: en producción arma el repositorio real con `abrir_conexion()`; en los tests se le inyecta uno falso.
+- **Repositorios:** se agregaron `JugadorRepositorio.historial_vinculos` y `cerrar_vinculo`, `CompetenciaRepositorio.quitar_jugador_lista` y `PartidoRepositorio.resumen_por_club` (lee `v_partidos_resumen`, que ahora también expone `id_club_local` e `id_club_visitante` para poder filtrar por club).
+- **`formatters/table_formatter.py`**: wrapper de `tabulate`; todos los listados pasan por acá (AC4).
+- **`persistencia/database_manager.py`:** se agregó `abrir_conexion()`. Además se corrigió `schema.sql`, que empezaba con `DROP TABLE` y borraba todos los datos en cada arranque de la CLI.
+- **Dependencias:** `tabulate` (runtime), declarada en `pyproject.toml` junto con el resto (versiones fijas, `uv.lock`, sin `requerimientos.txt`).
+
+**Criterios de Aceptación:**
+
+- **AC1 — Independencia de Dominio:** los archivos en `dominio/entidades/` no importan librerías externas.
+- **AC2 — Inyección de Dependencias:** todos los casos de uso reciben sus repositorios vía constructor, usando las interfaces (ABC).
+- **AC3 — Validación Fail-Fast:** DNI duplicado o datos inválidos cortan el flujo de la CLI con mensajes de error amigables, sin tracebacks (un solo `except ErrorDeDominio` en `main()`; los valores inválidos de una entidad —nombre vacío, DNI negativo, año imposible— llegan como `DatoInvalidoError`, que es un `ErrorDeDominio`, y se muestran igual).
+- **AC4 — Formato de Salida:** los listados se formatean como tablas en consola (`tabulate`). Los comandos que crean algo imprimen una línea de confirmación.
+- **AC5 — Atomicidad:** la inscripción y su lista de buena fe se guardan en una única transacción (`inscribir_con_lista`).
+
+**Reglas de Negocio:**
+
+- DNI de jugadores numérico, positivo y único. Nombre y apellido no vacíos. Año de nacimiento mayor a 1900 y no posterior al año actual.
+- Un jugador no puede estar vinculado activamente (sin `fecha_hasta`) a más de un club (ni al mismo club dos veces).
+- **Cambio de club:** para pasar a otro club primero se cierra el vínculo vigente (`jugador unlink --fecha-hasta`); la fecha de baja no puede ser anterior al inicio del vínculo, y el vínculo nuevo no puede empezar antes de la baja del anterior (no se superponen períodos). El historial completo queda en `jugadorClub`.
+- Un club no puede inscribirse dos veces en la misma competencia y categoría.
+- No puede haber dos categorías con el mismo nombre (se compara sin distinguir mayúsculas ni espacios de los extremos).
+- **Lista de buena fe:** solo se puede habilitar a un jugador que **existe**, que tiene un **vínculo vigente con el club de la inscripción** y que **todavía no está** en esa lista.
+- **Quitar de la lista:** solo se puede quitar a un jugador que **está** en la lista de esa inscripción (si no, `JugadorNoEstaEnListaError`). Quitarlo no lo borra del sistema ni del club: solo deshace la habilitación.
+- Porcentajes y totales en estadísticas se validan antes de la persistencia.
+
+**Testing Mínimo**:
+
+- _Unitarios (`tests/unit/`):_ validación de entidades (tipos, valores —vacíos, rangos— y las reglas de `JugadorPartido`), propiedades calculadas, jerarquía de excepciones de dominio, los 17 casos de uso con repositorios falsos (`unittest.mock`) —camino feliz y una prueba por cada excepción—, comandos de la CLI (con `capsys`) y helpers.
+- _Integración (`tests/integration/`):_ persistencia real en DB `:memory:` (repositorios, esquema y vistas, atomicidad de la inscripción) y la CLI de punta a punta contra una base temporal.
 
 **Archivos:**
 
 ```text
 src/dominio/entidades/
-├── usuario.py                ✅ existe (con validación de tipos)
-├── club.py                   ✅ existe
-├── jugador.py                ✅ existe
-├── jugador_club.py           ✅ existe (dentro de jugador.py)
-├── competencia.py            ✅ existe
-├── categoria.py              ✅ existe (dentro de competencia.py)
-├── inscripcion.py            ✅ existe (dentro de competencia.py)
-├── lista_buena_fe.py         ✅ existe (dentro de competencia.py)
-├── jugador_lista_buena_fe.py ✅ existe (dentro de competencia.py)
-├── partido.py                ✅ existe
-└── estadistica_jugador.py    ✅ existe (como JugadorPartido, dentro de partido.py)
+├── usuario.py
+├── club.py
+├── jugador.py
+├── jugador_club.py
+├── competencia.py
+├── categoria.py
+├── inscripcion.py
+├── lista_buena_fe.py
+├── jugador_lista_buena_fe.py
+├── partido.py
+└── estadistica_jugador.py
 
 src/aplicacion/casos_uso/
-├── registrar_jugador.py             ✅
-├── crear_club.py                    ✅
-├── vincular_jugador_club.py         ✅
-├── desvincular_jugador_club.py      ✅ (agregado 2026-09-20)
-├── crear_competencia.py             ✅
-├── inscribir_club_competencia.py    ✅
-├── listar_clubes_usr.py             ✅
-├── listar_jugador_club.py           ✅
-├── partidos_por_club.py             ✅
-├── cambiar_club_activo.py           ✅ (solo valida; la sesión es de la US-104)
-├── crear_categoria.py               ✅ (agregado 2026-09-20)
-├── listar_categorias.py             ✅ (agregado 2026-09-20)
-├── listar_competencias.py           ✅ (agregado 2026-09-20)
-├── listar_inscripciones_club.py     ✅ (agregado 2026-09-20)
-├── agregar_jugador_lista.py         ✅ (agregado 2026-09-20)
-├── listar_lista_buena_fe.py         ✅ (agregado 2026-09-20)
-└── quitar_jugador_lista.py          ✅ (agregado 2026-09-20)
+├── registrar_jugador.py
+├── crear_club.py
+├── vincular_jugador_club.py
+├── desvincular_jugador_club.py
+├── crear_competencia.py
+├── inscribir_club_competencia.py
+├── listar_clubes_usr.py
+├── listar_jugador_club.py
+├── partidos_por_club.py
+├── cambiar_club_activo.py
+├── crear_categoria.py
+├── listar_categorias.py
+├── listar_competencias.py
+├── listar_inscripciones_club.py
+├── agregar_jugador_lista.py
+├── listar_lista_buena_fe.py
+└── quitar_jugador_lista.py
 
 src/infraestructura/ui/cli/
 ├── commands/
@@ -662,71 +694,42 @@ src/infraestructura/ui/cli/
 │   ├── lista_list.py                ✅ stats lista list
 │   └── game_list.py                 ✅ stats partido list
 └── formatters/
-    └── table_formatter.py           ✅
+    └── table_formatter.py
 ```
 
-> **Nota de organización real:** el PRD prevé un archivo por entidad/caso de uso; el código
-> actual agrupa varias entidades relacionadas en un mismo archivo (ej. `competencia.py` contiene
-> `Competencia`, `Categoria`, `Inscripcion`, `ListaBuenaFe` y `JugadorListaBuenaFe`). Es una
-> decisión de organización razonable para el tamaño actual — no es un error, pero vale la pena un
-> acuerdo explícito del equipo sobre si se mantiene así o se separa 1:1 como sugiere el PRD (ver
-> sección 20).
+#### US-104 — Autenticación de Usuarios
 
-#### US-104 — Autenticación y Sesión Local
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103
-- **Objetivo Funcional:** permitir el registro y acceso seguro de entrenadores al sistema,
-  manteniendo un estado de sesión persistente entre ejecuciones de la CLI para evitar solicitudes
-  repetitivas de credenciales y el ingreso constante del ID del club activo.
-- **Narrativa:** Como usuario, quiero un sistema de login local que proteja mis datos y mantenga
-  mi sesión entre ejecuciones de la CLI.
-- **Capa de Dominio:**
-  - **Entidades:** `Usuario` (`id`, `nombre`, `email`, `password_hash`, `salt`).
-  - **Excepciones:** `EmailYaRegistradoError`, `UsuarioNoEncontradoError`,
-    `CredencialesInvalidasError`.
-  - **Interfaces:** `UsuarioRepositorio` (`get_by_email`, `get_by_id`, `save`).
-- **Capa de Aplicación:**
-  - **Casos de uso:** `RegistrarEntrenadorUseCase`, `LoginLocalUseCase`.
-  - **DTOs:** `RegistrarDTO`/`RegisterInputDTO`, `LoginDTO`/`LoginInputDTO`,
-    `SessionDTO` (`usuario_id`, `email`, `club_activo_id`).
-  - **Servicios de Aplicación:** `SessionManager` (`load_session`/`get_current`, `save_session`,
-    `is_authenticated`, `clear_session`/`destroy`, `set_active_club`/`set_club_activo`).
-- **Capa de Infraestructura:**
-  - **Seguridad:** `PasswordHasher` — wrapper sobre `bcrypt`/`argon2-cffi` (objetivo final) con
-    solo dos métodos públicos: `hash(password)` y `verify(password, hash)`. _(v0.1 puede arrancar
-    con `hashlib.pbkdf2_hmac`/SHA-256 con salt dinámico según ADR-006, migrando a bcrypt/Argon2
-    después — ver tabla de ADRs.)_
-  - **Persistencia:** `SqliteUsuarioRepositorio`.
-  - **Gestión de sesión:** `SessionManager` persiste `usuario_id` y `club_activo_id` en un JSON
-    oculto (`~/.statspro/session.json` o `~/.statspro_session.json`).
-  - **CLI:** `stats auth register`, `stats auth login`, `stats auth logout`,
-    `stats club select <id>`. Se registran como subparsers nuevos en el `construir_parser()` de
-    `src/main.py`, que ya existe desde la US-103 (no se crea uno nuevo). Siguiendo la convención
-    **un archivo por acción** de `ui/cli/commands/`, se crean `auth_register.py`, `auth_login.py`,
-    `auth_logout.py` y `club_select.py` (este último usa `CambiarClubActivoUseCase`, que ya existe
-    desde la US-103 y solo valida; acá se le suma guardar el club en el `SessionManager`). Ese
-    mismo paso deja de usar el `--id-usuario` provisorio de `club_list.py`, que pasa a leer el
-    usuario de la sesión.
-- **Base de Datos:** tabla `usuario` (`idUsuario`, `nombre`, `email`, `contrasenia` — nombre real
-  de columna, ver nota sobre el campo `pw` en sección 20).
-- **Criterios de Aceptación:**
-  - **AC1 — Seguridad de Credenciales:** las contraseñas NUNCA se almacenan ni se loguean en
-    texto plano. Hashing determinista con salt.
-  - **AC2 — Persistencia de Sesión:** la sesión sobrevive al cierre de la CLI; al reiniciar,
-    `is_authenticated()` retorna `True` si había sesión activa.
-  - **AC3 — Manejo de Contexto:** el archivo de sesión recuerda el club activo actual.
-  - **AC4 — Validaciones:** email único; contraseña con requisitos mínimos (≥6 caracteres en
-    v0.1; ≥12 con complejidad en v1.0, ver US-403).
-- **Reglas de Negocio:**
-  - `clear_session()` es idempotente.
-  - `set_active_club()` falla si no hay sesión previa.
-  - Los comandos protegidos ejecutan `require_auth()` y `require_active_club()` según
-    corresponda.
-- **Testing Mínimo:**
-  - _Unitarias:_ hash y verificación de contraseñas; lógica de registro/login con repositorios
-    mock.
-  - _Integración:_ persistencia de sesión con archivo temporal; flujo completo
-    registro → login → sesión usando DB `:memory:`.
+**Objetivo Funcional:** permitir el registro y el acceso seguro de entrenadores al sistema, con contraseñas hasheadas y nunca almacenadas en texto plano.
+
+**Narrativa:** Como usuario, quiero poder registrarme y loguearme de forma local, con mis credenciales protegidas.
+
+**Capa de Dominio:**
+
+- **Entidad `Usuario`:** se renombra el campo `pw` a `password_hash` (claridad, sin agregar un campo `salt` separado: el salt va embebido en el propio string que devuelve `PasswordHasher.hash()`, formato estándar de `pbkdf2`/`bcrypt` — no hace falta tocar la columna `contrasenia` de la tabla `usuario`). Se agregan las validaciones de valor que al resto de las entidades (`Club`, `Jugador`, etc.) ya les llegaron en la US-103 y a `Usuario` no: `nombre`/`email` no vacíos (`DatoInvalidoError`), con el mismo `__post_init__` que ya usan las demás entidades.
+- **Excepción nueva:** `EmailYaRegistradoError` (hija de `ErrorDeDominio`).
+
+**Capa de Aplicación:**
+
+- **Casos de uso:** `RegistrarEntrenadorUseCase` (rechaza email duplicado con `EmailYaRegistradoError`, usando `UsuarioRepositorio.encontrar_por_mail`), `LoginLocalUseCase` (`CredencialesInvalidasError` si el email no existe o la contraseña no verifica, sin distinguir cuál de los dos pasó, para no filtrar si un email está registrado).
+- **DTOs:** `RegistrarDTO`, `LoginDTO`.
+
+**Capa de Infraestructura:**
+
+- **Seguridad:** `PasswordHasher` en `src/infraestructura/security/password_hasher.py`, con solo dos métodos públicos: `hash(password) -> str` y `verify(password, hash) -> bool`.
+  - **Decisión tomada:** v0.1 usa `hashlib.pbkdf2_hmac` con **salt dinámico** (uno distinto por usuario, generado con `os.urandom` al registrarse y guardado junto al hash en el mismo string) — no salt fijo. Migrar a `bcrypt`/`argon2-cffi` queda para v1.0, sin cambiar la interfaz pública de `PasswordHasher`.
+- **CLI:** `stats auth register`, `stats auth login`, `stats auth logout`. Se registran como subparsers nuevos en `construir_parser()` de `src/main.py`. Siguiendo la convención **un archivo por acción**, se crean `auth_register.py`, `auth_login.py`, `auth_logout.py` en `ui/cli/commands/`. `auth_logout` en esta US solo informa "no hay sesión que cerrar" (todavía no hay nada que persista entre comandos).
+
+**Criterios de Aceptación:**
+
+- **AC1 — Seguridad de Credenciales:** las contraseñas NUNCA se almacenan ni se loguean en texto plano. Hashing con salt dinámico por usuario.
+- **AC2 — Validaciones:** email único (`EmailYaRegistradoError`); contraseña con requisitos mínimos (≥6 caracteres en v0.1; ≥12 con complejidad en v1.0, ver US-403).
+
+**Testing Mínimo:**
+
+- _Unitarias:_ `hash`/`verify` de `PasswordHasher` (incluye que dos hashes de la misma contraseña sean distintos, por el salt dinámico); `RegistrarEntrenadorUseCase`/`LoginLocalUseCase` con `UsuarioRepositorio` mock (camino feliz + `EmailYaRegistradoError` + `CredencialesInvalidasError`).
+- _Integración:_ flujo completo registro → login con DB `:memory:`.
 
 **Archivos a crear:**
 
@@ -734,106 +737,151 @@ src/infraestructura/ui/cli/
 src/infraestructura/security/
 └── password_hasher.py
 
-src/aplicacion/
-├── services/session_manager.py
-└── casos_uso/
-    ├── registrar_entrenador.py
-    └── login_local.py
+src/aplicacion/casos_uso/
+├── registrar_entrenador.py
+└── login_local.py
 
 src/aplicacion/dtos/
 └── auth_dto.py
 
-test/
-└── test_auth.py
+src/infraestructura/ui/cli/commands/
+├── auth_register.py
+├── auth_login.py
+└── auth_logout.py
+
+tests/unit/
+└── test_password_hasher.py
+tests/integration/
+└── test_auth_flujo.py
 ```
 
-#### US-105 — Carga Atómica de Partido (CargarPartido)
+#### US-105 — Sesión Persistente y Club Activo
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104
-- **Objetivo Funcional:** registrar un evento de partido y sus estadísticas individuales
-  asociadas garantizando la integridad de los datos mediante una transacción atómica (todo o
-  nada).
-- **Narrativa:** Como DT, quiero registrar un partido completo con todas las estadísticas de los
-  jugadores en una única operación; si falla una sola estadística, nada se persiste.
-- **Capa de Dominio:**
-  - **Entidades:** `Partido` (id, competencia, fecha, estadio), `EstadisticaJugador` (idJugador,
-    idPartido, puntos, tiros, rebotes, etc.).
-  - **Interfaces:** `JuegoRepositorio` con método `save_partido_completo(partido, boxscore: list[EstadisticaJugador])`
-    (a agregar — hoy el método existente es `guardar_boxscore` fila por fila, ver sección 20).
-    **Bloqueo real, no solo un método por agregar:** `SqliteJuegoRepositorio.guardar_partido` y
-    `.guardar_boxscore` hoy no son funcionales en absoluto (tabla `Juego` inexistente, llamada a
-    un método de conexión que no existe, `INSERT` con columnas/valores desalineados — ver sección 20) — esta US no se puede construir sobre la implementación actual sin corregir esos tres
-    bugs primero, además de sumar el método combinado atómico.
-- **Capa de Aplicación:**
-  - **Caso de uso:** `CargarPartidoUseCase` (orquesta validación y persistencia).
-  - **DTOs:** `PartidoDTO` (de carga; el DTO de solo lectura que ya existe se llama `PartidoResumenDTO`), `BoxscoreDTO`, `EstadisticaInputDTO`.
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104
+
+**Objetivo Funcional:** mantener un estado de sesión persistente entre ejecuciones de la CLI, para no pedir credenciales ni el club activo en cada comando.
+
+**Narrativa:** Como usuario, quiero que la CLI recuerde que ya inicié sesión y con qué club estoy trabajando, entre una ejecución y la siguiente.
+
+**Por qué hace falta una CLI arranca-y-termina:** cada comando (`stats club list`, `stats jugador add`, etc.) es un proceso nuevo — nada en memoria sobrevive de un comando al siguiente. Por eso "estar logueado" y "tener un club activo" tienen que persistirse en disco y releerse al arrancar cada comando. Esa es la razón de ser del `SessionManager`.
+
+**Decisiones tomadas:**
+
+1. **Dónde se persiste:** archivo **JSON**, no la misma base SQLite — es el mecanismo estándar para este tipo de estado de CLI (`~/.aws/credentials`, `~/.netrc`), no compite por locks con la base, y permite borrar la sesión a mano sin tocar datos de negocio.
+2. **Ruta única:** `~/.statspro/session.json`, resuelta con `pathlib.Path.home()` (funciona igual en Windows, que es donde corre el entorno de desarrollo de este proyecto). Se elimina la ruta alternativa `~/.statspro_session.json` y la de `./data/session.json` que aparecían en dos lugares distintos del plan viejo — quedaba sin resolver cuál era la real.
+3. **Sin token ni expiración:** `SessionDTO` queda tal como ya lo define esta historia — `usuario_id`, `email`, `club_activo_id` — sin `session_token_hash` ni `expires_at`. Ese esquema es el de una sesión **web** (cliente y servidor en procesos/máquinas distintas); acá el mismo proceso local lee y escribe su propio archivo, no hay token que viajar ni nadie de quien protegerse salvo los permisos del propio archivo.
+4. **Configurable, no hardcodeado:** se agrega un loader de configuración mínimo — `src/config/settings.py` + `.env.example` (idea tomada de `docs/ideas-aprendizaje.md`, sección 4: "Loader de configuración por variables de entorno", encaja justo acá porque los tests de integración necesitan apuntar la sesión a un archivo temporal sin parchear código) — con al menos `STATSPRO_SESSION_PATH` (default `~/.statspro/session.json`) y `STATSPRO_DB_PATH` (default: lo que ya calcula `config/rutas.py`, sin romper nada existente).
+
+**Gap real encontrado y su corrección (no es alcance nuevo, es un bug de una pieza ya cerrada de US-103):** `CrearClubUseCase` (`src/aplicacion/casos_uso/crear_club.py`, ya implementado en US-103) crea el club pero **nunca inserta en `usuarioClub`** — la tabla N:M que vincula usuario y club con `rolEntrenador`. Sin ese vínculo, `club list` (que hace `JOIN usuarioClub`) y `club select` (de esta misma US) no encuentran ningún club para ningún usuario real. Se corrige acá, **documentado explícitamente como fix**, extendiendo `CrearClubUseCase` para que reciba el `idUsuario` de la sesión y lo vincule como entrenador al crear el club.
+
+**Capa de Aplicación:**
+
+- **Servicio:** `SessionManager` (`load_session`/`get_current`, `save_session`, `is_authenticated`, `clear_session`/`destroy`, `set_active_club`/`set_club_activo`). `clear_session()` es idempotente (no falla sin sesión previa); `set_active_club()` falla si no hay sesión previa.
+- **Caso de uso extendido:** `CrearClubUseCase` (US-103) pasa a recibir `idUsuario` y vincular en `usuarioClub` — no se crea un caso de uso nuevo para esto.
+
+**Capa de Infraestructura:**
+
+- **CLI:** `stats club select <id>` (usa `CambiarClubActivoUseCase`, de US-103, que solo valida pertenencia; acá se le suma guardar el club elegido en `SessionManager`); módulo de guards compartido `require_auth()`/`require_active_club()` (cada comando arma su propio `SessionManager`, igual que ya arma su propio repositorio si no se le inyecta uno — mismo patrón que ya usan). Se le saca el `--id-usuario` provisorio a `club_list.py`, que pasa a leer el usuario autenticado de la sesión.
+
+**Criterios de Aceptación:**
+
+- **AC1 — Persistencia de Sesión:** la sesión sobrevive al cierre de la CLI; al reiniciar, `is_authenticated()` retorna `True` si había sesión activa.
+- **AC2 — Manejo de Contexto:** el archivo de sesión recuerda el club activo actual.
+- **AC3 — Club realmente vinculado:** después de `club add` seguido de `club select`, el club aparece en `club list` del mismo usuario (cierra el gap de `usuarioClub`).
+
+**Reglas de Negocio:**
+
+- `clear_session()` es idempotente.
+- `set_active_club()` falla si no hay sesión previa.
+- Los comandos protegidos ejecutan `require_auth()` y `require_active_club()` según corresponda.
+
+**Testing Mínimo:**
+
+- _Unitarias:_ `SessionManager` con archivo temporal (no con DB `:memory:` — es estado de archivo, no de base); guards `require_auth()`/`require_active_club()` con sesión mock.
+- _Integración:_ flujo completo registro → login → `club add` → `club select` → `club list` (ya muestra el club) usando DB `:memory:` y un archivo de sesión temporal.
+
+**Archivos a crear:**
+
+```text
+src/config/
+└── settings.py            ← nuevo: lee .env (python-dotenv) y expone STATSPRO_SESSION_PATH/STATSPRO_DB_PATH
+
+src/aplicacion/
+├── services/session_manager.py
+└── dtos/session_dto.py    ← SessionDTO (usuario_id, email, club_activo_id)
+
+src/infraestructura/ui/cli/
+├── auth_guards.py          ← require_auth() / require_active_club()
+└── commands/club_select.py
+
+.env.example
+
+tests/unit/
+└── test_session_manager.py
+tests/integration/
+└── test_sesion_club_activo_flujo.py
+```
+
+#### US-106 — Carga Atómica de Partido (CargarPartido)
+
+- **Esfuerzo:** S (1-3 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, US-105
+- **Objetivo Funcional:** registrar un evento de partido y sus estadísticas individuales asociadas garantizando la integridad de los datos mediante una transacción atómica (todo o nada).
+- **Narrativa:** Como DT, quiero registrar un partido completo con todas las estadísticas de los jugadores en una única operación; si falla una sola estadística, nada se persiste.
+
+- **Capa de Dominio:** nada nuevo — `Partido`/`JugadorPartido` y sus validaciones ya existen (ver arriba).
+- **Capa de Aplicación (lo que realmente falta):**
+  - **Caso de uso:** `CargarPartidoUseCase` — orquesta: valida que el boxscore solo tenga jugadores habilitados (`CompetenciaRepositorio.obtener_jugadores_lista`, ya existe de US-103) y llama a `PartidoRepositorio.save_with_boxscore`.
+  - **DTOs:** `PartidoDTO` (de carga — el de solo lectura que ya existe se llama `PartidoResumenDTO`, no se toca), `BoxscoreDTO`, `EstadisticaInputDTO`.
 - **Capa de Infraestructura:**
-  - **Persistencia:** `SqliteJuegoRepositorio.save_partido_completo` — debe usar un context
-    manager de SQLite (`with self.connection:`) para envolver el `INSERT` de `partido` y los
-    múltiples `INSERT` de `jugadorPartido` en una sola transacción BEGIN/COMMIT.
-  - **CLI:** `stats game add` con flujo interactivo multi-paso.
+  - **CLI:** `stats partido add` con flujo interactivo multi-paso. **Decisión tomada (resuelve una pregunta que quedaba abierta entre esta US y la US-105):** el club **local** es siempre el club activo de la sesión (`SessionManager`, US-105) — no se vuelve a pedir; el club **visitante** se pide como argumento/paso del formulario.
 - **Criterios de Aceptación:**
-  - **AC1 — Atomicidad Garantizada:** si falla la inserción del boxscore en cualquier punto (ej.
-    jugador 8 de 12), se ejecuta `ROLLBACK` y no se guarda el partido huérfano.
-  - **AC2 — Validaciones Pre-persistencia:** la validación de DTOs y reglas de negocio ocurre
-    ANTES de la primera operación de base de datos; el mensaje de error especifica qué jugador y
-    qué campo causó el error.
-  - **AC3 — Independencia:** el caso de uso no contiene SQL embebido — se delega totalmente al
-    repositorio.
-- **Reglas de Negocio:**
+  - **AC1 — Atomicidad Garantizada (ya cumplido a nivel repositorio, falta ejercitarlo desde el caso de uso):** si falla la inserción del boxscore en cualquier punto, no se guarda el partido huérfano. `save_with_boxscore` ya lo garantiza; falta el test desde `CargarPartidoUseCase`.
+  - **AC2 — Validaciones Pre-persistencia:** la validación de boxscore contra la lista de buena fe ocurre ANTES de llamar al repositorio; el mensaje de error especifica qué jugador causó el error.
+  - **AC3 — Independencia:** el caso de uso no contiene SQL embebido — se delega totalmente al repositorio.
+- **Reglas de Negocio (ya implementadas en `JugadorPartido.__post_init__`, se listan para trazabilidad):**
   - `(T1C×1) + (T2C×2) + (T3C×3)` = puntos totales.
   - `convertidos ≤ lanzados` para T1, T2, T3.
   - Todos los campos numéricos `≥ 0`.
-  - `minutosJugados` no excede el total del partido (ej. 48 min).
-  - No se puede cargar un partido si los clubes involucrados no existen en la DB.
-  - **Solo pueden figurar en el boxscore jugadores habilitados en la lista de buena fe** del club (regla de la sección 3: "solo jugadores habilitados en lista pueden figurar en carga oficial").
-    Los datos ya se pueden cargar desde la US-103 (`stats lista add`); esta US los usa para validar (`CompetenciaRepositorio.obtener_jugadores_lista`) y lanza una excepción de dominio si un jugador no está habilitado.
-    **Decisión pendiente al arrancar esta US:** el partido guarda competencia y clubes, pero **no la categoría**; si un club tiene inscripciones en más de una categoría de la misma competencia,
-    hay que definir contra qué lista se valida (por ejemplo, agregar la categoría al partido o validar contra la unión de las listas del club en esa competencia).
-  - **Nota (campo propuesto, no implementado todavía):** si se agrega a `Partido` un resultado
-    final (`puntosLocalFinal`/`puntosVisitanteFinal`, ver sección 20 y el DER en
-    `docs/diagramas/diagramas.md`), esta US sería el lugar natural para completarlo — junto con
-    una regla que valide que la suma de puntos del boxscore por club coincide con ese resultado
-    final antes de persistir.
+  - `minutosJugados` entre 0 y 48.
+  - No se puede cargar un partido si los clubes involucrados no existen en la DB (ya lo valida `save_with_boxscore`).
+  - **Solo pueden figurar en el boxscore jugadores habilitados en la lista de buena fe** del club (regla de la sección 3). Los datos ya se pueden cargar desde la US-103 (`stats lista add`); esta US los usa para validar (`CompetenciaRepositorio.obtener_jugadores_lista`) y lanza una excepción de dominio si un jugador no está habilitado. **Esta es la única decisión que sigue de verdad pendiente:** el partido guarda competencia y clubes, pero **no la categoría**; si un club tiene inscripciones en más de una categoría de la misma competencia, hay que definir contra qué lista se valida (por ejemplo, agregar la categoría al partido o validar contra la unión de las listas del club en esa competencia) — a resolver antes de escribir `CargarPartidoUseCase`.
+  - **Nota (campo propuesto, no implementado todavía):** si se agrega a `Partido` un resultado final (`puntosLocalFinal`/`puntosVisitanteFinal`, ver sección 20 y el DER en `docs/diagramas/diagramas.md`), esta US sería el lugar natural para completarlo — junto con una regla que valide que la suma de puntos del boxscore por club coincide con ese resultado final antes de persistir.
 - **Testing Mínimo:**
-  - _Unitarias:_ fallo de persistencia total ante una sola estadística inválida; el mensaje de
-    error especifica jugador y campo.
-  - _Integración:_ flujo completo (partido + boxscore) en DB `:memory:` con repositorios reales.
+  - _Unitarias:_ `CargarPartidoUseCase` rechaza un jugador no habilitado en la lista de buena fe (mock de `CompetenciaRepositorio`), camino feliz llama a `save_with_boxscore` con los DTOs traducidos.
+  - _Integración:_ flujo completo (partido + boxscore) en DB `:memory:` con repositorios reales — puede reusar el fixture ya existente de `tests/integration/test_repositorios_partido.py`.
 
 **Archivos a crear:**
 
 ```text
 src/aplicacion/
-├── dtos/partido_dto.py
+├── dtos/partido_dto.py     ← se extiende: PartidoDTO (carga), BoxscoreDTO, EstadisticaInputDTO
 └── casos_uso/cargar_partido.py
 
-test/
-├── test_use_case_cargar_partido.py
-└── test_cargar_partido_atomicidad.py
+src/infraestructura/ui/cli/commands/
+└── game_add.py              ← stats partido add
+
+tests/unit/
+└── test_uc_cargar_partido.py
+tests/integration/
+└── test_cargar_partido_flujo.py
 ```
 
-#### US-106 — CLI con Command Pattern
+#### US-107 — CLI con Command Pattern
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, US-105
-- **Narrativa:** Como administrador, quiero una CLI estructurada con subcomandos claros para
-  gestionar todas las entidades, que muestre los datos en tablas formateadas.
-- **Objetivo Funcional:** **no crea la CLI desde cero** — `main.py` (el composition root) y la mayoría de
-  `commands/` ya existen desde la US-103 (club, jugador, competencia y partido list) y la US-104
-  (auth y club select). Esta US cierra lo que falta (`game add`, `game boxscore`, una vez que
-  US-105 tenga el caso de uso de carga de partidos) y hace el pulido final: confirma que el
-  patrón de subcomandos desacoplados se sostuvo sin bloques `if/else` a lo largo de las tres
-  historias. **Convención adoptada:** un archivo por acción en `commands/`.
+- **Esfuerzo:** S (1-3 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, US-105, US-106
+- **Narrativa:** Como administrador, quiero una CLI estructurada con subcomandos claros para gestionar todas las entidades, que muestre los datos en tablas formateadas.
+- **Objetivo Funcional:** **no crea la CLI desde cero** — `main.py` (el composition root) y la mayoría de `commands/` ya existen desde la US-103 (club, jugador, competencia y partido list), la US-104 (auth) y la US-105 (club select). Esta US cierra lo que falta (`partido boxscore`, ya que `partido add` lo agrega la US-106) y hace el pulido final: aplica `require_auth()`/ `require_active_club()` (US-105) a todos los comandos que corresponda, muestra DNI y club activo en `jugador list` (pendiente desde la US-103), y confirma que el patrón de subcomandos desacoplados se sostuvo sin bloques `if/else` a lo largo de todas las historias anteriores. **Convención adoptada:** un archivo por acción en `commands/`.
 - **Comandos (usar `argparse`):**
 
 ```text
-stats auth register / login / logout          ⬜ US-104
+stats auth register / login / logout          ✅ US-104
 
-stats club add --nombre                       ✅ US-103
-stats club list --id-usuario                  ✅ US-103 (provisorio: pasa a leer la sesión en US-104)
-stats club select <id>                        ⬜ US-104 → actualiza sesión
+stats club add --nombre                       ✅ US-103 (US-105 le agrega el vínculo a usuarioClub)
+stats club list                               ✅ US-103 (ya lee el usuario de la sesión desde US-105)
+stats club select <id>                        ✅ US-105 → actualiza sesión
 
 stats jugador add --nombre --apellido --dni --anio     ✅ US-103
-stats jugador list --id-club                           ✅ US-103 (pendiente: mostrar DNI y club activo)
+stats jugador list --id-club                           ✅ US-103 → esta US agrega DNI y club activo en la tabla
 stats jugador link --id-jugador --id-club --fecha-desde  ✅ US-103
 stats jugador unlink --id-jugador --fecha-hasta        ✅ US-103 (cierra el vínculo vigente; permite el cambio de club)
 
@@ -850,49 +898,42 @@ stats lista remove --id-inscripcion --id-jugador  ✅ US-103 (deshace una habili
 stats lista list --id-inscripcion             ✅ US-103
 
 stats partido list --id-club        ✅ US-103 (con nombres de clubes y competencia, desde v_partidos_resumen)
-stats partido add                   ⬜ US-105/106 → formulario multi-paso
-stats partido boxscore <id_partido> ⬜ US-106 → tabla con v_boxscore_completo
+stats partido add                   ✅ US-106 → formulario multi-paso
+stats partido boxscore <id_partido> ⬜ US-107 → tabla con v_boxscore_completo
 ```
 
-- **Archivos (la mayoría ya existe de US-103/US-104 — acá solo se extiende):**
+- **Archivos (la mayoría ya existe de US-103 a US-106 — acá solo se extiende):**
 
 ```text
 src/main.py                         ✅ existe desde US-103 — composition root: se le agregan subparsers, no se recrea
 src/infraestructura/ui/cli/
 ├── commands/                       # un archivo por acción
-│   ├── jugador_add.py, jugador_link.py, jugador_unlink.py, jugador_list.py  ✅ US-103
+│   ├── jugador_add.py, jugador_link.py, jugador_unlink.py, jugador_list.py  ✅ US-103 (list se extiende acá)
 │   ├── club_add.py, club_list.py                                 ✅ US-103
 │   ├── competencia_add.py, competencia_inscribir.py, competencia_list.py  ✅ US-103
 │   ├── categoria_add.py, categoria_list.py, inscripcion_list.py  ✅ US-103
 │   ├── lista_add.py, lista_remove.py, lista_list.py              ✅ US-103
 │   ├── game_list.py                                              ✅ US-103 (stats partido list)
-│   ├── auth_register.py, auth_login.py, auth_logout.py           ⬜ US-104
-│   ├── club_select.py                                            ⬜ US-104
-│   └── game_add.py (interactivo), game_boxscore.py               ⬜ US-105/US-106
+│   ├── auth_register.py, auth_login.py, auth_logout.py           ✅ US-104
+│   ├── club_select.py, auth_guards.py                            ✅ US-105
+│   ├── game_add.py (interactivo)                                 ✅ US-106
+│   └── game_boxscore.py                                          ⬜ US-107
 └── formatters/
     └── table_formatter.py          ✅ existe desde US-103 (wrapper de tabulate)
 ```
 
 - **Criterios de Aceptación:**
-  - **AC1 — Command Pattern:** agregar un nuevo comando (ej. `stats categoria add`)
-    solo requiere crear su archivo en `commands/` y registrarlo en `construir_parser()` de
-    `main.py` — sin modificar ningún otro comando. Las excepciones de dominio nunca muestran tracebacks al
-    usuario final.
-  - **AC2 — Visualización con vistas SQL:** `stats partido list` usa `v_partidos_resumen` (nombres
-    de clubes, no IDs); `stats partido boxscore <id>` usa `v_boxscore_completo`; `stats jugador list`
-    muestra el club activo del jugador (del historial `jugadorClub`).
-  - **AC3 — Flujo de sesión:** los comandos `club`, `jugador` y `partido` ejecutan `require_auth()`
-    al inicio; `partido` y `jugador list` ejecutan `require_active_club()`.
+  - **AC1 — Command Pattern:** agregar un nuevo comando (ej. `stats categoria add`) solo requiere crear su archivo en `commands/` y registrarlo en `construir_parser()` de `main.py` — sin modificar ningún otro comando. Las excepciones de dominio nunca muestran tracebacks al usuario final.
+  - **AC2 — Visualización con vistas SQL:** `stats partido list` usa `v_partidos_resumen` (nombres de clubes, no IDs); `stats partido boxscore <id>` usa `v_boxscore_completo`; `stats jugador list` muestra el club activo del jugador (del historial `jugadorClub`).
+  - **AC3 — Flujo de sesión:** los comandos `club`, `jugador` y `partido` ejecutan `require_auth()` al inicio (de `auth_guards.py`, US-105); `partido` y `jugador list` ejecutan `require_active_club()`.
 - **Testing Mínimo:**
-  - _Unitario:_ flujo de guards de autenticación y club activo.
-  - _Integración:_ ejecución de cada subcomando con DB en memoria, verificando salida esperada;
-    comando sin sesión → mensaje de error controlado.
+  - _Unitario:_ `jugador list` muestra DNI y club activo; `partido boxscore` formatea `v_boxscore_completo`.
+  - _Integración:_ ejecución de cada subcomando con DB en memoria, verificando salida esperada; comando sin sesión → mensaje de error controlado (usa los guards de US-105).
 
-#### US-107 — Monitoreo y Trazabilidad Operativa
+#### US-108 — Monitoreo y Trazabilidad Operativa
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-106
-- **Objetivo Funcional:** proveer observabilidad transversal estructurada para depuración y
-  soporte, con correlación de eventos extremo-a-extremo por ejecución de comando.
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-107
+- **Objetivo Funcional:** proveer observabilidad transversal estructurada para depuración y soporte, con correlación de eventos extremo-a-extremo por ejecución de comando.
 - **Archivos a crear:**
 
 ```text
@@ -910,80 +951,99 @@ test/
 └── test_logging_redaction.py
 ```
 
-- **Eventos de log obligatorios:** inicio/fin de comando CLI (resultado + duración); login,
-  logout, cambio de club activo, fallos de autenticación; inicio/fin de transacciones críticas
-  (carga partido, importación Excel, backup/restore); creación/actualización de entidades
-  principales; excepciones de dominio y errores de infraestructura, clasificados por severidad.
+- **Eventos de log obligatorios:** inicio/fin de comando CLI (resultado + duración); `LoginLocalUseCase`/`auth_logout`, `SessionManager.set_active_club` (US-104/105), fallos de autenticación; inicio/fin de transacciones críticas (`CargarPartidoUseCase` de US-106, importación Excel, backup/restore); creación/actualización de entidades principales; excepciones de dominio y errores de infraestructura, clasificados por severidad.
 - **Criterios de Aceptación:**
   - **AC1.** Niveles DEBUG/INFO/WARNING/ERROR en formato JSON estructurado.
-  - **AC2.** `correlation_id` UUIDv4 generado al inicio de cada comando y propagado hasta
-    repositorios.
-  - **AC3.** Secretos (passwords, tokens, hashes sensibles) redactados en todos los niveles de
-    log.
-  - **AC4.** Selección de sink (local-file o Seq) por configuración, sin cambiar código de
-    negocio.
+  - **AC2.** `correlation_id` UUIDv4 generado al inicio de cada comando y propagado hasta repositorios.
+  - **AC3.** Secretos (passwords, tokens, hashes sensibles) redactados en todos los niveles de log.
+  - **AC4.** Selección de sink (local-file o Seq) por configuración, sin cambiar código de negocio.
   - **AC5.** En modo Seq, eventos filtrables por `correlation_id`, `command_name` y nivel.
 - **Testing Mínimo:**
-  - _Unitario:_ creación y propagación de `execution_context`; redacción de secretos en campos
-    conocidos.
-  - _Integración:_ flujo CLI completo → verificar que cada evento tiene el mismo
-    `correlation_id`.
+  - _Unitario:_ creación y propagación de `execution_context`; redacción de secretos en campos conocidos.
+  - _Integración:_ flujo CLI completo → verificar que cada evento tiene el mismo `correlation_id`.
 
 > **Estado real:** el proyecto ya tiene un logger funcional (`src/infraestructura/logger.py`,
 > rotación 10MB/5 backups, formato `asctime - name - levelname - message`) — es más simple que lo
 > que pide esta US (sin JSON estructurado, sin `correlation_id`, sin redacción de secretos, sin
-> Seq). Es un buen punto de partida, no un reemplazo completo de la US-107. Ver
+> Seq). Es un buen punto de partida, no un reemplazo completo de la US-108. Ver
 > `docs/info_modulo/01-logger.md`.
 
 ### Épica H1-E3: Entorno de Calidad y Pipeline CI/CD
 
-#### US-108 — Entorno de Desarrollo y Pipeline CI/CD
+> **Regla de alcance para US-104 a US-109 (agregada el 2026-10-03):** si al implementar cualquiera
+> de estas historias hace falta tocar algo que no está declarado en su propia sección — en
+> particular, cualquier cambio de CI/CD o de Docker, que es responsabilidad de la US-109 — se
+> anota explícitamente en la sección de esa US como **"trabajo adelantado de US-109"**, en vez de
+> mezclarse en el mismo PR sin dejar rastro. Es la corrección directa a lo que ya pasó una vez: ver
+> la nota de "Estado real" de la US-109 más abajo.
+
+#### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
 - **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Dependencias:** —
-- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con
-  linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de
-  calidad del proyecto.
+- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto.
 - **Archivos a crear/existentes:**
 
 ```text
 .github/workflows/MainAction.yml  ✅ existe (jobs: check_dep [pip-audit], gitleaks, lint [ruff], static [mypy],
-                                     tests-linux, tests-windows, tests-docker; matriz de Python 3.11–3.14 (Windows solo 3.13);
-                                     se dispara en PR, push a main/develop y manual;
+                                     tests-linux, tests-windows, tests-docker, ci-ok [agregador];
+                                     matriz de Python 3.12–3.14 solo en tests-linux (Windows y Docker: una corrida con 3.13;
+                                     mypy: una corrida contra 3.12); se dispara en PR, push a main/develop y manual;
                                      con concurrency, permissions y timeout-minutes)
-.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen (versión de ruff/mypy = la de pyproject.toml/uv.lock)
+.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen (versión de ruff/mypy = la de pyproject.toml/uv.lock;
+                                     ruff corre `ruff check .` + `ruff format --check .` con las reglas de pyproject.toml)
 .github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen (todas reciben `python-version`;
                                      la de Linux exige cobertura ≥ 85 % y guarda el reporte HTML)
 .github/dependabot.yml          ✅ existe (uv, github-actions y docker; semanal)
-pytest.ini                      ✅ existe (pythonpath=src, testpaths=tests)
+pytest.ini / .coveragerc        ➡️ migrados a pyproject.toml ([tool.pytest.ini_options] y [tool.coverage.*], 2026-10-17;
+                                     de paso se corrigió branch=True, que estaba mal ubicado y no medía ramas)
 .pre-commit-config.yaml         ✅ existe (check-yaml, end-of-file-fixer, trailing-whitespace y ruff check/format
                                      ejecutados con `uv run`: misma versión de ruff que el CI)
-pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy; uv.lock; sin requerimientos.txt)
+pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy/pytest/coverage + comando `statspro`; uv.lock; sin requerimientos.txt)
 Makefile                        ✅ existe (instalar_dependencias [uv sync], run_test, run_linter_ruf, corregir_linter, pre_commit, docker_test, static_check)
-docs/catalogo-criticidad.md     ❌ no existe — ver sección 14
 docs/info_modulo/11-flujo-de-trabajo-git.md  ❌ no existe
 ```
 
 - **Criterios de Aceptación:**
-  - **AC1.** `make run_test` ejecuta la suite completa y falla si la cobertura baja del piso de
-    `.coveragerc` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro
-    `cobertura-minima`; cumple el ≥ 80 % pedido) y guarda el reporte HTML como _artifact_.
+  - **AC1.** `make run_test` ejecuta la suite completa y falla si la cobertura baja del piso de `[tool.coverage.report]` de `pyproject.toml` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro `cobertura-minima`; cumple el ≥ 80 % pedido) y guarda el reporte HTML como _artifact_.
   - **AC2.** `make lint`/`run_linter_ruf` falla ante cualquier infracción de estilo.
-  - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error
-    de linting o de tipos, dependencias con vulnerabilidades conocidas o secretos en el historial.
-  - **AC4.** `pre-commit install` configura hooks locales en un único comando (los hooks de ruff
-    se ejecutan con `uv run`: usan la versión fijada en `pyproject.toml`, la misma del CI).
-  - **AC5.** `docs/catalogo-criticidad.md` inicializado con al menos los módulos de autenticación
-    y persistencia.
-- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint
-  intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje
-  explicativo.
+  - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error de linting o de tipos, dependencias con vulnerabilidades conocidas o secretos en el historial.
+  - **AC4.** `pre-commit install` configura hooks locales en un único comando (los hooks de ruff se ejecutan con `uv run`: usan la versión fijada en `pyproject.toml`, la misma del CI)..
+  - **AC6 — Job agregador y required status checks (nuevo, antes solo vivía en `ideas-aprendizaje.md` §8.9):** un job final `ci-ok` que depende de todos los demás y falla si alguno falló; registrado como _required status check_ de la rama, para que un PR con el CI en rojo no se pueda mergear.
+  - **AC7 — `ruff format --check` (nuevo, antes §8.2):** el job `lint` también falla si algún archivo no está formateado con `ruff format`, no solo si viola reglas de estilo.
+  - **AC8 — Smoke test de la CLI (nuevo, antes §8.14):** un paso que corre `uv run python src/main.py --help` y falla si el import se rompe.
+- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6).
 
-> **Estado real y lo que falta:** ver `docs/ideas-aprendizaje.md` sección 8 (informe de CI). Ya
-> aplicado (2026-09-20): `mypy`, `pip-audit`, build de Docker, una sola versión de ruff/mypy
-> (`pyproject.toml`) en CI y pre-commit, matriz de Python 3.11–3.14 (Windows solo 3.13), disparo en `push`,
-> `concurrency`/`permissions`/`timeout-minutes`, cobertura mínima de 85 % con reporte guardado
-> (Linux), Dependabot y `gitleaks`. Pendiente: job agregador + _required status checks_ (8.9),
-> `ruff format --check` (8.2), smoke test de la CLI (8.14) y fijar actions por hash (8.13).
+> **Estado real:** ver `docs/ideas-aprendizaje.md` sección 8 (informe de CI) para el detalle
+> técnico de cada punto. Ya aplicado (2026-09-20): `mypy`, `pip-audit`, build de Docker, una sola
+> versión de ruff/mypy (`pyproject.toml`) en CI y pre-commit, matriz de Python 3.11–3.14 (Windows
+> solo 3.13), disparo en `push`, `concurrency`/`permissions`/`timeout-minutes`, cobertura mínima de
+> 85 % con reporte guardado (Linux), Dependabot y `gitleaks`.
+>
+> **Importante — esto es exactamente el ejemplo de historias pisándose entre sí que motivó esta
+> revisión completa del 2026-10-03:** todo lo anterior se hizo **durante el PR de la US-103**
+> (commits `f5c4386` y `938c93f` de ese branch), no en un PR dedicado a esta US. El trabajo quedó
+> bien hecho, pero no quedó registrado como tal en su momento — de ahí la "Regla de alcance para
+> US-104 a US-109" agregada al principio de esta épica.
+>
+> **Aplicado el 2026-10-11 (trabajo adelantado de US-109, hecho en la rama de la US-104 antes de
+> abrir su PR — ver la "Regla de alcance" de arriba):**
+>
+> - **AC6:** job agregador `ci-ok` (falla si algún job falló, se canceló o se salteó). **Falta un
+>   paso manual en GitHub:** marcarlo como _required status check_ en Settings → Branches.
+> - **AC7:** el job `lint` corre también `ruff format --check .`.
+> - **AC8:** smoke test `python src/main.py --help` en los jobs de tests de Linux y Windows.
+> - **8.4:** se sacó `submodules: recursive` de `check_dep`, `lint` y `static`.
+> - **Matriz reducida:** las versiones de Python (3.12, 3.13 y 3.14) se prueban solo en
+>   `tests-linux`; Docker y Windows corren una vez (3.13) y mypy una vez (contra 3.12). La 3.11
+>   dejó de probarse en el CI aunque `pyproject.toml` sigue declarando `requires-python >= 3.11`.
+> - **Ruff más estricto:** las reglas viven solo en `pyproject.toml` (`E`, `W`, `F`, `I`, `B`,
+>   `UP`, `SIM`, `C4`, `RUF`; antes `E501` + `I`, y el CI pasaba `--select E --select I` por su
+>   cuenta). CI, pre-commit y Makefile corren `ruff check` sin `--select`. `docs/` queda excluido.
+>   Al activarlas se corrigió el código existente; entre otras cosas apareció un test duplicado en
+>   `test_repositorios_competencia.py` (mismo nombre dos veces: el primero nunca se ejecutaba).
+> - **mypy** ya era `--strict`; no cambió.
+>
+> **Sigue pendiente:** fijar las actions de terceros por hash (8.13, prioridad baja).
 
 ---
 
@@ -995,16 +1055,66 @@ de datos.
 
 **Épicas:** 3 · **Historias:** 5 · **Esfuerzo total estimado:** ~30 días·persona
 
-**Decisión previa requerida:** ADR-002 debe estar aprobado (framework UI: Flet vs. Compose
-Multiplatform) — _nota: el LaTeX dice que ADR-002 bloquea Hito 2, pero la tabla de ADRs (sección 8) lo lista bloqueando Hito 4; se transcribe la referencia tal cual aparece en cada fuente como
-otro punto a resolver por el equipo, ver sección 20._
+**Decisión previa requerida:** ninguna sobre ADR-002. _Nota (2026-10-03): el LaTeX decía que
+ADR-002 bloqueaba este hito, pero la tabla de ADRs lo listaba bloqueando el Hito 4 — contradicción
+ya resuelta en `docs/adr/ADR-002-framework-ui.md`: el Hito 2 es 100 % CLI y no usa GUI en ningún
+momento (su propio texto lo aclara más abajo), así que no lo bloqueaba de verdad. **Sí hay dos
+decisiones previas reales todavía sin cerrar para este hito:** ADR-003 (protocolo de ingesta
+Excel, bloquea la US-201 — falta un archivo real de Ges Deportivo) y ADR-004 (versionado de DB,
+bloquea la US-204 — falta decidir si vale agregar SQLAlchemy solo por el runner de Alembic). Ver
+`docs/adr/`._
 
-### Épica H2-E1: Integración "Ges Deportivo"
+### Épica H2-E1: Integración "Ges Deportivo" y Gobernanza de Esquema
+
+> **Nota de reordenamiento (2026-10-03):** la US-204 (Versionado de Esquema y Migraciones) vivía
+> antes en la Épica H2-E3, mezclada sin ninguna relación temática con el motor analítico
+> (US-203/US-205) — además aparecía físicamente _después_ de la US-205 en el documento, pese a
+> tener un número menor. Se la mueve acá, antes de la US-201, porque esta última la necesita de
+> verdad: el AC3 de la US-201 (verificar que la suma de puntos del boxscore coincida con el
+> resultado final del partido) requiere agregar un campo nuevo a `Partido` que hoy no existe en
+> el schema, y agregar una columna a una tabla existente sin perder datos es exactamente el
+> problema que resuelve la US-204. La Épica H2-E3 quedó renombrada a solo "Inteligencia Deportiva
+> (Pandas Engine)" — ver más abajo.
+
+#### US-204 — Versionado de Esquema y Migraciones
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-101, ADR-004
+- **Objetivo Funcional:** asegurar la evolución controlada del esquema de base de datos entre
+  versiones sin pérdida de datos, con un runner que aplique migraciones en orden y registre cada
+  resultado. **Se implementa antes que la US-201 porque esta la necesita:** agregar el campo de
+  resultado final del partido que pide el AC3 de la US-201 es la primera migración real que corre
+  sobre una base con datos (la de `001_init.sql` ya existente desde v0.1).
+- **Archivos a crear:**
+
+```text
+src/infraestructura/persistencia/sql/migrations/
+├── 001_init.sql          ← schema completo de v0.1; desde acá el schema no se toca directo
+└── 002_*.sql              ← migraciones incrementales, NNN_descripcion_corta.sql, idempotentes
+
+src/infraestructura/persistencia/migration_runner.py
+
+test/test_migrations.py (upgrade multi-versión y rollback)
+docs/info_modulo/12-como-agregar-una-migracion.md
+```
+
+- **Criterios de Aceptación:**
+  - **AC1.** Tabla `schema_version` creada y mantenida automáticamente (número de versión,
+    nombre, timestamp).
+  - **AC2.** El runner ejecuta solo migraciones pendientes (idempotente en las ya aplicadas).
+  - **AC3.** Soporte de rollback controlado para la última migración aplicada (script `down`
+    opcional).
+  - **AC4.** Si el schema es incompatible con la versión del código al arrancar, la ejecución se
+    bloquea con mensaje claro.
+  - **AC5.** Scripts versionados con el mismo estándar de nomenclatura, registrados en el
+    changelog técnico.
+- **Testing Mínimo:** upgrade multi-versión sobre base con datos reales (cardinalidad
+  conservada); rollback de la última migración (integridad post-rollback); dataset de versión
+  anterior conserva todas las relaciones tras migrar.
 
 #### US-201 — Parseo de Planillas Excel con Pandas
 
-- **Esfuerzo:** L (6-10 días) · **Prioridad:** Urgente (bloqueante) · **Dependencias:** US-105,
-  ADR-003
+- **Esfuerzo:** L (6-10 días) · **Prioridad:** Urgente (bloqueante) · **Dependencias:** US-106,
+  US-204, ADR-003
 - **Objetivo Funcional:** convertir planillas Excel externas de Ges Deportivo en datos
   persistibles sin transcripción manual, incluyendo modo _preview_ sin efecto secundario y
   reporte de calidad de la importación.
@@ -1139,7 +1249,7 @@ src/aplicacion/
 test/test_formulas.py
 ```
 
-### Épica H2-E3: Inteligencia Deportiva (Pandas Engine) + Gobernanza de Esquema
+### Épica H2-E3: Inteligencia Deportiva (Pandas Engine)
 
 #### US-203 — Integración de Motor Estadístico (Pandas Engine)
 
@@ -1196,13 +1306,16 @@ test/test_formulas.py
 
 #### US-205 — Consulta Estadística por CLI
 
-- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Dependencias:** US-203, US-106
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Dependencias:** US-203, US-107
 - **Objetivo Funcional:** exponer las métricas del motor analítico directamente desde la CLI,
   permitiendo al DT consultar líderes, estadísticas de un partido y comparativas de equipo sin
   necesidad de la interfaz gráfica.
 - **Comandos CLI:**
   - `stats show partido <id>` — boxscore + métricas avanzadas del partido.
-  - `stats leaders <temporada> [--top N]` — top-N por PTS, REB, AST, EFF.
+  - `stats leaders <temporada> [--top N]` — top-N por PTS, REB, AST, EFF. **Versión básica: la
+    US-301 (Hito 3) extiende/reemplaza el caso de uso detrás de este mismo comando con filtros de
+    competencia y multi-año — no es un comando nuevo que compita con este, es el mismo que gana
+    funcionalidad más adelante (mismo patrón que `club_list`/`CrearClubUseCase` en el Hito 1).**
   - `stats compare <partido_id>` — comparativa equipo vs. rival.
 - **Criterios de Aceptación:**
   - **AC1.** Cada comando produce salida tabular legible con alineación numérica correcta.
@@ -1219,46 +1332,21 @@ src/dominio/repositorios/analytics_service.py
 src/infraestructura/analytics/pandas_analytics_service.py
 src/aplicacion/casos_uso/calcular_estadisticas_partido.py
 
-src/infraestructura/ui/cli/commands/stats_commands.py
-src/infraestructura/ui/cli/formatters/stats_formatter.py
+src/infraestructura/ui/cli/commands/     # un archivo por acción, misma convención del Hito 1 (AC1 de la US-107)
+├── stats_show.py                         ← stats show partido
+├── stats_leaders.py                      ← stats leaders
+└── stats_compare.py                      ← stats compare
 
 test/
 ├── test_analytics_service.py (integración)
 └── test_stats_commands.py (integración)
 ```
 
-#### US-204 — Versionado de Esquema y Migraciones
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-101, ADR-004
-- **Objetivo Funcional:** asegurar la evolución controlada del esquema de base de datos entre
-  versiones sin pérdida de datos, con un runner que aplique migraciones en orden y registre cada
-  resultado.
-- **Archivos a crear:**
-
-```text
-src/infraestructura/persistencia/sql/migrations/
-├── 001_init.sql          ← schema completo de v0.1; desde acá el schema no se toca directo
-└── 002_*.sql              ← migraciones incrementales, NNN_descripcion_corta.sql, idempotentes
-
-src/infraestructura/persistencia/migration_runner.py
-
-test/test_migrations.py (upgrade multi-versión y rollback)
-docs/info_modulo/12-como-agregar-una-migracion.md
-```
-
-- **Criterios de Aceptación:**
-  - **AC1.** Tabla `schema_version` creada y mantenida automáticamente (número de versión,
-    nombre, timestamp).
-  - **AC2.** El runner ejecuta solo migraciones pendientes (idempotente en las ya aplicadas).
-  - **AC3.** Soporte de rollback controlado para la última migración aplicada (script `down`
-    opcional).
-  - **AC4.** Si el schema es incompatible con la versión del código al arrancar, la ejecución se
-    bloquea con mensaje claro.
-  - **AC5.** Scripts versionados con el mismo estándar de nomenclatura, registrados en el
-    changelog técnico.
-- **Testing Mínimo:** upgrade multi-versión sobre base con datos reales (cardinalidad
-  conservada); rollback de la última migración (integridad post-rollback); dataset de versión
-  anterior conserva todas las relaciones tras migrar.
+> **Nota sobre el formatter:** se reutiliza `table_formatter.py` (ya existente desde la US-103)
+> para la salida tabular — no se crea un `stats_formatter.py` aparte salvo que, al implementar
+> esta US, aparezca una necesidad real que `table_formatter.py` no cubra (ej. un formato de
+> comparativa lado a lado que `tabulate` no resuelva directo); si eso pasa, se extiende
+> `table_formatter.py` en vez de duplicar un wrapper de formato nuevo.
 
 ---
 
@@ -1269,7 +1357,9 @@ por el DT para tomar decisiones tácticas antes, durante y después del partido.
 
 **Épicas:** 3 · **Historias:** 3 · **Esfuerzo total estimado:** ~22 días·persona
 
-**Decisiones previas requeridas:** ADR-005 (librería PDF), ADR-007 (motor de visualización).
+**Decisiones previas requeridas:** ninguna. _Nota (2026-10-03): ADR-005 (librería PDF) y ADR-007
+(motor de visualización) ya están aprobados y redactados en `docs/adr/` — `reportlab` y
+`matplotlib` respectivamente, sin preguntas abiertas._
 
 > **Hallazgo de transcripción:** el `.md` del submódulo solo tenía **US-301 y US-302** para este
 > hito — **le faltaba por completo la Épica H3-E3 (Scouting) con US-303**, que sí está en el
@@ -1279,11 +1369,15 @@ por el DT para tomar decisiones tácticas antes, durante y después del partido.
 
 #### US-301 — Dashboards e Informes Interactivos
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-203
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-203, US-205
 - **Objetivo Funcional:** proveer una visualización avanzada de datos en la terminal y preparar
   el motor de generación de gráficos para la futura GUI.
 - **Narrativa:** Como DT, quiero ver tablas de líderes y gráficos de tendencia en mi terminal para
   analizar el rendimiento del equipo sin salir de la CLI.
+- **Nota de reuso (no se pisa con la US-205):** `ObtenerLideresTemporadaUseCase` reemplaza al caso
+  de uso simple que la US-205 arma detrás de `stats leaders` — es el mismo comando CLI
+  (`stats_leaders.py`, ya creado en la US-205), con la lógica de ese comando ampliada acá, no un
+  comando nuevo ni un archivo duplicado.
 - **Capa de Aplicación:**
   - **Casos de uso:** `ObtenerLideresTemporadaUseCase` (**ampliado**: además de filtrar por
     temporada/año, acepta filtrar por `idCompetencia` específica y por múltiples años a la vez,
@@ -1424,7 +1518,8 @@ como binario autónomo para las plataformas objetivo.
 
 **Épicas:** 4 · **Historias:** 4 · **Esfuerzo total estimado:** ~35 días·persona
 
-**Decisión previa requerida:** ADR-002 (Flet confirmado como framework de UI).
+**Decisión previa requerida:** ninguna — ✅ **ADR-002 ya aprobado** (Flet confirmado como
+framework de UI, ver `docs/adr/ADR-002-framework-ui.md`).
 
 > **Hallazgo de transcripción:** el `.md` del submódulo solo tenía **US-401** para este hito —
 > **le faltaban por completo las épicas H4-E2 (Resiliencia/Backup, US-402), H4-E3
@@ -1435,12 +1530,18 @@ como binario autónomo para las plataformas objetivo.
 
 #### US-401 — Implementación de Interfaz Flet (Desktop/Mobile)
 
-- **Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-301, US-302, ADR-002
+- **Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-106, US-201, US-301,
+  US-302, US-402, ADR-002
 - **Objetivo Funcional:** ofrecer una interfaz visual completa reutilizando los casos de uso
   consolidados en hitos previos, operativa en desktop y mobile sin modificar la lógica de
   negocio.
 - **Narrativa:** Como DT, quiero una experiencia fluida y visual que no requiera comandos para
   gestionar mis estadísticas desde mi PC o celular.
+- **Nota de reuso (no se pisa con otras US):** las pantallas de esta US **no agregan lógica de
+  negocio nueva**, solo envuelven casos de uso ya construidos — `GameEntryScreen` envuelve
+  `CargarPartidoUseCase` (US-106); `ImportScreen` envuelve `ImportarExcelUseCase` (US-201); el
+  botón de backup del AC4 envuelve `ExportarBackupUseCase`/`RestaurarBackupUseCase` (US-402, por
+  eso se agrega como dependencia). Ninguna de estas tres piezas se reimplementa acá.
 - **Capa de Infraestructura (UI):**
   - **Tecnología:** Flet (Python-based).
   - **Componentes:** `ChartComponent` (wrapper de los gráficos de US-301),
@@ -1452,8 +1553,9 @@ como binario autónomo para las plataformas objetivo.
     3.11+).
   - **AC2 — UX:** soporte de Modo Oscuro/Claro basado en preferencias del sistema.
   - **AC3 — Responsividad:** adaptación automática a resoluciones de PC (1080p) y Mobile (720p).
-  - **AC4 — Gestión de Datos:** botón de "Sincronización/Backup" para exportar el `.sqlite`
-    manualmente.
+  - **AC4 — Gestión de Datos:** botón de "Sincronización/Backup" que invoca
+    `ExportarBackupUseCase`/`RestaurarBackupUseCase` (**ya creados en la US-402** — esta US solo
+    le agrega la pantalla/botón, no reimplementa el backup).
   - **AC5.** Formularios con validación visual (mensajes de error en campo, sin modal genérico).
   - **AC6.** La UI no contiene lógica de negocio; invoca casos de uso vía inyección de
     dependencias.
@@ -1515,7 +1617,7 @@ test/test_backup_restore.py (integración)
 
 #### US-403 — Hardening de Seguridad Local
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-104, ADR-006
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-104, US-105, ADR-006
 - **Objetivo Funcional:** endurecer credenciales, política de sesión y almacenamiento local para
   que la aplicación cumpla con un nivel de seguridad adecuado al contexto de datos deportivos
   personales.
@@ -1555,10 +1657,23 @@ test/test_credential_policy.py
 
 #### US-404 — Empaquetado y Distribución Multiplataforma
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-401, US-108
+> **Adelanto (2026-10-17):** la CLI ya puede instalarse en modo editable (`uv tool install --editable .`,
+> comando `statspro`). El build real de la CLI (paquete raíz `statspro`, DB en la carpeta de datos del
+> usuario, `.sql` como datos del paquete) se investiga en `docs/spike/spike_build_cli.md`.
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-401, US-109
 - **Objetivo Funcional:** generar binarios autónomos distribuibles para cada plataforma objetivo
   (Windows, Linux, macOS, Android) sin requerir instalación de Python ni dependencias externas
   por parte del usuario final.
+
+> **iOS fuera de alcance (decisión 2026-10-03):** el NFR-1 pedía también iOS 14+, pero esta US
+> nunca tuvo ningún AC para IPA y el propio plan listaba `build_ios.py` sin más contexto.
+> Compilar y firmar una app iOS exige una Mac + Xcode, y distribuirla fuera de un entorno de
+> desarrollo exige una cuenta de Apple Developer (u$s99/año) con certificados de firma — un costo
+> real que nadie había evaluado explícitamente. Se decidió sacar iOS del alcance y corregir el
+> NFR-1 en consecuencia (ver sección 7), en vez de completar esta US para una plataforma con un
+> costo no asumido. Si se retoma en el futuro, es un hito/roadmap aparte, no un AC suelto acá.
+
 - **Criterios de Aceptación:**
   - **AC1.** Binario desktop lanza la aplicación sin Python instalado en el sistema del usuario.
   - **AC2.** APK de Android instalable en dispositivos Android 9+ sin dependencias adicionales.
@@ -1576,8 +1691,7 @@ test/test_credential_policy.py
 ```text
 build/
 ├── build_desktop.py   ← script PyInstaller (Windows/Linux/macOS)
-├── build_android.py   ← flet build apk
-└── build_ios.py       ← flet build ipa (requiere macOS + Xcode)
+└── build_android.py   ← flet build apk
 
 .github/workflows/release.yml   ← se activa con tag v*.*.*
 CHANGELOG.md                    ← formato Keep a Changelog
@@ -1614,7 +1728,7 @@ Una Historia de Usuario se considera **Hecha** cuando cumple TODOS los siguiente
 8. **Docstring mínimo:** todos los métodos públicos tienen docstring de una línea; los métodos
    complejos documentan sus parámetros.
 9. **Si incluye UI:** validada manualmente en al menos dos plataformas (desktop + mobile).
-10. **Trazabilidad:** eventos de log relevantes implementados con `correlation_id` (ver US-107).
+10. **Trazabilidad:** eventos de log relevantes implementados con `correlation_id` (ver US-108).
 11. **Pipeline CI en verde:** lint + tests + cobertura.
 
 **El repositorio del agregado tiene su propia interfaz en el dominio**, y **la persistencia fue
@@ -1629,7 +1743,7 @@ de arriba.
 Artefacto vivo del backlog de arquitectura donde se lista cada módulo con: nivel de criticidad,
 justificación, owner técnico y cobertura objetivo.
 
-**Ubicación:** `docs/catalogo-criticidad.md` (❌ no existe todavía — se inicializa en US-108).
+**Ubicación:** `docs/catalogo-criticidad.md` (❌ no existe todavía — se inicializa en US-109).
 
 **Estructura mínima de la tabla:** `Módulo | Criticidad | Justificación | Owner | Cobertura
 objetivo | Evidencia`.
@@ -1715,7 +1829,8 @@ desarrollo; una sección `[vX.Y.Z] - YYYY-MM-DD` por release con subsecciones `A
 - **Hito 5 · Ecosistema Conectado y Colaborativo (v1.5):** romper el aislamiento local.
   Sincronización cloud híbrida (FastAPI + PostgreSQL, manteniendo la app 100% funcional
   offline); exportación de "Match Cards" para redes sociales; base de datos compartida de
-  scouting entre DTs (con consentimiento explícito).
+  scouting entre DTs (con consentimiento explícito). Investigación previa de la sincronización
+  (local-first con Supabase como alternativa): ver `docs/spike/spike_supabase.md`.
 - **Hito 6 · Inteligencia Táctica con IA (v2.0):** pasar de análisis descriptivo a prescriptivo.
   Motor de recomendación de quinteto (scikit-learn/XGBoost); detección automática de patrones
   (rachas de tiro, degradación defensiva por fatiga, pérdidas en momentos de presión — z-score,
@@ -1761,17 +1876,17 @@ Cada módulo de datos se divide siguiendo el S.R.P. (Single Responsibility Princ
 (Duplicado intencional de la sección 8, en el formato de tabla de bloqueo que traían ambas
 fuentes, por si se prefiere consultar esta vista en vez de la de "Registro de Decisiones":)
 
-| ADR     | Título                     | Bloquea                                 | Decisión recomendada                                                                                        |
-| ------- | -------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| ADR-001 | Arquitectura Local-First   | Hito 1                                  | ✅ SQLite + offline-first (ya definido)                                                                     |
-| ADR-002 | Framework UI               | Hito 2 _(LaTeX)_ / Hito 4 _(tabla ADR)_ | Evaluar Flet vs. Compose Multiplatform — **resolver la discrepancia de a qué hito bloquea, ver sección 20** |
-| ADR-003 | Protocolo de Ingesta Excel | US-201/US-202                           | Pandas + investigación previa de columnas reales de Ges Deportivo                                           |
-| ADR-004 | Versionado de DB           | Hito 2                                  | Migraciones manuales (`schema_version`) vs. `alembic`                                                       |
-| ADR-005 | Reportes PDF               | US-302                                  | `reportlab` (sin dependencias) o `weasyprint` (HTML→PDF)                                                    |
-| ADR-006 | Seguridad y Cifrado        | US-106/US-403                           | v0.1: SHA-256 con salt fijo. v1.0: migrar a `bcrypt` con salt dinámico                                      |
-| ADR-007 | Motor de Visualización     | US-301                                  | `matplotlib` (offline) o `plotly` (interactivo)                                                             |
-| ADR-008 | Estrategia de Backup       | Hito 3 _(LaTeX)_ / Hito 4 _(tabla ADR)_ | Export manual de `.db` + script de restauración — **misma discrepancia de hito, ver sección 20**            |
-| ADR-009 | Pipeline CI/CD             | US-108                                  | GitHub Actions para lint, tests y cobertura automáticos                                                     |
+| ADR     | Título                     | Bloquea       | Decisión recomendada                                                                                                                                                              |
+| ------- | -------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ADR-001 | Arquitectura Local-First   | Hito 1        | ✅ SQLite + offline-first (ya definido)                                                                                                                                           |
+| ADR-002 | Framework UI               | Hito 4        | ✅ Flet, se descarta Compose Multiplatform (ya definido, ver `docs/adr/ADR-002-framework-ui.md`)                                                                                  |
+| ADR-003 | Protocolo de Ingesta Excel | US-201/US-202 | ⏳ Pendiente de archivo real de Ges Deportivo (ver `docs/adr/ADR-003-protocolo-ingesta-excel.md`)                                                                                 |
+| ADR-004 | Versionado de DB           | Hito 2        | ⏳ Migraciones manuales vs. `alembic` — pregunta abierta sobre agregar SQLAlchemy solo por el runner (ver `docs/adr/ADR-004-versionado-db.md`)                                    |
+| ADR-005 | Reportes PDF               | US-302        | ✅ `reportlab` (ya definido, ver `docs/adr/ADR-005-reportes-pdf.md`)                                                                                                              |
+| ADR-006 | Seguridad y Cifrado        | US-104/US-403 | ✅ v0.1: `pbkdf2_hmac` con salt **dinámico** (ver `docs/adr/ADR-006-seguridad-cifrado.md`). v1.0: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma |
+| ADR-007 | Motor de Visualización     | US-301        | ✅ `matplotlib` (ya definido, ver `docs/adr/ADR-007-motor-visualizacion.md`)                                                                                                      |
+| ADR-008 | Estrategia de Backup       | Hito 4        | ✅ Export manual con `VACUUM INTO`/backup online de SQLite (ya definido, ver `docs/adr/ADR-008-estrategia-backup.md`)                                                             |
+| ADR-009 | Pipeline CI/CD             | US-109        | ✅ GitHub Actions hosteados por GitHub, ya implementado (ver `docs/adr/ADR-009-pipeline-cicd.md`)                                                                                 |
 
 ---
 
@@ -1786,7 +1901,7 @@ descripción` con alcance entre paréntesis — ambos formatos conviven en las f
   para dejarlo asentado.
 - **Logging:** `infraestructura/logger.py` ya implementado (rotación 10MB, 5 backups, nivel
   INFO+ a archivo) — ver `docs/info_modulo/01-logger.md`. Es la base sobre la que debería crecer
-  la US-107 (JSON estructurado + `correlation_id`), no un reemplazo.
+  la US-108 (JSON estructurado + `correlation_id`), no un reemplazo.
 - **Análisis estático:** el proyecto usa `ruff` en la práctica (`pyproject.toml`,
   `.github/workflows/linter.yml`), no `flake8`/`pylint` como sugería el borrador original del
   Acuerdo de Ingeniería (sección 5) — ya reflejado arriba.
@@ -1816,7 +1931,7 @@ Confirmado hoy, con lectura completa de cada archivo, no solo con `mypy`/`pytest
   completo — tabla/columna correctas, sin el método de conexión inexistente, `INSERT` de boxscore
   con columnas/valores alineados, `guardar_partido`/`guardar_boxscore` ya reciben la dataclass
   completa (Liskov resuelto), y sumaron `save_with_boxscore()` — el método atómico multi-tabla que
-  pedía la US-105.
+  pide la US-106 (que por eso quedó reescrita: este trabajo ya está hecho, ver su "Estado real").
 - `sqlite_jugador_repositorio.py`: `buscar_por_club` devuelve `[]` (no `None`); `link_to_club` ya
   usa `jc.idJugador`/`jc.idClub` (el bug de atributos está resuelto); `guardar()` ya valida DNI
   duplicado y lanza `DNIDuplicadoError` — regla de negocio implementada, no solo documentada.
@@ -1832,7 +1947,7 @@ Confirmado hoy, con lectura completa de cada archivo, no solo con `mypy`/`pytest
   repositorios.
 - **CI evolucionó bastante desde la última auditoría:** ahora corre `pip-audit`, `gitleaks`,
   `mypy --strict`, `ruff` (lint) y tests en Linux/Windows/Docker con una matriz de Python 3.11 a
-  3.14 (Windows solo con 3.13; `Dockerfile.test` + `.dockerignore` ya armados y correctos), y Dependabot vigila las
+  3.14 (desde el 2026-10-11: 3.12 a 3.14 y solo en Linux; Windows y Docker solo con 3.13; `Dockerfile.test` + `.dockerignore` ya armados y correctos), y Dependabot vigila las
   dependencias. Ruff y mypy usan en todos lados (CI, pre-commit y local) la versión de
   `pyproject.toml`. Ver `docs/ideas-aprendizaje.md` sección 8 para el informe detallado de qué
   falta. Las dependencias ya están fijadas en `pyproject.toml` + `uv.lock` (se eliminó
@@ -1860,7 +1975,7 @@ Confirmado hoy, con lectura completa de cada archivo, no solo con `mypy`/`pytest
   Importa porque la propia **US-201 AC3** pide verificar que "la suma de puntos individuales
   coincida con el resultado final del partido cargado", pero hoy no hay dónde guardar ese
   resultado para comparar. Propuesta ya volcada (marcada como tal, no implementada) en el DER de
-  `docs/diagramas/diagramas.md` y anotada en US-105 y US-201.
+  `docs/diagramas/diagramas.md` y anotada en US-106 y US-201.
 - Tampoco existe todavía la tabla `schema_version` que pide US-204 (Hito 2, no arrancado —
   esperable).
 
@@ -1890,7 +2005,7 @@ agregó a cada US está en las propias US-202, US-203, US-301 y US-303 (Hito 2 y
   ni administrar la lista de buena fe, aunque las tablas y los métodos del repositorio existían. Se incorporaron a la US-103 (ver el recuadro "Alcance ampliado" de esa US).
   ✅ **Auditoría de cierre de la US-103 (2026-09-20):** se cerró también el ciclo de vida del vínculo jugador-club (`jugador unlink`, regla de no superposición), **quitar un jugador de la lista** (`lista remove`),
   las validaciones de valor de las entidades (`DatoInvalidoError`) y `partido list` con nombres (vista `v_partidos_resumen`).
-  **Decisiones que siguen abiertas:** (1) **cómo valida la US-105 la lista cuando el partido no guarda la categoría** (ver la regla agregada en la US-105); (2) si la regla "el jugador debe tener vínculo vigente
+  **Decisiones que siguen abiertas:** (1) **cómo valida la US-106 la lista cuando el partido no guarda la categoría** (ver la regla agregada en la US-106); (2) si la regla "el jugador debe tener vínculo vigente
   con el club" para habilitarlo admite excepciones (préstamos); (3) **editar o borrar** clubes, competencias y jugadores no está en ninguna US (el PRD solo pide crear, listar y vincular), por lo que un dato
   mal cargado hoy solo se corrige en la base; (4) **`jugador historial`** (ver todos los clubes por los que pasó un jugador): el repositorio ya expone `historial_vinculos`, falta el caso de uso y el comando si se los necesita.
 
@@ -1906,9 +2021,11 @@ agregó a cada US está en las propias US-202, US-203, US-301 y US-303 (Hito 2 y
   el LaTeX. Se agregó en la sección 7.
 - **El `.md` del submódulo no tenía el Proceso de Liberación de Versiones** — solo estaba en el
   LaTeX. Se agregó en la sección 15.
-- **ADR-002 y ADR-008 tienen bloqueo de hito contradictorio entre fuentes** (texto narrativo dice
-  un hito, la tabla de ADRs dice otro). Documentado en la sección 18, sin resolver
-  unilateralmente — pendiente de que el equipo lo confirme.
+- **ADR-002 y ADR-008 tenían bloqueo de hito contradictorio entre fuentes** (texto narrativo dice
+  un hito, la tabla de ADRs dice otro). **Ambos ya se resolvieron (2026-10-03):** ADR-002 bloquea
+  el Hito 4 (`docs/adr/ADR-002-framework-ui.md` — el Hito 2 no tiene ninguna tarea de GUI);
+  ADR-008 también bloquea el Hito 4 (`docs/adr/ADR-008-estrategia-backup.md` — todo el contenido
+  de backup, US-402, vive en la Épica H4-E2, nada en el Hito 3).
 - **El estándar de análisis estático documentado no coincidía con el real** (`flake8`/`pylint` vs.
   `ruff` real) — ya corregido en la transcripción.
 - **La tabla "Estructura de Repositorios"** (sección 17) le faltaba la fila de Competencia en
@@ -1924,6 +2041,11 @@ agregó a cada US está en las propias US-202, US-203, US-301 y US-303 (Hito 2 y
   **Decisión posterior (2026-09-20):** finalmente se adoptó **un archivo por acción** (`club_add.py`,
   `jugador_link.py`…), tal como se construyó el 29/08, y el composition root de la CLI es `src/main.py`
   (no existe `main_cli.py`). Las tres historias ya reflejan esa convención.
+  **Nota de numeración (2026-10-03):** este hallazgo se escribió cuando la US-104 era una sola
+  historia ("Autenticación y Sesión Local") y la US-106 era "CLI con Command Pattern". Desde la
+  revisión de esa fecha, la autenticación/sesión quedó dividida en US-104 (Autenticación) y US-105
+  (Sesión y Club Activo), y la vieja "CLI con Command Pattern" pasó a ser **US-107**. El hallazgo
+  en sí sigue siendo válido tal como está contado (es historia), solo cambió la numeración vigente.
 
 ### Lo que ya está sólido
 

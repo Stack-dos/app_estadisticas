@@ -79,4 +79,4 @@ docs/                   Documentación técnica, plan de desarrollo (PRD) e info
 ## Contribuir
 
 - Los commits siguen el formato `TIPO: descripción corta` (ver [docs/info_modulo/02-reglas.md](docs/info_modulo/02-reglas.md)).
-- Antes de abrir un Pull Request: `uv run pytest`, `uv run ruff check --select E --select I .` y `uv run mypy src/ --strict --explicit-package-bases` deben pasar. El CI los corre por vos en cada PR.
+- Antes de abrir un Pull Request: `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` y `uv run mypy src/ --strict --explicit-package-bases` deben pasar. El CI los corre por vos en cada PR.

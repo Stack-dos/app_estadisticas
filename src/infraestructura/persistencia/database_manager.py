@@ -87,16 +87,16 @@ class SQLiteManager:
             None
         """
         if self.conexion is None:
-            logger.error(f"No se puede inicializar el esquema: La conexion no fue abierta (falta llamar a connect())")
+            logger.error("No se puede inicializar el esquema: La conexion no fue abierta (falta llamar a connect())")
             return
         try:
             # 1. Cargamos las tablas (schema.sql)
-            with open(self.schema_path, "r", encoding="utf-8") as archivo_sql:
+            with open(self.schema_path, encoding="utf-8") as archivo_sql:
                 schema = archivo_sql.read()
             self.conexion.executescript(schema)
 
             # 2. Cargamos las vistas (views.sql) - si es que hay
-            with open(self.views_path, "r", encoding="utf-8") as archivo_vistas:
+            with open(self.views_path, encoding="utf-8") as archivo_vistas:
                 vistas = archivo_vistas.read()
             self.conexion.executescript(vistas)
 
@@ -120,13 +120,13 @@ class SQLiteManager:
             None
         """
         if self.conexion is None:
-            logger.error(f"No se puede inicializar el seed: La conexion no fue abierta (falta llamar a connect())")
+            logger.error("No se puede inicializar el seed: La conexion no fue abierta (falta llamar a connect())")
             return
         if self.seed_path is None:
-            logger.error(f"No se puede inicializar el seed: Falta el archivo o la ruta al mismo")
+            logger.error("No se puede inicializar el seed: Falta el archivo o la ruta al mismo")
             return
         try:
-            with open(self.seed_path, "r", encoding="utf-8") as archivo_sql:
+            with open(self.seed_path, encoding="utf-8") as archivo_sql:
                 schema = archivo_sql.read()
             self.conexion.executescript(schema)
             logger.info("Seed de datos cargado correctamente")
@@ -173,13 +173,13 @@ class SQLiteManager:
             None
         """
         if self.conexion is None:
-            logger.error(f"No se puede inicializar la limpieza: La conexion no fue abierta (falta llamar a connect())")
+            logger.error("No se puede inicializar la limpieza: La conexion no fue abierta (falta llamar a connect())")
             return
         if self.limpieza_path is None:
-            logger.error(f"No se puede inicializar la limpieza: falta el archivo o la ruta al mismo")
+            logger.error("No se puede inicializar la limpieza: falta el archivo o la ruta al mismo")
             return
         try:
-            with open(self.limpieza_path, "r", encoding="utf-8") as archivo_sql:
+            with open(self.limpieza_path, encoding="utf-8") as archivo_sql:
                 schema = archivo_sql.read()
             self.conexion.executescript(schema)
             logger.info("Limpieza correcta")

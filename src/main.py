@@ -5,6 +5,9 @@ from dominio.exceptions import ErrorDeDominio
 from infraestructura.logger import get_logger
 from infraestructura.persistencia.database_manager import SQLiteManager
 from infraestructura.ui.cli.commands import (
+    auth_login,
+    auth_logout,
+    auth_register,
     categoria_add,
     categoria_list,
     club_add,
@@ -35,6 +38,26 @@ def construir_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(prog="stats")
     subparser = parser.add_subparsers(dest="comando")
+
+    # Rama "auth"
+    parser_auth = subparser.add_parser("auth", help="Operaciones de autenticacion de usuarios")
+    auth_subparsers = parser_auth.add_subparsers(dest="subcomando", required=True)
+
+    parser_auth_register = auth_subparsers.add_parser("register", help="Registra un nuevo usuario entrenador")
+    parser_auth_register.add_argument("--nombre", required=True, help="NOMBRE: nombre del usuario - OBLIGATORIO")
+    parser_auth_register.add_argument("--email", required=True, help="EMAIL: email del usuario - OBLIGATORIO")
+    parser_auth_register.add_argument(
+        "--password", required=True, help="PASSWORD: contraseña del usuario - OBLIGATORIO"
+    )
+    parser_auth_register.set_defaults(func=auth_register.ejecutar)
+
+    parser_auth_login = auth_subparsers.add_parser("login", help="Inicia sesion local con email y contraseña")
+    parser_auth_login.add_argument("--email", required=True, help="EMAIL: email del usuario - OBLIGATORIO")
+    parser_auth_login.add_argument("--password", required=True, help="PASSWORD: contraseña del usuario - OBLIGATORIO")
+    parser_auth_login.set_defaults(func=auth_login.ejecutar)
+
+    parser_auth_logout = auth_subparsers.add_parser("logout", help="Cierra la sesion actual")
+    parser_auth_logout.set_defaults(func=auth_logout.ejecutar)
 
     # Rama "club"
     parser_club = subparser.add_parser("club", help="Operaciones sobre clubes")

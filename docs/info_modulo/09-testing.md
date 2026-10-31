@@ -42,8 +42,8 @@ uv run pytest -v --cov=src --cov-report=html   # con reporte de cobertura (tambi
 | `tests/unit/` | Tests que **no tocan SQLite**: entidades, excepciones, casos de uso (con repositorios falsos), comandos de la CLI, helpers |
 | `tests/integration/` | Tests con **SQLite real** en memoria (repositorios, esquema y vistas SQL) y el recorrido completo de la CLI contra una base temporal |
 | `tests/conftest.py` | Fixtures compartidas: bases de datos en memoria (`db_conexion`, `db_conexion_sin_seed`, `db_conexion_sandbox`) y **fábricas de datos** (`crear_jugador`, `crear_partido`, `crear_boxscore`) |
-| `pytest.ini` | `pythonpath = src` (los tests importan `dominio`, `aplicacion`… directo) y `testpaths = tests` |
-| `.coveragerc` | Qué medir y el mínimo de cobertura (`fail_under`) |
+| `pyproject.toml` → `[tool.pytest.ini_options]` | `pythonpath = src` (los tests importan `dominio`, `aplicacion`… directo) y `testpaths = tests` |
+| `pyproject.toml` → `[tool.coverage.*]` | Qué medir (con cobertura de ramas, `branch = true`) y el mínimo de cobertura (`fail_under`) |
 
 **Sobre los nombres de archivo y `__init__.py`:** en el proyecto **no hay `__init__.py`** (ni en `src/` ni en `tests/`): desde Python 3.3 las carpetas funcionan como
 paquetes "namespace" sin ese archivo. La única consecuencia práctica para los tests es que **dos archivos de test no pueden llamarse igual**, aunque estén en carpetas
@@ -556,7 +556,7 @@ y se neutraliza `inicializar_db` para **no tocar nunca la base real**.
 
 ## 10. Cobertura (`coverage`)
 
-`make run_test` corre `pytest -v --cov=src --cov-report=html`, que genera un reporte HTML navegable en `reportes_cobertura/html/index.html`. El piso mínimo (`fail_under = 60`) está en `.coveragerc`; el job de Linux del CI exige además **85 %** (parámetro `cobertura-minima` de `.github/actions/coverage/linux/action.yml`) y guarda el reporte HTML como _artifact_. Ideas para leerlo bien:
+`make run_test` corre `pytest -v --cov=src --cov-report=html`, que genera un reporte HTML navegable en `reportes_cobertura/html/index.html`. El piso mínimo (`fail_under = 60`) está en `[tool.coverage.report]` de `pyproject.toml`; el job de Linux del CI exige además **85 %** (parámetro `cobertura-minima` de `.github/actions/coverage/linux/action.yml`) y guarda el reporte HTML como _artifact_. Ideas para leerlo bien:
 
 - **El % global importa menos que las líneas rojas específicas**: un 85% con las ramas de error sin cubrir es peor que un 80% donde solo falta un `print` cosmético.
 - Prestar atención a que estén cubiertas **las dos ramas** de cada caso de uso: la del camino feliz y la del `raise` de la excepción de dominio.

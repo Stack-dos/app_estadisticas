@@ -24,6 +24,12 @@ runs:
       shell: bash
       run: uv sync --locked
 
+    # Smoke test: si un import esta roto, la CLI ni siquiera muestra la ayuda y el job falla aca.
+    - name: Probar que la CLI arranca
+      shell: bash
+      run: |
+        uv run --locked python src/main.py --help
+
     - name: Ejecutar pytest con coverage (minimo ${{ inputs.cobertura-minima }}%)
       shell: bash
       env:

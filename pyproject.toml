@@ -13,12 +13,17 @@ dependencies = [
     "tabulate==0.10.0",
 ]
 
+# Comando "statspro" al instalar el paquete (por ahora: uv tool install --editable .)
+[project.scripts]
+statspro = "main:main"
+
 [dependency-groups]
 dev = [
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
     "ruff==0.16.8",
     "mypy==2.3.1",
+    "pre-commit>=4.6.2",
 ]
 
 [tool.setuptools]
@@ -30,9 +35,14 @@ namespaces = true
 
 [tool.ruff]
 line-length = 120
+# docs/ son guias en Markdown: ruff no las revisa ni las formatea
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
-select = ["E501", "I"]
+# Unica fuente de reglas: el CI, pre-commit y el Makefile corren "ruff check" sin --select.
+# E/W: estilo (pycodestyle) · F: errores reales (pyflakes) · I: orden de imports · B: bugs comunes (bugbear)
+# UP: sintaxis moderna de Python · SIM: simplificaciones · C4: comprensiones · RUF: reglas propias de ruff
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -48,3 +58,37 @@ explicit_package_bases = true
 [[tool.mypy.overrides]]
 module = "tabulate.*"
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# pythonpath = src: los tests importan dominio, aplicacion... directo
+pythonpath = ["src"]
+testpaths = ["tests"]
+log_cli = true
+log_cli_level = "INFO"
+
+[tool.coverage.run]
+source = ["src/"]
+branch = true
+omit = [
+    "tests/*",
+    "venv/*",
+    "setup.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+# Piso base (local, Windows y Docker). El job de Linux del CI exige mas: ver
+# "cobertura-minima" en .github/actions/coverage/linux/action.yml
+fail_under = 60
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "reportes_cobertura/html/"

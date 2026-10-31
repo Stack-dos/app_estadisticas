@@ -83,5 +83,5 @@ def test_cambiar_club_activo_devuelve_el_club_si_el_usuario_pertenece(repo_club)
 def test_cambiar_club_activo_sin_acceso_lanza_club_no_encontrado(repo_club, clubes_del_usuario):
     repo_club.buscar_por_id_usuario.return_value = clubes_del_usuario
 
-    with pytest.raises(ClubNoEncontradoError, match="idUsuario=10.*idClub=2"):
+    with pytest.raises(ClubNoEncontradoError, match=r"idUsuario=10.*idClub=2"):
         CambiarClubActivoUseCase(repo_club).ejecutar(idUsuario=10, idClub=2)

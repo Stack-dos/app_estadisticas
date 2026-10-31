@@ -23,7 +23,7 @@ FROM python:${PYTHON_VERSION}-slim
 ```
 **Imagen base:** ya trae Python instalado, sin todo el peso de una distribución Linux completa (por eso `slim`).
 La versión de Python es un **argumento de construcción** (`ARG`): por defecto es la 3.11 (la mínima que soporta el proyecto) y se cambia al construir con `--build-arg PYTHON_VERSION=3.13`.
-Así el CI prueba **la misma imagen** con 3.11, 3.12, 3.13 y 3.14. (Un `ARG` declarado *antes* del `FROM` es la forma de parametrizar la imagen base.)
+El CI construye la imagen una sola vez, con la 3.13 (las demás versiones de Python se prueban en el job de Linux). (Un `ARG` declarado *antes* del `FROM` es la forma de parametrizar la imagen base.)
 
 ```dockerfile
 COPY --from=ghcr.io/astral-sh/uv:0.12.9 /uv /usr/local/bin/uv
@@ -39,7 +39,7 @@ RUN uv sync --locked --no-install-project
 (el más lento) se **reusa** sin reinstalar nada. Si se copiara todo el código antes, cualquier cambio en un `.py` invalidaría el caché y habría que reinstalar todo cada vez.
 
 - `--locked`: falla si `uv.lock` no coincide con `pyproject.toml` (garantiza las versiones exactas del lockfile).
-- `--no-install-project`: instala solo las **dependencias**; el código propio se usa directo desde `src/` (así lo configura `pytest.ini` con `pythonpath = src`).
+- `--no-install-project`: instala solo las **dependencias**; el código propio se usa directo desde `src/` (así lo configura `[tool.pytest.ini_options]` de `pyproject.toml` con `pythonpath = src`).
 
 ```dockerfile
 ENV PATH="/app/.venv/bin:$PATH"

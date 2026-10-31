@@ -26,8 +26,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: Instalar uv
         uses: astral-sh/setup-uv@v10.1.0
@@ -67,31 +65,26 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: Run style check
         uses: ./.github/actions/style/ruff
 
+  # mypy corre una sola vez, contra la version de Python mas vieja que se prueba en "tests-linux":
+  # si el codigo usa algo que esa version no tiene, lo marca.
   static:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - name: Run static check
         uses: ./.github/actions/style/mypy
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
+  # Unico job con matriz de versiones de Python: Docker y Windows corren una sola vez (3.13).
   tests-linux:
     runs-on: ubuntu-latest
     needs: lint
@@ -99,7 +92,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout repository
@@ -114,10 +107,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - name: Checkout repository
@@ -126,7 +115,7 @@ jobs:
       - name: Run tests inside Docker
         uses: ./.github/actions/coverage/docker
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
 
   # Windows corre con una sola version (3.13, sin matriz): alcanza para detectar problemas propios del
   # sistema operativo (rutas, saltos de linea, SQLite). Las demas versiones de Python se prueban en Linux.
@@ -143,3 +132,24 @@ jobs:
         uses: ./.github/actions/coverage/windows
         with:
           python-version: "3.13"
+
+  # Job agregador: es el UNICO que hay que marcar como "required status check" en GitHub
+  # (Settings > Branches). Depende de todos los demas y falla si alguno fallo, se cancelo o se salteo
+  # (ej. si falla "lint", los tests se saltean: eso tambien cuenta como rojo).
+  # always(): corre aunque un job anterior falle; sin esto se saltearia y GitHub lo tomaria como aprobado.
+  ci-ok:
+    if: ${{ always() }}
+    needs: [check_dep, gitleaks, lint, static, tests-linux, tests-docker, tests-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verificar que todos los jobs terminaron bien
+        env:
+          RESULTADOS: ${{ toJSON(needs) }}
+          HAY_ROJO: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "$RESULTADOS"
+          if [ "$HAY_ROJO" = "true" ]; then
+            echo "::error::Al menos un job del CI no termino en verde"
+            exit 1
+          fi

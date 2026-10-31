@@ -217,3 +217,13 @@ logs/
 
 # Archivo temporal de la auditoria de dependencias (ver RUNBOOK.md, seccion 9)
 requirements-audit.txt
+# Herramientas y agentes locales
+.agents/
+AGENTS.md
+
+# Diagramas y reportes locales
+arquitectura_basket.html
+diagrama_flujo*
+skills-lock.json
+docs/diagramas/
+.opencode/

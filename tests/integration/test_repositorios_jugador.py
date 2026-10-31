@@ -1,5 +1,3 @@
-import sqlite3
-
 import pytest
 
 from dominio.entidades.jugador import Jugador, JugadorClub

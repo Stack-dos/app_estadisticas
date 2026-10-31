@@ -11,6 +11,9 @@ import pytest
 import main
 from dominio.exceptions import DNIDuplicadoError
 from infraestructura.ui.cli.commands import (
+    auth_login,
+    auth_logout,
+    auth_register,
     categoria_add,
     categoria_list,
     club_add,
@@ -33,6 +36,24 @@ from infraestructura.ui.cli.commands import (
 @pytest.mark.parametrize(
     "argv, funcion, esperado",
     [
+        pytest.param(
+            ["auth", "register", "--nombre", "Entrenador", "--email", "coach@test.com", "--password", "secreta123"],
+            auth_register.ejecutar,
+            {"nombre": "Entrenador", "email": "coach@test.com", "password": "secreta123"},
+            id="auth register",
+        ),
+        pytest.param(
+            ["auth", "login", "--email", "coach@test.com", "--password", "secreta123"],
+            auth_login.ejecutar,
+            {"email": "coach@test.com", "password": "secreta123"},
+            id="auth login",
+        ),
+        pytest.param(
+            ["auth", "logout"],
+            auth_logout.ejecutar,
+            {},
+            id="auth logout",
+        ),
         pytest.param(["club", "add", "--nombre", "Atenas"], club_add.ejecutar, {"nombre": "Atenas"}, id="club add"),
         pytest.param(["club", "list", "--id-usuario", "10"], club_list.ejecutar, {"id_usuario": 10}, id="club list"),
         pytest.param(
@@ -120,6 +141,9 @@ def test_parser_asocia_cada_comando_con_su_funcion_y_sus_argumentos(argv, funcio
 @pytest.mark.parametrize(
     "argv",
     [
+        pytest.param(["auth"], id="auth sin subcomando"),
+        pytest.param(["auth", "register", "--nombre", "Profe"], id="auth register sin email ni password"),
+        pytest.param(["auth", "login", "--email", "profe@test.com"], id="auth login sin password"),
         pytest.param(["club"], id="grupo sin subcomando"),
         pytest.param(["club", "add"], id="falta --nombre"),
         pytest.param(["jugador", "add", "--nombre", "Manu"], id="faltan apellido, dni y anio"),

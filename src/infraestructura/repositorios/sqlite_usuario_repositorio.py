@@ -36,7 +36,7 @@ class SqliteUsuarioRepositorio(UsuarioRepositorio):
         return Usuario(
             nombre=row["nombre"],
             email=row["email"],
-            pw=row["contrasenia"],
+            password_hash=row["contrasenia"],
             idUsuario=row["idUsuario"],
             #
         )
@@ -99,7 +99,7 @@ class SqliteUsuarioRepositorio(UsuarioRepositorio):
         try:
             cursor = self.conexion.cursor()
             query = "INSERT INTO usuario (email, nombre, contrasenia) VALUES (?, ?, ?)"
-            cursor.execute(query, (us_aux.email, us_aux.nombre, us_aux.pw))
+            cursor.execute(query, (us_aux.email, us_aux.nombre, us_aux.password_hash))
             self.conexion.commit()
             idUsuario = cursor.lastrowid
         except sqlite3.Error as e:
@@ -107,7 +107,9 @@ class SqliteUsuarioRepositorio(UsuarioRepositorio):
             return None
 
         try:
-            return Usuario(nombre=us_aux.nombre, email=us_aux.email, pw=us_aux.pw, idUsuario=idUsuario)
+            return Usuario(
+                nombre=us_aux.nombre, email=us_aux.email, password_hash=us_aux.password_hash, idUsuario=idUsuario
+            )
         except TypeError as e:
             logger.critical(f"""Usuario guardado (idUsuario={idUsuario})
                             pero no se pudo reconstruir el objeto de retorno: {e}""")
