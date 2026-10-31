@@ -1,5 +1,7 @@
 # Spike: Empaquetado e Instalación de la CLI
 
+> **Parcialmente obsoleto (2026-10-31):** la CLI se retira en la US-105 y no se va a distribuir. Siguen sirviendo para la US-404 (empaquetado de la GUI) los hallazgos sobre el paquete raíz `statspro`, la base y los logs en la carpeta de datos del usuario (`STATSPRO_HOME`) y los `.sql` como datos del paquete. Lo específico de la CLI (`statspro club list`, `--help`, `--version` por argparse) ya no aplica.
+
 | Campo           | Valor                                                                        |
 | --------------- | ---------------------------------------------------------------------------- |
 | Estado          | Propuesto (no iniciado)                                                      |
