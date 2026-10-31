@@ -5,7 +5,7 @@ Está pensada para el básquet de Córdoba: clubes, competencias, categorías, l
 
 ## Estado actual
 
-Hoy la aplicación se usa desde la **línea de comandos (CLI)**.
+Hoy la aplicación se usa desde la **línea de comandos (CLI)**. **La CLI se retira en la US-105**, que la reemplaza por una aplicación de escritorio con ventanas (Flet); hasta entonces, los comandos de abajo siguen funcionando. El plan completo está en el [PRD](docs/plan_desarrollo_detallado.md).
 
 ## Qué se puede hacer hoy
 
