@@ -65,7 +65,6 @@ classDiagram
     class JugadorRepositorio {
         <<interface>>
         +buscar_por_id(id_jugador) Jugador
-        +buscar_por_dni(dni_jugador) Jugador
         +buscar_por_club(idClub) list
         +guardar(jugador) Jugador
         +link_to_club(jc) JugadorClub
@@ -150,7 +149,6 @@ classDiagram
     class Jugador {
         +str nombre
         +str apellido
-        +int dni
         +int anioNacimiento
         +int idJugador
     }
@@ -285,7 +283,6 @@ erDiagram
     jugador {
         int idJugador PK
         varchar nombre
-        int dni
         int anioNacimiento
     }
     jugadorListaBuenaFe {

@@ -28,9 +28,6 @@ class JugadorRepositorio(Protocol):
         """Guarda un jugador en el sistema."""
         ...  # los puntos suspensivos son literales en Python para protocolos
 
-    def buscar_por_dni(self, dni_jugador: int) -> Jugador | None:
-        """Busca un jugador por su DNI."""
-        ...
 ```
 
 La implementación concreta **no necesita heredar** del protocolo. Si tiene los mismos métodos con las mismas firmas, `mypy` entiende que "cumple":
@@ -40,7 +37,6 @@ class SqliteJugadorRepositorio:            # <- no hereda de nada
     def __init__(self, conexion): ...
 
     def guardar(self, jugador: Jugador) -> Jugador | None: ...
-    def buscar_por_dni(self, dni_jugador: int) -> Jugador | None: ...
 ```
 
 **Ventaja:** desacople total (la implementación ni sabe que existe el protocolo). **Desventaja:** si olvidás un método, **nada falla al ejecutar**: recién `mypy` te avisa (y solo si lo corrés).
@@ -59,10 +55,6 @@ class JugadorRepositorio(ABC):
     "Maneja Jugador y JugadorClub"
 
     @abstractmethod
-    def buscar_por_dni(self, dni_jugador: int) -> Jugador | None:
-        "Busca un jugador por DNI"
-        pass
-
     @abstractmethod
     def guardar(self, jugador: Jugador) -> Jugador | None:
         pass
