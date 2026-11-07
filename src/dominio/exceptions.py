@@ -7,12 +7,6 @@ class ErrorDeDominio(Exception):
     pass
 
 
-class DNIDuplicadoError(ErrorDeDominio):
-    """Se lanza cuando se intenta guardar un jugador con un DNI ya registrado."""
-
-    pass
-
-
 class ClubNoEncontradoError(ErrorDeDominio):
     """Se lanza cuando se quiere trabajar con un club inexistente"""
 
