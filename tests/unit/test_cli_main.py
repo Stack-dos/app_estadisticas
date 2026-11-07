@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import main
-from dominio.exceptions import DNIDuplicadoError
+from dominio.exceptions import DatoInvalidoError
 from infraestructura.ui.cli.commands import (
     auth_login,
     auth_logout,
@@ -57,9 +57,9 @@ from infraestructura.ui.cli.commands import (
         pytest.param(["club", "add", "--nombre", "Atenas"], club_add.ejecutar, {"nombre": "Atenas"}, id="club add"),
         pytest.param(["club", "list", "--id-usuario", "10"], club_list.ejecutar, {"id_usuario": 10}, id="club list"),
         pytest.param(
-            ["jugador", "add", "--nombre", "Manu", "--apellido", "Ginobili", "--dni", "20111222", "--anio", "1977"],
+            ["jugador", "add", "--nombre", "Manu", "--apellido", "Ginobili", "--anio", "1977"],
             jugador_add.ejecutar,
-            {"nombre": "Manu", "apellido": "Ginobili", "dni": 20111222, "anio": 1977},
+            {"nombre": "Manu", "apellido": "Ginobili", "anio": 1977},
             id="jugador add",
         ),
         pytest.param(
@@ -146,7 +146,7 @@ def test_parser_asocia_cada_comando_con_su_funcion_y_sus_argumentos(argv, funcio
         pytest.param(["auth", "login", "--email", "profe@test.com"], id="auth login sin password"),
         pytest.param(["club"], id="grupo sin subcomando"),
         pytest.param(["club", "add"], id="falta --nombre"),
-        pytest.param(["jugador", "add", "--nombre", "Manu"], id="faltan apellido, dni y anio"),
+        pytest.param(["jugador", "add", "--nombre", "Manu"], id="falta apellido"),
         pytest.param(["jugador", "link", "--id-jugador", "1", "--id-club", "2"], id="falta --fecha-desde"),
         pytest.param(["jugador", "list", "--id-club", "no-es-un-numero"], id="id que no es numero"),
         pytest.param(["competencia", "add", "--nombre", "Liga", "--anio", "dos-mil"], id="anio que no es numero"),
@@ -202,7 +202,7 @@ def test_main_ejecuta_el_comando_elegido_con_los_argumentos_parseados(monkeypatc
 
 
 def test_main_muestra_un_error_de_dominio_sin_traceback_y_sale_con_codigo_1(monkeypatch, cli_sin_base, capsys):
-    monkeypatch.setattr(club_add, "ejecutar", MagicMock(side_effect=DNIDuplicadoError("Ya existe ese DNI")))
+    monkeypatch.setattr(club_add, "ejecutar", MagicMock(side_effect=DatoInvalidoError("Dato invalido")))
     cli_sin_base("club", "add", "--nombre", "Atenas")
 
     with pytest.raises(SystemExit) as info:
@@ -210,7 +210,7 @@ def test_main_muestra_un_error_de_dominio_sin_traceback_y_sale_con_codigo_1(monk
 
     salida = capsys.readouterr()
     assert info.value.code == 1
-    assert salida.err == "Error: Ya existe ese DNI\n"
+    assert salida.err == "Error: Dato invalido\n"
     assert "Traceback" not in salida.err
 
 

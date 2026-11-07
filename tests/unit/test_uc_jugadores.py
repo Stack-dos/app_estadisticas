@@ -19,7 +19,6 @@ from dominio.entidades.jugador import Jugador, JugadorClub
 from dominio.exceptions import (
     ClubNoEncontradoError,
     DatoInvalidoError,
-    DNIDuplicadoError,
     JugadorNoEncontradoError,
     JugadorSinVinculoActivoError,
     VinculoActivoExistenteError,
@@ -43,18 +42,18 @@ def repo_club():
 
 
 def _dto_jugador(**overrides) -> CrearJugadorDTO:
-    datos = {"nombre": "Manu", "apellido": "Ginobili", "dni": 20111222, "anioNacimiento": 1977}
+    datos = {"nombre": "Manu", "apellido": "Ginobili", "anioNacimiento": 1977}
     return CrearJugadorDTO(**{**datos, **overrides})
 
 
 def test_registrar_jugador_devuelve_el_dto_con_el_id_asignado(repo_jugador):
-    repo_jugador.guardar.return_value = Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=7)
+    repo_jugador.guardar.return_value = Jugador("Manu", "Ginobili", 1977, idJugador=7)
 
     resultado = RegistrarJugadorUseCase(repo_jugador).ejecutar(_dto_jugador())
 
     assert resultado == JugadorDTO(nombre_completo="Manu Ginobili", id=7, anioNacimiento=1977)
     # El caso de uso le entrega al repositorio una entidad todavia sin id
-    repo_jugador.guardar.assert_called_once_with(jugador=Jugador("Manu", "Ginobili", 20111222, 1977))
+    repo_jugador.guardar.assert_called_once_with(jugador=Jugador("Manu", "Ginobili", 1977))
 
 
 def test_registrar_jugador_devuelve_none_si_el_repositorio_no_pudo_guardar(repo_jugador):
@@ -63,19 +62,19 @@ def test_registrar_jugador_devuelve_none_si_el_repositorio_no_pudo_guardar(repo_
     assert RegistrarJugadorUseCase(repo_jugador).ejecutar(_dto_jugador()) is None
 
 
-def test_registrar_jugador_con_dni_duplicado_deja_subir_la_excepcion(repo_jugador):
-    # side_effect: en vez de devolver un valor, el mock LANZA la excepcion (como lo hace el repo real)
-    repo_jugador.guardar.side_effect = DNIDuplicadoError("Ya existe un jugador con DNI 20111222")
-
-    with pytest.raises(DNIDuplicadoError, match="20111222"):
-        RegistrarJugadorUseCase(repo_jugador).ejecutar(_dto_jugador())
-
-
 def test_registrar_jugador_con_dato_de_tipo_invalido_no_llega_al_repositorio(repo_jugador):
     with pytest.raises(TypeError):
-        RegistrarJugadorUseCase(repo_jugador).ejecutar(_dto_jugador(dni="no-es-un-numero"))
+        RegistrarJugadorUseCase(repo_jugador).ejecutar(_dto_jugador(anioNacimiento="no-es-un-numero"))
 
     repo_jugador.guardar.assert_not_called()
+
+
+def test_registrar_jugador_sin_anio_de_nacimiento_es_valido(repo_jugador):
+    repo_jugador.guardar.return_value = Jugador("Manu", "Ginobili", None, idJugador=7)
+
+    resultado = RegistrarJugadorUseCase(repo_jugador).ejecutar(_dto_jugador(anioNacimiento=None))
+
+    assert resultado == JugadorDTO(nombre_completo="Manu Ginobili", id=7, anioNacimiento=None)
 
 
 # ------------------------------------------------------------------ VincularJugadorAClub
@@ -89,7 +88,7 @@ def _dto_vinculo(**overrides) -> VincularJugadorClubDTO:
 def _preparar_vinculo(repo_jugador, repo_club, **overrides):
     """Configura los mocks para el camino feliz; cada test pisa (override) lo que quiere romper."""
     config = {
-        "jugador": Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=1),
+        "jugador": Jugador("Manu", "Ginobili", 1977, idJugador=1),
         "club": Club("Atenas", idClub=2),
         "club_activo": None,
         "historial": [],
@@ -154,8 +153,8 @@ def test_vincular_jugador_devuelve_none_si_el_repositorio_no_pudo_guardar(repo_j
 
 def test_listar_jugadores_convierte_cada_jugador_en_dto(repo_jugador):
     repo_jugador.buscar_por_club.return_value = [
-        Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=1),
-        Jugador("Pepe", "Argento", 12351689, 1980, idJugador=2),
+        Jugador("Manu", "Ginobili", 1977, idJugador=1),
+        Jugador("Pepe", "Argento", 1980, idJugador=2),
     ]
 
     resultado = ListarJugadoresClubUseCase(repo_jugador).ejecutar(5)
@@ -175,7 +174,7 @@ def test_listar_jugadores_sin_resultados_devuelve_lista_vacia(repo_jugador, sin_
 
 
 def test_listar_jugadores_con_un_jugador_sin_id_es_un_error_del_repositorio(repo_jugador):
-    repo_jugador.buscar_por_club.return_value = [Jugador("Manu", "Ginobili", 20111222, 1977)]
+    repo_jugador.buscar_por_club.return_value = [Jugador("Manu", "Ginobili", 1977)]
 
     with pytest.raises(RuntimeError, match="Jugador"):
         ListarJugadoresClubUseCase(repo_jugador).ejecutar(5)
@@ -207,7 +206,7 @@ def test_vincular_jugador_que_ya_se_fue_de_otro_club_puede_vincularse_de_nuevo(r
 def _preparar_desvinculo(repo_jugador, **overrides):
     """Escenario feliz: el jugador 1 existe y juega en el club 2 desde el 2026-01-01."""
     config = {
-        "jugador": Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=1),
+        "jugador": Jugador("Manu", "Ginobili", 1977, idJugador=1),
         "historial": [JugadorClub("2026-01-01", None, idJugador=1, idClub=2)],
         **overrides,
     }

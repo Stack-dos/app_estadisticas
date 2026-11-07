@@ -42,7 +42,7 @@ def _preparar(repo_competencia, repo_jugador, **overrides):
     config = {
         "inscripcion": Inscripcion(idClub=1, idCategoria=1, idCompetencia=1, idInscripcion=5),
         "lista": ListaBuenaFe("2026-03-01", 5, idListaBuenaFe=7),
-        "jugador": Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=3),
+        "jugador": Jugador("Manu", "Ginobili", 1977, idJugador=3),
         "club_activo": Club("Atenas", idClub=1),
         "habilitados": [],
         **overrides,
@@ -132,8 +132,8 @@ def test_listar_lista_muestra_el_nombre_de_cada_jugador_habilitado(repo_competen
         habilitados=[JugadorListaBuenaFe(3, 7), JugadorListaBuenaFe(4, 7)],
     )
     repo_jugador.buscar_por_id.side_effect = [
-        Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=3),
-        Jugador("Pepe", "Argento", 12351689, 1980, idJugador=4),
+        Jugador("Manu", "Ginobili", 1977, idJugador=3),
+        Jugador("Pepe", "Argento", 1980, idJugador=4),
     ]
 
     resultado = ListarListaBuenaFeUseCase(repo_competencia, repo_jugador).ejecutar(5)

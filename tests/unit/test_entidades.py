@@ -18,8 +18,8 @@ ENTIDADES = [
     (UsuarioClub, {"rol": "DT"}, {"rol": 5, "idUsuario": "1", "idClub": "1"}),
     (
         Jugador,
-        {"nombre": "Manu", "apellido": "Ginobili", "dni": 20111222, "anioNacimiento": 1977},
-        {"nombre": 10, "apellido": None, "dni": "20111222", "anioNacimiento": "1977", "idJugador": "1"},
+        {"nombre": "Manu", "apellido": "Ginobili", "anioNacimiento": 1977},
+        {"nombre": 10, "apellido": None, "anioNacimiento": "1977", "idJugador": "1"},
     ),
     (
         JugadorClub,
