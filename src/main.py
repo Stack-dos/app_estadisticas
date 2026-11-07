@@ -80,8 +80,7 @@ def construir_parser() -> argparse.ArgumentParser:
     parser_jugador_add = jugador_subparsers.add_parser("add", help="Registra un jugador nuevo")
     parser_jugador_add.add_argument("--nombre", required=True, help="NOMBRE: nombre del jugador - OBLIGATORIO")
     parser_jugador_add.add_argument("--apellido", required=True, help="APELLIDO: Apellido del jugador - OBLIGATORIO")
-    parser_jugador_add.add_argument("--dni", type=int, required=True, help="DNI: DNI del jugador - OBLIGATORIO")
-    parser_jugador_add.add_argument("--anio", type=int, required=True, help="AÑO: Año de nacimiento del jugador")
+    parser_jugador_add.add_argument("--anio", type=int, help="AÑO: Año de nacimiento del jugador")
     parser_jugador_add.set_defaults(func=jugador_add.ejecutar)
 
     parser_jugador_link = jugador_subparsers.add_parser("link", help="Vincula un jugador a un club")
