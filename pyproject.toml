@@ -11,7 +11,6 @@ requires-python = ">=3.12"
 dependencies = [
     "flet[desktop]==1.1.2",
     "pandas==3.0.6",
-    "tabulate==0.10.0",
 ]
 
 # Comando "statspro" al instalar el paquete (por ahora: uv tool install --editable .)
@@ -54,11 +53,6 @@ python_version = "3.12"
 mypy_path = "src"
 strict = true
 explicit_package_bases = true
-
-# tabulate no publica stubs de tipos: sin esto, mypy --strict falla al importarla
-[[tool.mypy.overrides]]
-module = "tabulate.*"
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 # pythonpath = src: los tests importan dominio, aplicacion... directo
