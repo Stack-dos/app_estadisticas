@@ -1,12 +1,13 @@
-"""Pantalla principal, solo con sesion (US-105, AC3).
+"""Pantalla principal, solo con sesion (US-105, AC3; club activo de la US-106).
 
-Todavia no tiene secciones: el menu lo llenan la US-106 (club activo) y la US-107 (pantallas de
-gestion). Por ahora saluda al usuario y permite cerrar la sesion.
+Todavia no tiene secciones: las pantallas de gestion llegan con la US-107. Saluda al usuario y, si no
+eligio un club, lo invita a hacerlo. Cerrar sesion esta en la barra superior compartida.
 """
 
 import flet as ft
 
 from aplicacion.servicios.session_manager import SessionManager
+from infraestructura.ui.flet.barra_superior import crear_barra_superior
 
 
 def crear_inicio_view(page: ft.Page, sesion: SessionManager) -> ft.View:
@@ -15,23 +16,17 @@ def crear_inicio_view(page: ft.Page, sesion: SessionManager) -> ft.View:
 
     Args:
         page (ft.Page): La ventana, para navegar y redibujar.
-        sesion (SessionManager): Sesion en memoria: de ahi sale el nombre y se cierra al salir.
+        sesion (SessionManager): Sesion en memoria: de ahi salen el nombre y el club activo.
 
     Returns:
         ft.View: La pantalla, para la ruta "/inicio".
     """
     usuario = sesion.usuario_actual()
+    controles: list[ft.BaseControl] = [ft.Text(f"Hola, {usuario.nombre}", size=24)]
+    if sesion.club_activo() is None:
+        controles += [
+            ft.Text("Elegí un club para empezar."),
+            ft.Button("Elegir club", on_click=lambda: page.navigate("/clubes")),
+        ]
 
-    def cerrar_sesion() -> None:
-        """Handler de "Cerrar sesion": cierra la sesion y vuelve al login."""
-        sesion.cerrar_sesion()
-        page.navigate("/login")
-
-    return ft.View(
-        route="/inicio",
-        appbar=ft.AppBar(
-            title=ft.Text("StatsPro"),
-            actions=[ft.TextButton("Cerrar sesión", on_click=cerrar_sesion)],
-        ),
-        controls=[ft.Text(f"Hola, {usuario.nombre}", size=24)],
-    )
+    return ft.View(route="/inicio", appbar=crear_barra_superior(page, sesion), controls=controles)
