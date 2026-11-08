@@ -11,8 +11,7 @@ ANIO_MINIMO = 1900
 class Jugador:
     nombre: str
     apellido: str
-    dni: int
-    anioNacimiento: int
+    anioNacimiento: int | None = None
     idJugador: int | None = None
 
     @property
@@ -26,30 +25,25 @@ class Jugador:
         Raises:
             TypeError: Si el nombre no es una cadena de caracteres.
             TypeError: Si el apellido no es una cadena de caracteres.
-            TypeError: Si el DNI no es un entero.
-            TypeError: Si el año de nacimiento no es un entero.
+            TypeError: Si el año de nacimiento no es un entero o None.
             TypeError: Si el ID del jugador no es un entero o None.
-            DatoInvalidoError: Si el nombre o el apellido estan vacios, si el DNI no es positivo o si el año de
-                nacimiento no esta entre 1901 y el año actual.
+            DatoInvalidoError: Si el nombre o el apellido estan vacios o si el año de nacimiento
+                no esta entre 1901 y el año actual.
         """
         if not isinstance(self.nombre, str):
             raise TypeError(f"nombre debe ser str, recibido {type(self.nombre).__name__}")
         if not isinstance(self.apellido, str):
             raise TypeError(f"apellido debe ser str, recibido {type(self.apellido).__name__}")
-        if not isinstance(self.dni, int):
-            raise TypeError(f"dni debe ser int, recibido {type(self.dni).__name__}")
-        if not isinstance(self.anioNacimiento, int):
-            raise TypeError(f"anioNacimiento debe ser int, recibido {type(self.anioNacimiento).__name__}")
+        if self.anioNacimiento is not None and not isinstance(self.anioNacimiento, int):
+            raise TypeError(f"anioNacimiento debe ser int o None, recibido {type(self.anioNacimiento).__name__}")
         if self.idJugador is not None and not isinstance(self.idJugador, int):
             raise TypeError(f"idJugador debe ser int o None, recibido {type(self.idJugador).__name__}")
         if not self.nombre.strip():
             raise DatoInvalidoError("El nombre del jugador no puede estar vacio")
         if not self.apellido.strip():
             raise DatoInvalidoError("El apellido del jugador no puede estar vacio")
-        if self.dni <= 0:
-            raise DatoInvalidoError(f"El DNI debe ser un numero positivo - Valor actual: {self.dni}")
         anio_actual = date.today().year
-        if not ANIO_MINIMO < self.anioNacimiento <= anio_actual:
+        if self.anioNacimiento is not None and not ANIO_MINIMO < self.anioNacimiento <= anio_actual:
             raise DatoInvalidoError(
                 f"El año de nacimiento debe estar entre {ANIO_MINIMO + 1} y {anio_actual} - "
                 f"Valor actual: {self.anioNacimiento}"

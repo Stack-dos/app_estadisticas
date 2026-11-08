@@ -48,7 +48,7 @@ def test_los_datos_persisten_entre_ejecuciones(cli):
 def test_flujo_completo_de_punta_a_punta(cli):
     assert cli("club", "add", "--nombre", "Atenas")[0] == 0
     assert (
-        cli("jugador", "add", "--nombre", "Manu", "--apellido", "Ginobili", "--dni", "20111222", "--anio", "1977")[1]
+        cli("jugador", "add", "--nombre", "Manu", "--apellido", "Ginobili", "--anio", "1977")[1]
         == "Jugador creado: Manu Ginobili (id=1)\n"
     )
 
@@ -117,7 +117,7 @@ def test_un_jugador_puede_cambiar_de_club_sin_pisar_el_periodo_anterior(cli):
     for paso in [
         ("club", "add", "--nombre", "Atenas"),
         ("club", "add", "--nombre", "Instituto"),
-        ("jugador", "add", "--nombre", "Manu", "--apellido", "Ginobili", "--dni", "20111222", "--anio", "1977"),
+        ("jugador", "add", "--nombre", "Manu", "--apellido", "Ginobili", "--anio", "1977"),
         ("jugador", "link", "--id-jugador", "1", "--id-club", "1", "--fecha-desde", "2026-01-01"),
     ]:
         assert cli(*paso)[0] == 0
@@ -165,7 +165,7 @@ def test_partido_list_muestra_los_nombres_de_los_clubes_y_de_la_competencia(cli)
 
 INSCRIPCION_DEL_CLUB_1 = [
     ("club", "add", "--nombre", "Atenas"),
-    ("jugador", "add", "--nombre", "A", "--apellido", "B", "--dni", "1", "--anio", "1990"),
+    ("jugador", "add", "--nombre", "A", "--apellido", "B", "--anio", "1990"),
     ("competencia", "add", "--nombre", "Liga", "--anio", "2026"),
     ("categoria", "add", "--nombre", "U21"),
     (
@@ -187,12 +187,6 @@ INSCRIPCION_DEL_CLUB_1 = [
     "preparacion, comando, mensaje",
     [
         pytest.param(
-            [("jugador", "add", "--nombre", "A", "--apellido", "B", "--dni", "1", "--anio", "1990")],
-            ("jugador", "add", "--nombre", "C", "--apellido", "D", "--dni", "1", "--anio", "1991"),
-            "Ya existe un jugador con DNI 1",
-            id="dni duplicado",
-        ),
-        pytest.param(
             [],
             ("jugador", "link", "--id-jugador", "99", "--id-club", "1", "--fecha-desde", "2026-01-01"),
             "No existe un jugador con idJugador=99",
@@ -202,7 +196,7 @@ INSCRIPCION_DEL_CLUB_1 = [
             [
                 ("club", "add", "--nombre", "Atenas"),
                 ("club", "add", "--nombre", "Instituto"),
-                ("jugador", "add", "--nombre", "A", "--apellido", "B", "--dni", "1", "--anio", "1990"),
+                ("jugador", "add", "--nombre", "A", "--apellido", "B", "--anio", "1990"),
                 ("jugador", "link", "--id-jugador", "1", "--id-club", "1", "--fecha-desde", "2026-01-01"),
             ],
             ("jugador", "link", "--id-jugador", "1", "--id-club", "2", "--fecha-desde", "2026-02-01"),
@@ -224,7 +218,7 @@ INSCRIPCION_DEL_CLUB_1 = [
         pytest.param(
             [
                 ("club", "add", "--nombre", "Atenas"),
-                ("jugador", "add", "--nombre", "A", "--apellido", "B", "--dni", "1", "--anio", "1990"),
+                ("jugador", "add", "--nombre", "A", "--apellido", "B", "--anio", "1990"),
                 ("competencia", "add", "--nombre", "Liga", "--anio", "2026"),
                 ("categoria", "add", "--nombre", "U21"),
                 (
@@ -255,18 +249,12 @@ INSCRIPCION_DEL_CLUB_1 = [
         ),
         pytest.param(
             [],
-            ("jugador", "add", "--nombre", "A", "--apellido", "B", "--dni", "-5", "--anio", "1990"),
-            "El DNI debe ser un numero positivo",
-            id="dni negativo",
-        ),
-        pytest.param(
-            [],
-            ("jugador", "add", "--nombre", "A", "--apellido", "B", "--dni", "1", "--anio", "3000"),
+            ("jugador", "add", "--nombre", "A", "--apellido", "B", "--anio", "3000"),
             "El año de nacimiento debe estar entre",
             id="anio de nacimiento imposible",
         ),
         pytest.param(
-            [("jugador", "add", "--nombre", "A", "--apellido", "B", "--dni", "1", "--anio", "1990")],
+            [("jugador", "add", "--nombre", "A", "--apellido", "B", "--anio", "1990")],
             ("jugador", "unlink", "--id-jugador", "1", "--fecha-hasta", "2026-06-30"),
             "no tiene un club activo",
             id="desvincular a un jugador sin club",

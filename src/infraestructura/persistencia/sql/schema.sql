@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS jugador (
     idJugador integer PRIMARY KEY AUTOINCREMENT,
     nombre text NOT NULL,
     apellido text NOT NULL,
-    dni integer null UNIQUE,
     anioNacimiento integer NULL
 ) STRICT;
 -- JugadorClub

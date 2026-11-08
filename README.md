@@ -11,7 +11,7 @@ Hoy la aplicación se usa desde la **línea de comandos (CLI)**. **La CLI se ret
 
 ```text
 stats club add --nombre "Atenas"
-stats jugador add --nombre Manu --apellido Ginobili --dni 20111222 --anio 1977
+stats jugador add --nombre Manu --apellido Ginobili --anio 1977
 stats jugador link --id-jugador 1 --id-club 1 --fecha-desde 2026-01-05
 stats jugador unlink --id-jugador 1 --fecha-hasta 2026-06-30   # da de baja del club (para poder cambiarlo)
 stats jugador list --id-club 1

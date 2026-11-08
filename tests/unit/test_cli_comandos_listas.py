@@ -168,7 +168,7 @@ def _repos_de_la_lista(**overrides):
         "agregar_jugador_lista.return_value": JugadorListaBuenaFe(idJugador=3, idListaBuenaFe=7),
     }
     jugador_config = {
-        "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=3),
+        "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1977, idJugador=3),
         "club_activo.return_value": Club("Atenas", idClub=1),
     }
     competencia_config.update(overrides.get("competencia", {}))

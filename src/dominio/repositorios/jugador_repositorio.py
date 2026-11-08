@@ -13,11 +13,6 @@ class JugadorRepositorio(ABC):
         pass
 
     @abstractmethod
-    def buscar_por_dni(self, dni_jugador: int) -> Jugador | None:
-        "Busca un jugador por DNI"
-        pass
-
-    @abstractmethod
     def buscar_por_club(self, idClub: int) -> list[Jugador] | None:
         "Busca los jugadores actuales de un club (vinculo vigente, sin fechaHasta)"
         pass

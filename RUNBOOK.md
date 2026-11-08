@@ -146,26 +146,22 @@ El usuario 1 no pertenece a ningun club.
 
 ### `jugador add`
 
-Registra un jugador nuevo. El DNI es único.
+Registra un jugador nuevo. El año de nacimiento es opcional.
 
 | Opción | Tipo | Descripción |
 | --- | --- | --- |
 | `--nombre` | texto | Nombre |
 | `--apellido` | texto | Apellido |
-| `--dni` | número | DNI (positivo, no puede repetirse) |
-| `--anio` | número | Año de nacimiento (entre 1901 y el año actual) |
+| `--anio` | número | Año de nacimiento opcional (entre 1901 y el año actual) |
 
 ```text
-$ stats jugador add --nombre Manu --apellido Ginobili --dni 20111222 --anio 1977
+$ stats jugador add --nombre Manu --apellido Ginobili --anio 1977
 Jugador creado: Manu Ginobili (id=1)
 
-$ stats jugador add --nombre Otro --apellido Jugador --dni 20111222 --anio 1990
-Error: Ya existe un jugador con DNI 20111222
+$ stats jugador add --nombre Otro --apellido Jugador
+Jugador creado: Otro Jugador (id=2)
 
-$ stats jugador add --nombre Otro --apellido Jugador --dni -5 --anio 1990
-Error: El DNI debe ser un numero positivo - Valor actual: -5
-
-$ stats jugador add --nombre Otro --apellido Jugador --dni 5 --anio 3000
+$ stats jugador add --nombre Otro --apellido Jugador --anio 3000
 Error: El año de nacimiento debe estar entre 1901 y 2026 - Valor actual: 3000
 ```
 
@@ -434,7 +430,7 @@ uv run python src/main.py club add --nombre "Atenas"
 uv run python src/main.py club add --nombre "Universitario"
 
 # 2. Registrar un jugador y vincularlo a Atenas
-uv run python src/main.py jugador add --nombre Manu --apellido Ginobili --dni 20111222 --anio 1977
+uv run python src/main.py jugador add --nombre Manu --apellido Ginobili --anio 1977
 uv run python src/main.py jugador link --id-jugador 1 --id-club 1 --fecha-desde 2026-01-05
 uv run python src/main.py jugador list --id-club 1
 
@@ -477,7 +473,7 @@ Los errores se muestran como una línea `Error: ...` en la salida de **errores**
 | Código | Significa | Ejemplo |
 | --- | --- | --- |
 | `0` | Todo bien | `Club creado: Atenas (id=1)` |
-| `1` | Error de negocio: la operación no está permitida o no se pudo guardar | `Error: Ya existe un jugador con DNI 20111222` |
+| `1` | Error de negocio: la operación no está permitida o no se pudo guardar | `Error: El año de nacimiento debe estar entre 1901 y 2026 - Valor actual: 3000` |
 | `2` | Uso incorrecto de la CLI (lo devuelve `argparse`): falta una opción, un número mal escrito, una fecha inválida | `error: argument --fecha-desde: '31-12-2026' no es una fecha valida, use el formato AAAA-MM-DD` |
 
 Si ves un **traceback** (un mensaje largo con `Traceback (most recent call last)`), es un bug del programa y no un error de uso: reportalo junto con el comando que ejecutaste y el archivo `logs/app.log`.
@@ -589,7 +585,7 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 | `Error: ... no tiene un vinculo vigente con el club de la inscripcion` | Al habilitar en la lista a un jugador que no juega en ese club | Vincularlo antes con `jugador link` (o revisar que sea el club correcto con `inscripcion list`) |
 | `Error: El jugador (idJugador=N), tiene un club activo` | Al vincular a un jugador que todavía está en otro club | Darle de baja primero con `jugador unlink` |
 | `Error: El vinculo nuevo empieza el ..., antes de que termine el anterior` | La fecha de `--fecha-desde` es anterior a la baja del club anterior | Usar una fecha igual o posterior a la de la baja |
-| `Error: El nombre del club no puede estar vacio` (o DNI/año inválidos) | Un dato no cumple las reglas de la entidad | Corregir el dato y repetir el comando |
+| `Error: El nombre del club no puede estar vacio` (o año inválido) | Un dato no cumple las reglas de la entidad | Corregir el dato y repetir el comando |
 | `El usuario 1 no pertenece a ningun club` | Los clubes aún no se vinculan a usuarios (llega con el login) | Es lo esperado por ahora |
 | Los acentos o la `ñ` se ven raros en la consola de Windows | Codificación de la consola | Ejecutar con `PYTHONUTF8=1` (o `chcp 65001` en cmd) |
 | `database is locked` | Otro programa (ej. un visor de SQLite) tiene la base abierta para escribir | Cerrar el otro programa y reintentar |

@@ -1,7 +1,7 @@
 """Tests unitarios de las reglas de VALOR de las entidades (no vacio, rangos) y de sus propiedades calculadas.
 
 `test_entidades.py` cubre los TIPOS incorrectos (TypeError); aca se cubren los valores del tipo correcto pero
-invalidos (DatoInvalidoError): un nombre vacio, un DNI negativo, un año imposible.
+invalidos (DatoInvalidoError): un nombre vacio o un año imposible.
 """
 
 from datetime import date
@@ -15,7 +15,7 @@ from dominio.entidades.usuario import Usuario, normalizar_email
 from dominio.exceptions import DatoInvalidoError, ErrorDeDominio
 
 ANIO_ACTUAL = date.today().year
-JUGADOR_VALIDO = {"nombre": "Manu", "apellido": "Ginobili", "dni": 20111222, "anioNacimiento": 1977}
+JUGADOR_VALIDO = {"nombre": "Manu", "apellido": "Ginobili", "anioNacimiento": 1977}
 USUARIO_VALIDO = {"nombre": "Claudio", "email": "claudio@gmail.com", "password_hash": "hash-de-prueba"}
 
 
@@ -26,8 +26,6 @@ USUARIO_VALIDO = {"nombre": "Claudio", "email": "claudio@gmail.com", "password_h
         pytest.param(Club, {"nombre": "Atenas"}, "nombre", "   ", "nombre del club", id="club-nombre-solo-espacios"),
         pytest.param(Jugador, JUGADOR_VALIDO, "nombre", "", "nombre del jugador", id="jugador-nombre-vacio"),
         pytest.param(Jugador, JUGADOR_VALIDO, "apellido", " ", "apellido del jugador", id="jugador-apellido-vacio"),
-        pytest.param(Jugador, JUGADOR_VALIDO, "dni", 0, "DNI", id="jugador-dni-cero"),
-        pytest.param(Jugador, JUGADOR_VALIDO, "dni", -5, "DNI", id="jugador-dni-negativo"),
         pytest.param(Jugador, JUGADOR_VALIDO, "anioNacimiento", 1900, "nacimiento", id="jugador-nacio-en-1900"),
         pytest.param(Jugador, JUGADOR_VALIDO, "anioNacimiento", 1850, "nacimiento", id="jugador-nacio-en-1850"),
         pytest.param(
@@ -59,9 +57,9 @@ def test_entidad_con_valor_invalido_lanza_dato_invalido(clase, validos, campo, v
 @pytest.mark.parametrize(
     "campo, valor",
     [
-        pytest.param("dni", 1, id="dni-minimo"),
         pytest.param("anioNacimiento", 1901, id="primer-año-valido"),
         pytest.param("anioNacimiento", ANIO_ACTUAL, id="nacio-este-año"),
+        pytest.param("anioNacimiento", None, id="anio-opcional"),
     ],
 )
 def test_jugador_en_el_limite_es_valido(campo, valor):

@@ -15,7 +15,6 @@ from dominio.entidades.jugador import Jugador, JugadorClub
 from dominio.entidades.partido import PartidoResumen
 from dominio.exceptions import (
     DatoInvalidoError,
-    DNIDuplicadoError,
     JugadorSinVinculoActivoError,
     VinculoActivoExistenteError,
 )
@@ -88,18 +87,11 @@ def test_club_list_sin_clubes_avisa_en_vez_de_mostrar_una_tabla_vacia(capsys):
 
 
 def test_jugador_add_informa_el_jugador_creado(capsys):
-    repo = _repo(JugadorRepositorio, **{"guardar.return_value": Jugador("Manu", "Ginobili", 1, 1977, idJugador=7)})
+    repo = _repo(JugadorRepositorio, **{"guardar.return_value": Jugador("Manu", "Ginobili", 1977, idJugador=7)})
 
-    jugador_add.ejecutar(_args(nombre="Manu", apellido="Ginobili", dni=1, anio=1977), repo)
+    jugador_add.ejecutar(_args(nombre="Manu", apellido="Ginobili", anio=1977), repo)
 
     assert capsys.readouterr().out == "Jugador creado: Manu Ginobili (id=7)\n"
-
-
-def test_jugador_add_no_atrapa_el_error_de_dominio_lo_deja_subir_a_main():
-    repo = _repo(JugadorRepositorio, **{"guardar.side_effect": DNIDuplicadoError("DNI repetido")})
-
-    with pytest.raises(DNIDuplicadoError):
-        jugador_add.ejecutar(_args(nombre="Manu", apellido="Ginobili", dni=1, anio=1977), repo)
 
 
 # ----------------------------------------------------------------------------- jugador link
@@ -108,7 +100,7 @@ def test_jugador_add_no_atrapa_el_error_de_dominio_lo_deja_subir_a_main():
 def _repos_para_vincular(**overrides):
     """Repos falsos con todo lo necesario para que el vinculo se pueda guardar; se pisa lo que el test rompe."""
     jugador_config = {
-        "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1, 1977, idJugador=1),
+        "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1977, idJugador=1),
         "club_activo.return_value": None,
         "historial_vinculos.return_value": [],
         "link_to_club.return_value": JugadorClub("2026-01-05", None, idJugador=1, idClub=2),
@@ -143,7 +135,7 @@ def test_jugador_link_con_club_activo_deja_subir_el_error_de_dominio():
 def test_jugador_list_muestra_los_jugadores_en_una_tabla(capsys):
     repo = _repo(
         JugadorRepositorio,
-        **{"buscar_por_club.return_value": [Jugador("Manu", "Ginobili", 1, 1977, idJugador=1)]},
+        **{"buscar_por_club.return_value": [Jugador("Manu", "Ginobili", 1977, idJugador=1)]},
     )
 
     jugador_list.ejecutar(_args(id_club=2), repo)
@@ -280,7 +272,7 @@ def _kwargs_competencia_inscribir():
         pytest.param(club_add, _args(nombre="Atenas"), _kwargs_club_add, "no se pudo guardar el club", id="club add"),
         pytest.param(
             jugador_add,
-            _args(nombre="Manu", apellido="Ginobili", dni=1, anio=1977),
+            _args(nombre="Manu", apellido="Ginobili", anio=1977),
             _kwargs_jugador_add,
             "no se pudo guardar el jugador",
             id="jugador add",
@@ -327,7 +319,7 @@ def test_jugador_unlink_informa_el_vinculo_cerrado(capsys):
     repo = _repo(
         JugadorRepositorio,
         **{
-            "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1, 1977, idJugador=1),
+            "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1977, idJugador=1),
             "historial_vinculos.return_value": [JugadorClub("2026-01-05", None, idJugador=1, idClub=2)],
             "cerrar_vinculo.return_value": JugadorClub("2026-01-05", "2026-06-30", idJugador=1, idClub=2),
         },
@@ -342,7 +334,7 @@ def test_jugador_unlink_sin_club_activo_deja_subir_el_error_de_dominio():
     repo = _repo(
         JugadorRepositorio,
         **{
-            "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1, 1977, idJugador=1),
+            "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1977, idJugador=1),
             "historial_vinculos.return_value": [],
         },
     )
@@ -355,7 +347,7 @@ def test_jugador_unlink_aborta_si_el_repositorio_no_pudo_guardar(capsys):
     repo = _repo(
         JugadorRepositorio,
         **{
-            "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1, 1977, idJugador=1),
+            "buscar_por_id.return_value": Jugador("Manu", "Ginobili", 1977, idJugador=1),
             "historial_vinculos.return_value": [JugadorClub("2026-01-05", None, idJugador=1, idClub=2)],
             "cerrar_vinculo.return_value": None,
         },

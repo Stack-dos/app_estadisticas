@@ -60,7 +60,7 @@ def test_agregar_jugador_lista(db_conexion):
     comp_rep = SqliteCompetenciaRepositorio(db_conexion)
     jugador_rep = SqliteJugadorRepositorio(db_conexion)
 
-    nuevo_jugador = Jugador(nombre="Facundo", apellido="Campazzo", dni=35123456, anioNacimiento=1991)
+    nuevo_jugador = Jugador(nombre="Facundo", apellido="Campazzo", anioNacimiento=1991)
     jugador_guardado = jugador_rep.guardar(nuevo_jugador)
     id_lista = 1
     lista_agregada = comp_rep.agregar_jugador_lista(jugador_guardado.idJugador, id_lista)

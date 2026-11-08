@@ -12,16 +12,15 @@ def ejecutar(args: argparse.Namespace, repo: JugadorRepositorio | None = None) -
     """Comando `jugador add`: registra un jugador nuevo.
 
     Args:
-        args (argparse.Namespace): Argumentos parseados (nombre, apellido, dni, anio).
+        args (argparse.Namespace): Argumentos parseados (nombre, apellido, anio).
         repo (JugadorRepositorio | None): Repositorio a usar. En produccion no se pasa (se arma contra
             SQLite real); en los tests se inyecta uno falso.
     """
     if repo is None:
         repo = SqliteJugadorRepositorio(conexion=abrir_conexion())
 
-    dto = CrearJugadorDTO(nombre=args.nombre, apellido=args.apellido, dni=args.dni, anioNacimiento=args.anio)
+    dto = CrearJugadorDTO(nombre=args.nombre, apellido=args.apellido, anioNacimiento=args.anio)
 
-    # DNIDuplicadoError no se atrapa aca: sube hasta main(), que la muestra sin traceback.
     jugador = RegistrarJugadorUseCase(repo).ejecutar(dto)
     if jugador is None:
         abortar("no se pudo guardar el jugador")

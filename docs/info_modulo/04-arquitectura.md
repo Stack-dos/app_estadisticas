@@ -32,11 +32,11 @@ Es el corazón del sistema. No tiene dependencias de ninguna librería externa n
 - **Entidades (`entidades/`):** `dataclasses` puras que representan los objetos del negocio y **validan sus datos al construirse** (`__post_init__`):
   `Usuario`, `Club` y `UsuarioClub`, `Jugador` y `JugadorClub`, `Competencia`, `Categoria`, `Inscripcion`, `ListaBuenaFe`, `JugadorListaBuenaFe`,
   `Partido` y `JugadorPartido` (el boxscore de un jugador en un partido). Las entidades relacionadas comparten archivo (ej. `competencia.py` tiene cinco).
-  Validan **tipos** (`TypeError`, un bug del programa) y **valores** (`DatoInvalidoError`, un error del usuario: nombre vacío, DNI negativo, año imposible). También hay un
+  Validan **tipos** (`TypeError`, un bug del programa) y **valores** (`DatoInvalidoError`, un error del usuario: nombre vacío o año imposible). También hay un
   *modelo de lectura* sin validación, `PartidoResumen`, que es lo que devuelve la vista `v_partidos_resumen`.
 - **Contratos / Puertos (`repositorios/`):** interfaces `ABC` (`ClubRepositorio`, `JugadorRepositorio`, `CompetenciaRepositorio`, `PartidoRepositorio`, `UsuarioRepositorio`).
   Definen **qué** debe poder hacer un repositorio (ej: `JugadorRepositorio.guardar()`), pero no **cómo**.
-- **Excepciones (`exceptions.py`):** errores de negocio, todos hijos de `ErrorDeDominio` (ej: `DNIDuplicadoError`, `VinculoActivoExistenteError`, `DatoInvalidoError`).
+- **Excepciones (`exceptions.py`):** errores de negocio, todos hijos de `ErrorDeDominio` (ej: `VinculoActivoExistenteError`, `DatoInvalidoError`).
   `DatoInvalidoError` además hereda de `ValueError`, para que el código que ya capturaba `ValueError` siga funcionando.
 
 ### 2.2 Capa de Aplicación / Casos de Uso (`src/aplicacion`)
@@ -145,7 +145,7 @@ Para la primera versión funcional, el foco está en la **Persistencia Robusta**
 
 1. **Usuario (Entrenador):** Posee credenciales y gestiona sus clubes.
 2. **Club:** Entidad base. Tiene un nombre y se vincula a un usuario.
-3. **Jugador:** Datos básicos (DNI, Nombre, Nacimiento).
+3. **Jugador:** Datos básicos (nombre, apellido y nacimiento opcional).
 4. **Competencia:** Torneos con año y tipo definidos.
 5. **Partido:** Evento que vincula dos clubes en una competencia y fecha determinada.
 6. **Estadística (Boxscore):** El registro atómico de acciones (puntos, rebotes) de un jugador en un partido específico. En el código es `JugadorPartido`.

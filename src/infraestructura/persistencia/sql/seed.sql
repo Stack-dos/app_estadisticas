@@ -12,17 +12,17 @@ INSERT INTO club (nombre)
 VALUES ('Atenas'),
     ('Universitario');
 -- 10 Jugadores
-INSERT INTO jugador (nombre, apellido, dni, anioNacimiento)
-VALUES ('pepe', 'argento', 12351689, 1980),
-    ('antonio', 'argentinito', 2354678, 1985),
-    ('Pepa', 'arrigoni', 57105234, 1999),
-    ('Gabriel', 'batistuta', 14889392, 2001),
-    ('LEONEL ANDRES', 'messi', 18948737, 2005),
-    ('Sergio', 'aguero', 44637281, 1993),
-    ('Julian', 'alvarez', 09836281, 1945),
-    ('cristian', 'romero', 83936423, 1998),
-    ('Nico', 'otamendi', 01723465, 2000),
-    ('nahuel', 'molina', 91872364, 1987);
+INSERT INTO jugador (nombre, apellido, anioNacimiento)
+VALUES ('pepe', 'argento', 1980),
+    ('antonio', 'argentinito', 1985),
+    ('Pepa', 'arrigoni', 1999),
+    ('Gabriel', 'batistuta', 2001),
+    ('LEONEL ANDRES', 'messi', 2005),
+    ('Sergio', 'aguero', 1993),
+    ('Julian', 'alvarez', 1945),
+    ('cristian', 'romero', 1998),
+    ('Nico', 'otamendi', 2000),
+    ('nahuel', 'molina', 1987);
 -- 1 Competencia
 INSERT INTO competencia (nombre, anio, tipo)
 VALUES ('PROVINCIAL U21', 2026, 'PROVINCIAL');

@@ -185,10 +185,10 @@ def test_division_by_zero_devuelve_cero_en_vistas():
     cursor = conexion.cursor()
     cursor.execute(
         """
-        INSERT INTO jugador (nombre, apellido, dni, anioNacimiento)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO jugador (nombre, apellido, anioNacimiento)
+        VALUES (?, ?, ?)
         """,
-        ("Jugador", "Cero", 99999999, 2000),
+        ("Jugador", "Cero", 2000),
     )
     id_jugador = cursor.lastrowid
 

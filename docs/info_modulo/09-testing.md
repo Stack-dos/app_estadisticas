@@ -96,8 +96,8 @@ La diferencia **no** es "está en la carpeta `unit` o `integration`" — eso es 
 
 **Ejemplo con código del proyecto — la misma regla probada en dos niveles:**
 
-- `tests/unit/test_uc_jugadores.py::test_registrar_jugador_con_dni_duplicado_deja_subir_la_excepcion` (**unitario**): el repositorio falso *dice* "DNI duplicado" y se verifica que el caso de uso deja subir la excepción. No hay SQL.
-- `tests/integration/test_repositorios_jugador.py::test_guardar_jugador_dni_duplicado_lanza_excepcion` (**integración**): el `INSERT` real compite contra una fila sembrada. Si mañana cambia la columna `dni` en `schema.sql`, **este** test lo detecta y el unitario no.
+- `tests/unit/test_uc_jugadores.py::test_registrar_jugador_sin_anio_de_nacimiento_es_valido` (**unitario**): verifica que el caso de uso acepta el año opcional. No hay SQL.
+- `tests/integration/test_repositorios_jugador.py::test_guardar` (**integración**): el `INSERT` real guarda y vuelve a leer un jugador desde SQLite.
 
 Los dos hacen falta: el unitario prueba la lógica; el de integración prueba que el SQL funciona.
 
@@ -112,7 +112,7 @@ distinguirlos porque usar el tipo equivocado hace tests confusos o frágiles:
 | Tipo | Qué hace | Ejemplo en este proyecto |
 | --- | --- | --- |
 | **Dummy** | Se pasa porque hace falta el parámetro, pero nunca se usa de verdad. | Un `Jugador` de relleno pasado a una función que ni lo mira. |
-| **Stub** | Devuelve respuestas fijas y predefinidas a los llamados que recibe, sin lógica. | Un repositorio cuyo `buscar_por_dni()` siempre devuelve `None`, sin importar el DNI. |
+| **Stub** | Devuelve respuestas fijas y predefinidas a los llamados que recibe, sin lógica. | Un repositorio cuyo `buscar_por_id()` siempre devuelve `None`, sin importar el ID. |
 | **Fake** | Tiene una implementación **real pero simplificada** (funciona de verdad, pero no es la de producción). | Un `JugadorRepositorio` respaldado por un `dict` en memoria en vez de SQLite: guardás y después lo encontrás, pero no persiste a disco. |
 | **Mock** | Además de responder, **registra cómo lo llamaron** para poder verificar después ("¿se llamó una vez? ¿con qué argumentos?"). | `MagicMock(spec=JugadorRepositorio)` de `unittest.mock`, verificado con `.assert_called_once_with(...)`. |
 | **Spy** | Como un Mock, pero envuelve un objeto **real** y deja que la llamada real pase, además de registrarla. | Poco común en este proyecto: útil cuando querés confirmar que se llamó a un servicio real sin reemplazar su comportamiento. |
@@ -139,16 +139,16 @@ Un `Mock` **acepta cualquier atributo o llamada** que le hagas y por defecto dev
 from unittest.mock import MagicMock
 
 repo_falso = MagicMock()
-repo_falso.buscar_por_dni.return_value = None      # "cuando te llamen así, devolvé None"
+repo_falso.buscar_por_id.return_value = None       # "cuando te llamen así, devolvé None"
 
-repo_falso.buscar_por_dni(12345678)                # -> None
+repo_falso.buscar_por_id(123)                      # -> None
 ```
 
 El proyecto usa `MagicMock` (con `spec`, ver abajo) por costumbre: se comporta igual que `Mock` para los repositorios y evita sorpresas si algún día un caso de uso usa `len()` o `for` sobre un resultado.
 
 ### 3.2 `spec=`: la protección contra errores de tipeo
 
-El problema de un mock a secas es que **acepta cualquier nombre de método**, incluso uno que no existe en la interfaz real. Si escribís `repo.buscar_por_dnii` (con una `i` de más),
+El problema de un mock a secas es que **acepta cualquier nombre de método**, incluso uno que no existe en la interfaz real. Si escribís `repo.buscar_por_nombree` (con una `e` de más),
 el mock lo deja pasar y el test "pasa" probando algo que no es lo que creías. `spec=` lo evita:
 
 ```python
@@ -156,7 +156,7 @@ from unittest.mock import MagicMock
 from dominio.repositorios.jugador_repositorio import JugadorRepositorio
 
 repo_falso = MagicMock(spec=JugadorRepositorio)
-repo_falso.buscar_por_dnii(123)   # AttributeError: no existe ese método en JugadorRepositorio
+repo_falso.buscar_por_nombree("Manu")   # AttributeError: no existe ese método en JugadorRepositorio
 ```
 
 - `spec=Clase`: solo se pueden **leer/llamar** los atributos que tiene `Clase`.
@@ -175,14 +175,8 @@ Si el contrato cambia (se renombra un método del repositorio), los tests que lo
   - una **función** → se ejecuta con los argumentos recibidos y su resultado es lo que se devuelve.
 
 ```python
-# Simular que el repositorio real detecta un DNI repetido (tests/unit/test_uc_jugadores.py)
-repo_jugador.guardar.side_effect = DNIDuplicadoError("Ya existe un jugador con DNI 20111222")
-
 # Devolver algo distinto en cada llamada
 repo_falso.buscar_por_id.side_effect = [Jugador(...), None]     # 1ª llamada: un jugador. 2ª: None
-
-# Lógica condicional
-repo_falso.buscar_por_dni.side_effect = lambda dni: Jugador(...) if dni == 12351689 else None
 ```
 
 **`configure_mock`** permite configurar varias cosas de una vez con claves punteadas (así lo hacen los tests de comandos de la CLI):
@@ -240,7 +234,6 @@ import pytest
 from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
 from aplicacion.dtos.jugador_dto import CrearJugadorDTO, JugadorDTO
 from dominio.entidades.jugador import Jugador
-from dominio.exceptions import DNIDuplicadoError
 from dominio.repositorios.jugador_repositorio import JugadorRepositorio
 
 
@@ -251,23 +244,17 @@ def repo_jugador():
 
 def test_registrar_jugador_devuelve_el_dto_con_el_id_asignado(repo_jugador):
     # Arrange: el repositorio "guarda" y devuelve el jugador con su id
-    repo_jugador.guardar.return_value = Jugador("Manu", "Ginobili", 20111222, 1977, idJugador=7)
-    dto = CrearJugadorDTO(nombre="Manu", apellido="Ginobili", dni=20111222, anioNacimiento=1977)
+    repo_jugador.guardar.return_value = Jugador("Manu", "Ginobili", 1977, idJugador=7)
+    dto = CrearJugadorDTO(nombre="Manu", apellido="Ginobili", anioNacimiento=1977)
 
     # Act
     resultado = RegistrarJugadorUseCase(repo_jugador).ejecutar(dto)
 
     # Assert: el resultado y la interacción
     assert resultado == JugadorDTO(nombre_completo="Manu Ginobili", id=7, anioNacimiento=1977)
-    repo_jugador.guardar.assert_called_once_with(jugador=Jugador("Manu", "Ginobili", 20111222, 1977))
+    repo_jugador.guardar.assert_called_once_with(jugador=Jugador("Manu", "Ginobili", 1977))
 
 
-def test_registrar_jugador_con_dni_duplicado_deja_subir_la_excepcion(repo_jugador):
-    repo_jugador.guardar.side_effect = DNIDuplicadoError("Ya existe un jugador con DNI 20111222")
-    dto = CrearJugadorDTO(nombre="Manu", apellido="Ginobili", dni=20111222, anioNacimiento=1977)
-
-    with pytest.raises(DNIDuplicadoError, match="20111222"):
-        RegistrarJugadorUseCase(repo_jugador).ejecutar(dto)
 ```
 
 ### 4.2 Con Fake (una implementación real y simplificada)
@@ -279,14 +266,9 @@ class JugadorRepositorioFake(JugadorRepositorio):
     def __init__(self):
         self._jugadores: dict[int, Jugador] = {}
 
-    def buscar_por_dni(self, dni_jugador):
-        return next((j for j in self._jugadores.values() if j.dni == dni_jugador), None)
-
     def guardar(self, jugador):
-        if self.buscar_por_dni(jugador.dni) is not None:
-            raise DNIDuplicadoError(f"Ya existe un jugador con DNI {jugador.dni}")
         id_nuevo = len(self._jugadores) + 1
-        guardado = Jugador(jugador.nombre, jugador.apellido, jugador.dni, jugador.anioNacimiento, idJugador=id_nuevo)
+        guardado = Jugador(jugador.nombre, jugador.apellido, jugador.anioNacimiento, idJugador=id_nuevo)
         self._jugadores[id_nuevo] = guardado
         return guardado
 
@@ -301,7 +283,7 @@ todos los métodos abstractos de la interfaz aunque el test no los use. En este 
 
 ## 5. Tests de excepciones de dominio
 
-**Qué son:** las excepciones de dominio (`src/dominio/exceptions.py`) son los **errores de negocio esperables**: `DNIDuplicadoError`, `ClubNoEncontradoError`, `VinculoActivoExistenteError`…
+**Qué son:** las excepciones de dominio (`src/dominio/exceptions.py`) son los **errores de negocio esperables**: `ClubNoEncontradoError`, `VinculoActivoExistenteError`…
 Todas heredan de `ErrorDeDominio`. No son bugs: son la forma en que una regla de negocio dice "esto no está permitido".
 
 **Por qué se testean:** cada regla de negocio de un caso de uso tiene dos caminos: el que funciona y el que la rompe. Si solo se prueba el primero, la regla **no está probada**
@@ -335,7 +317,7 @@ Si necesitás inspeccionar la excepción (no solo su mensaje): `with pytest.rais
 | Qué | Cómo | Ejemplo real |
 | --- | --- | --- |
 | Cada regla de negocio lanza **su** excepción | Un caso por regla, con el mock configurado para romperla | `test_uc_competencias.py`: club/competencia/categoría inexistente y duplicado, `parametrize` con 4 casos |
-| La excepción **sube**, no se traga | El caso de uso no la atrapa (la atrapa `main()`) | `test_registrar_jugador_con_dni_duplicado_deja_subir_la_excepcion` |
+| La excepción **sube**, no se traga | El caso de uso no la atrapa (la atrapa `main()`) | Los tests de casos de uso verifican las excepciones de negocio |
 | Ante el error, **no se guarda nada** | `assert_not_called()` sobre el método de escritura | Todos los `test_*_lanza_excepcion_y_no_guarda` |
 | El repositorio **falló** (devuelve `None`) | No es excepción de dominio: el caso de uso devuelve `None` | `test_crear_club_devuelve_none_si_el_repositorio_no_pudo_guardar` |
 
@@ -571,7 +553,7 @@ y se neutraliza `inicializar_db` para **no tocar nunca la base real**.
 
 - **Arrange–Act–Assert:** armar los datos, ejecutar la acción bajo prueba, verificar el resultado, en ese orden y como bloques separados.
 - **Nombres descriptivos:** `test_vincular_jugador_que_rompe_una_regla_lanza_excepcion_y_no_guarda` dice qué se prueba y qué se espera con solo leerlo.
-- **Un test, una razón de fallar:** varios `assert` sobre el **mismo** resultado están bien (`nombre`, `apellido`, `dni` del mismo jugador); no mezclar comportamientos distintos en un test.
+- **Un test, una razón de fallar:** varios `assert` sobre el **mismo** resultado están bien (`nombre`, `apellido`, `anioNacimiento` del mismo jugador); no mezclar comportamientos distintos en un test.
 - **Tests deterministas:** nada de `datetime.now()` sin fijar ni `random` sin semilla. Si un test falla "a veces" sin que cambie el código, el problema está en el test.
 - **Independientes entre sí:** cada test arma su estado desde cero; nunca asume que otro corrió antes (por eso las fixtures recrean la base en cada test).
 - **Un bug corregido = un test de regresión:** antes de dar por cerrado un arreglo, escribir el test que lo habría detectado y comprobar que **falla sin el arreglo**.

@@ -74,10 +74,10 @@ def db_conexion_sandbox():
 
 @pytest.fixture
 def crear_jugador():
-    """Fabrica de `Jugador` validos. Uso: crear_jugador(dni=123, nombre="Otro")."""
+    """Fabrica de `Jugador` validos. Uso: crear_jugador(nombre="Otro")."""
 
     def _crear(**overrides) -> Jugador:
-        datos = {"nombre": "Manu", "apellido": "Ginobili", "dni": 20111222, "anioNacimiento": 1977}
+        datos = {"nombre": "Manu", "apellido": "Ginobili", "anioNacimiento": 1977}
         return Jugador(**{**datos, **overrides})
 
     return _crear

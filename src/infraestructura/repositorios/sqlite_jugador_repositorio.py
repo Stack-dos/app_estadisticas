@@ -2,7 +2,7 @@ import sqlite3
 
 from dominio.entidades.club import Club
 from dominio.entidades.jugador import Jugador, JugadorClub
-from dominio.exceptions import DNIDuplicadoError, VinculoActivoExistenteError
+from dominio.exceptions import VinculoActivoExistenteError
 from dominio.repositorios.jugador_repositorio import JugadorRepositorio
 from infraestructura.logger import get_logger
 
@@ -31,7 +31,6 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
         return Jugador(
             nombre=row["nombre"],
             apellido=row["apellido"],
-            dni=row["dni"],
             anioNacimiento=row["anioNacimiento"],
             idJugador=row["idJugador"],
         )
@@ -57,27 +56,6 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
 
         return self._row_to_entity(row)
 
-    def buscar_por_dni(self, dni_jugador: int) -> Jugador | None:
-        """Funcion que se encarga de buscar un jugador por su DNI en la base de datos en el cual fue registrado,
-        en el caso de que exista, retorna el jugador, sino retorna None si no se encuentra
-        en la base de datos.
-        Args:
-            dni_jugador (int): DNI del jugador a buscar.
-
-        Returns:
-            Jugador | None: Retorna el jugador encontrado o None si no se encuentra.
-        """
-        cursor = self.conexion.cursor()
-
-        query = "SELECT * FROM jugador WHERE dni = ?"
-        cursor.execute(query, (dni_jugador,))
-        row = cursor.fetchone()
-
-        if row is None:
-            return None
-
-        return self._row_to_entity(row)
-
     def buscar_por_club(self, idClub: int) -> list[Jugador]:
         """Funcion que se encarga de buscar los jugadores actuales de un club en la base de datos.
         Solo se consideran los vinculos vigentes (fechaHasta IS NULL): los jugadores que ya se
@@ -92,7 +70,7 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
         cursor = self.conexion.cursor()
 
         query = """
-        SELECT j.idJugador,j.nombre,j.apellido,j.dni,j.anioNacimiento
+        SELECT j.idJugador,j.nombre,j.apellido,j.anioNacimiento
         FROM jugadorClub jc
         JOIN jugador j ON j.idJugador = jc.idJugador
         WHERE jc.idClub = ? AND jc.fechaHasta IS NULL;
@@ -121,20 +99,11 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
         cursor = self.conexion.cursor()
         try:
             query = """
-            SELECT * FROM jugador WHERE dni = ?;
-            """
-            cursor.execute(query, (jugador.dni,))
-            r = cursor.fetchall()
-            if r:
-                logger.error(f"Ya existe un jugador con DNI {jugador.dni}", exc_info=True)
-                raise DNIDuplicadoError(f"Ya existe un jugador con DNI {jugador.dni}")
-
-            query = """
-            INSERT INTO jugador (nombre, apellido, dni, anioNacimiento) VALUES (?, ?, ?, ?);
+            INSERT INTO jugador (nombre, apellido, anioNacimiento) VALUES (?, ?, ?);
             """
             cursor.execute(
                 query,
-                (jugador.nombre, jugador.apellido, jugador.dni, jugador.anioNacimiento),
+                (jugador.nombre, jugador.apellido, jugador.anioNacimiento),
             )
             self.conexion.commit()
             id_jugador = cursor.lastrowid
@@ -146,7 +115,6 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
             return Jugador(
                 nombre=jugador.nombre,
                 apellido=jugador.apellido,
-                dni=jugador.dni,
                 anioNacimiento=jugador.anioNacimiento,
                 idJugador=id_jugador,
             )

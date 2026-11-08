@@ -15,13 +15,10 @@ class RegistrarJugadorUseCase:
         Args:
             datos (CrearJugadorDTO): DTO con los datos del jugador a registrar
 
-        Raises:
-            DNIDuplicadoError: Si ya existe un jugador con ese DNI (lo lanza el repositorio).
-
         Returns:
             JugadorDTO | None: DTO con el jugador registrado, o None si no se pudo guardar
         """
-        jug = Jugador(nombre=datos.nombre, apellido=datos.apellido, dni=datos.dni, anioNacimiento=datos.anioNacimiento)
+        jug = Jugador(nombre=datos.nombre, apellido=datos.apellido, anioNacimiento=datos.anioNacimiento)
 
         resultado = self.repo.guardar(jugador=jug)
         if resultado is None:

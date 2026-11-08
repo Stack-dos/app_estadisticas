@@ -37,7 +37,7 @@ flowchart LR
 | **Los listados nunca devuelven `None`** | Si no hay resultados devuelven `[]`, así la CLI puede iterar sin chequear.                                                                                                                                                                                                                    |
 | **Las excepciones de negocio suben**    | El caso de uso **no** las atrapa: sube hasta el comando CLI, que decide cómo mostrárselas al usuario (sin traceback, AC3).                                                                                                                                                                    |
 | **IDs de salida con `id_persistido`**   | Las entidades declaran su ID como `int \| None` (antes de guardarse no lo tienen) pero los DTOs de salida piden `int`. `id_persistido()` (en `src/utils.py`) devuelve el ID o lanza `RuntimeError` si un repositorio devolviera una entidad sin ID. Deja limpio a `mypy --strict`. |
-| **Validación gratis al construir**      | Al construir una entidad (`Jugador(...)`, `Club(...)`) su `__post_init__` valida los tipos (`TypeError`, un bug del programa) y los valores (`DatoInvalidoError`, un error del usuario: nombre vacío, DNI negativo, año imposible). Esta última es una `ErrorDeDominio`, así que la CLI la muestra como mensaje.                                                                                                                                                               |
+| **Validación gratis al construir**      | Al construir una entidad (`Jugador(...)`, `Club(...)`) su `__post_init__` valida los tipos (`TypeError`, un bug del programa) y los valores (`DatoInvalidoError`, un error del usuario: nombre vacío o año imposible). Esta última es una `ErrorDeDominio`, así que la CLI la muestra como mensaje.                                                                                                                                                               |
 
 ---
 
@@ -72,32 +72,23 @@ un campo sería sobre-ingeniería. Los listados 11 y 12 no reciben nada (devuelv
 
 ### 3.1 `RegistrarJugadorUseCase`
 
-> **Aviso (2026-10-31):** los jugadores dejan de tener DNI y el año de nacimiento pasa a ser
-> opcional. Lo cambia el ajuste previo a la US-105 (ver el PRD), que también actualiza esta sección.
-> Hasta entonces, lo de abajo describe el código actual.
-
 Registra un jugador nuevo.
 
 - **Constructor:** `RegistrarJugadorUseCase(jugador_repo: JugadorRepositorio)`
-- **Entra:** `CrearJugadorDTO(nombre, apellido, dni, anioNacimiento)`
+- **Entra:** `CrearJugadorDTO(nombre, apellido, anioNacimiento=None)`
 - **Sale:** `JugadorDTO(nombre_completo, id, anioNacimiento)`, o `None` si no se pudo guardar
-- **Lanza:** `DNIDuplicadoError` (desde el repositorio), `DatoInvalidoError` / `TypeError` (desde la entidad)
+- **Lanza:** `DatoInvalidoError` / `TypeError` (desde la entidad)
 
 **Paso a paso:**
 
-1. **Arma la entidad** `Jugador(nombre, apellido, dni, anioNacimiento)` con los datos del DTO. Su
-   `__post_init__` valida los tipos y los valores: nombre y apellido no vacíos, DNI mayor a 0 y año de
-   nacimiento entre 1901 y el año actual (si no → `DatoInvalidoError`).
-2. **Le pide al repositorio que la guarde** (`repo.guardar`). Dentro del repositorio: primero busca si
-   ya existe un jugador con ese DNI (si existe lanza `DNIDuplicadoError`); si no existe, hace el
-   `INSERT` y devuelve el `Jugador` con su `idJugador` asignado.
+1. **Arma la entidad** `Jugador(nombre, apellido, anioNacimiento)` con los datos del DTO. Su
+   `__post_init__` valida los tipos y los valores: nombre y apellido no vacíos y, si se informa,
+   año de nacimiento entre 1901 y el año actual (si no → `DatoInvalidoError`).
+2. **Le pide al repositorio que la guarde** (`repo.guardar`). Hace el `INSERT` y devuelve el
+   `Jugador` con su `idJugador` asignado.
 3. **Si el repositorio devolvió `None`** (falló el `INSERT`), devuelve `None`.
 4. **Arma el `JugadorDTO` de salida:** toma `nombre_completo` (propiedad calculada de la entidad, junta
    `nombre` + `apellido`) y copia `idJugador` como `id`.
-
-!!! note "Dónde vive el chequeo de DNI duplicado"
-La regla "el DNI es único" la aplica el **repositorio** (`SqliteJugadorRepositorio.guardar`), no el
-caso de uso. El caso de uso solo deja que la excepción suba.
 
 ---
 
@@ -476,7 +467,7 @@ Todos son `@dataclass` simples, sin lógica, en `src/aplicacion/dtos/`.
 
 | Archivo              | DTO                      | Campos                                                                             | Dirección | Lo usa                                                                       |
 | -------------------- | ------------------------ | ---------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------- |
-| `jugador_dto.py`     | `CrearJugadorDTO`        | `nombre`, `apellido`, `dni`, `anioNacimiento`                                      | entrada   | `RegistrarJugadorUseCase`                                                    |
+| `jugador_dto.py`     | `CrearJugadorDTO`        | `nombre`, `apellido`, `anioNacimiento` (opcional)                                  | entrada   | `RegistrarJugadorUseCase`                                                    |
 | `jugador_dto.py`     | `JugadorDTO`             | `nombre_completo`, `id`, `anioNacimiento`                                          | salida    | `RegistrarJugadorUseCase`, `ListarJugadoresClubUseCase`, `ListarListaBuenaFeUseCase` |
 | `club_dto.py`        | `CrearClubDTO`           | `nombre`                                                                           | entrada   | `CrearClubUseCase`                                                           |
 | `club_dto.py`        | `ClubDTO`                | `idClub`, `nombre`                                                                 | salida    | `CrearClubUseCase`, `ListarClubesUsuarioUseCase`, `CambiarClubActivoUseCase` |
@@ -503,14 +494,13 @@ capturarlas juntas con un solo `except ErrorDeDominio`.
 
 | Excepción                                                | La lanza                                                                                       | Cuándo                                                                      |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `DNIDuplicadoError`                                      | `SqliteJugadorRepositorio.guardar` (vía `RegistrarJugadorUseCase`)                             | Ya existe un jugador con ese DNI                                            |
 | `JugadorNoEncontradoError`                               | `VincularJugadorAClubUseCase`, `DesvincularJugadorDeClubUseCase`, `AgregarJugadorAListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase` | El `idJugador` no existe                                                    |
 | `ClubNoEncontradoError`                                  | `VincularJugadorAClubUseCase`, `InscribirClubEnCompetenciaUseCase`, `CambiarClubActivoUseCase` | El club no existe (o, en `CambiarClubActivo`, el usuario no pertenece a él) |
 | `VinculoActivoExistenteError`                            | `VincularJugadorAClubUseCase`                                                                  | El jugador ya tiene un club activo (el mismo u otro)                        |
 | `VinculoSuperpuestoError`                                | `VincularJugadorAClubUseCase`                                                                  | El vínculo nuevo empieza antes de que termine uno anterior del jugador      |
 | `JugadorSinVinculoActivoError`                           | `DesvincularJugadorDeClubUseCase`                                                              | El jugador no tiene un club activo al que darle de baja                     |
 | `JugadorNoEstaEnListaError`                              | `QuitarJugadorDeListaBuenaFeUseCase`                                                           | El jugador no está en la lista de buena fe de esa inscripción               |
-| `DatoInvalidoError`                                      | Las entidades (`__post_init__`) y `DesvincularJugadorDeClubUseCase`                            | Un valor del tipo correcto pero inválido: nombre vacío, DNI ≤ 0, año imposible, fecha de baja anterior al inicio |
+| `DatoInvalidoError`                                      | Las entidades (`__post_init__`) y `DesvincularJugadorDeClubUseCase`                            | Un valor del tipo correcto pero inválido: nombre vacío, año imposible, fecha de baja anterior al inicio |
 | `CompetenciaNoEncontradaError`                           | `InscribirClubEnCompetenciaUseCase`                                                            | La competencia no existe                                                    |
 | `CategoriaNoEncontradaError`                             | `InscribirClubEnCompetenciaUseCase`                                                            | La categoría no existe                                                      |
 | `InscripcionDuplicadaError`                              | `InscribirClubEnCompetenciaUseCase`                                                            | El club ya está inscripto en esa competencia y categoría                    |
@@ -537,7 +527,7 @@ conexion = SQLiteManager(r.DB_FILE, r.SCHEMA_SQL, r.VISTA_SQL).connect()
 
 # Un repositorio: casos de uso 1, 2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 16 y 17
 caso_uso = RegistrarJugadorUseCase(SqliteJugadorRepositorio(conexion))
-jugador = caso_uso.ejecutar(CrearJugadorDTO(nombre="Manu", apellido="Ginobili", dni=20111222, anioNacimiento=1977))
+jugador = caso_uso.ejecutar(CrearJugadorDTO(nombre="Manu", apellido="Ginobili", anioNacimiento=1977))
 
 # Dos repositorios: casos de uso 3, 5, 14 y 15
 caso_uso = InscribirClubEnCompetenciaUseCase(
