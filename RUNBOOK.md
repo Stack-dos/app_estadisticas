@@ -86,12 +86,15 @@ real (un instalable para otra máquina) es la US-404.
 
 ## 3. Qué se puede hacer hoy
 
-1. **Crear una cuenta:** en "Crear cuenta", completar nombre, email y contraseña (mínimo 8 caracteres). Al registrarse, la sesión queda iniciada.
+1. **Crear una cuenta:** en "Crear cuenta", completar nombre, email y contraseña (mínimo 6 caracteres). Al registrarse, la sesión queda iniciada.
 2. **Iniciar sesión:** con el email y la contraseña. Enter en el campo de la contraseña equivale a apretar el botón.
-3. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login.
+   - **"Recordarme":** si la marcás, al cerrar y volver a abrir la app entrás directo, con el mismo club activo. Si no la marcás, al cerrar la ventana la sesión se pierde.
+3. **Crear clubes y elegir con cuál trabajar:** el botón "Clubes" de la barra superior abre "Mis clubes". Ahí se crea un club (queda vinculado a tu usuario) y "Usar este club"
+   lo deja como **club activo**, que se ve siempre en la barra superior ("StatsPro · Atenas").
+4. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
 
-La sesión vive **en memoria**: al cerrar la ventana se pierde y hay que volver a iniciar sesión ("Recordarme" llega con la US-106). Las pantallas para cargar clubes, jugadores,
-competencias, listas de buena fe y partidos llegan con las US-106 a US-108; los casos de uso ya existen (ver [docs/info_modulo/03-casos-de-uso.md](docs/info_modulo/03-casos-de-uso.md)).
+Las pantallas para cargar jugadores, competencias, listas de buena fe y partidos llegan con las US-107 y US-108; los casos de uso ya existen (ver
+[docs/info_modulo/03-casos-de-uso.md](docs/info_modulo/03-casos-de-uso.md)).
 
 ---
 
@@ -100,6 +103,7 @@ competencias, listas de buena fe y partidos llegan con las US-106 a US-108; los 
 | Qué ves | Qué significa | Qué hacer |
 | --- | --- | --- |
 | Un mensaje en rojo debajo del formulario (ej. `El email 'x' ya esta registrado`) | Un dato no cumple una regla del negocio | Corregir el dato y volver a intentar |
+| `Ya existe un club llamado '...'` | El nombre de club ya está usado en esta base (sin distinguir mayúsculas), aunque sea de otro usuario | Elegir otro nombre (por ejemplo, agregando la ciudad) |
 | `Email o contraseña incorrectos` | El email no existe o la contraseña no coincide (el mensaje es el mismo a propósito, para no revelar qué emails tienen cuenta) | Revisar los datos |
 | `Ocurrió un error inesperado. El detalle quedó en logs/app.log.` | Un bug del programa, no un error de uso | Reportarlo junto con el archivo `logs/app.log`, que tiene el traceback completo |
 
@@ -113,14 +117,18 @@ La aplicación no se cierra por un error: después de cualquiera de estos mensaj
 | --- | --- |
 | Base de datos (SQLite) | `estadisticas.db`, en la raíz del repositorio (no se sube a git) |
 | Logs | `logs/app.log` (rota a los 10 MB, conserva 5 archivos) |
+| Sesión recordada ("Recordarme") | `~/.statspro/session.json`, en la carpeta de tu usuario del sistema operativo (en Windows, `C:\Users\<usuario>\.statspro\`). Guarda id de usuario, email y club activo; nunca la contraseña |
 | Rutas y scripts SQL | `src/config/rutas.py` y `src/infraestructura/persistencia/sql/` |
 
 - **Cada arranque es seguro para los datos:** la app ejecuta el esquema cada vez que se abre, pero `schema.sql` solo crea lo que falta (`CREATE TABLE IF NOT EXISTS`), nunca borra.
 - **Hacer un backup:** copiar el archivo `estadisticas.db` con la aplicación cerrada.
 - **Empezar de cero:** borrar `estadisticas.db`. Se vuelve a crear vacía la próxima vez que se abre la app. **Se pierden todos los datos.**
+- **Olvidar la sesión recordada a mano:** borrar `~/.statspro/session.json` (o "Cerrar sesión" desde la app). Si el archivo se rompe o queda con un usuario que ya no
+  existe en la base, la app lo ignora y pide login.
 - **Mirar el contenido:** abrir `estadisticas.db` con cualquier visor de SQLite (por ejemplo [DB Browser for SQLite](https://sqlitebrowser.org/)).
 
-**Datos de ejemplo:** si querés datos ya cargados para probar (2 clubes, 10 jugadores, 1 competencia, 2 partidos, 1 categoría), se puede cargar el *seed*. Hacelo **solo sobre una base vacía**
+**Datos de ejemplo:** si querés datos ya cargados para probar (2 clubes, 10 jugadores, 1 competencia, 2 partidos, 1 categoría), se puede cargar el *seed*. Los clubes del seed **no están vinculados a ningún usuario**: no aparecen en "Mis clubes" y no se puede crear otro con el mismo nombre.
+Hacelo **solo sobre una base vacía**
 (sin `estadisticas.db` o después de borrarla, ver arriba):
 
 ```bash
@@ -219,6 +227,8 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 | `Installing flet-desktop ...` al abrir la app | El entorno no tiene `flet-desktop` (por ejemplo, un `.venv` viejo) | `uv sync`: la dependencia es `flet[desktop]` y queda fijada en `uv.lock` |
 | `Ocurrió un error inesperado` en un formulario | Un bug: el detalle está en `logs/app.log` | Reportarlo con el log |
 | Los acentos o la `ñ` se ven raros en los logs de la consola de Windows | Codificación de la consola | Ejecutar con `PYTHONUTF8=1` (o `chcp 65001` en cmd) |
+| Al abrir la app entra directo con otro usuario o sin pedir login | Quedó una sesión recordada ("Recordarme") | "Cerrar sesión", o borrar `~/.statspro/session.json` |
+| Al abrir la app pide login aunque marqué "Recordarme" | El archivo de sesión se borró, se dañó o su usuario ya no está en la base (por ejemplo, se borró `estadisticas.db`) | Volver a iniciar sesión; el detalle queda como warning en `logs/app.log` |
 | `database is locked` | Otro programa (ej. un visor de SQLite) tiene la base abierta para escribir | Cerrar el otro programa y reintentar |
 
 ---
@@ -227,7 +237,7 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 
 El estado del proyecto por historia de usuario está en el [PRD](docs/plan_desarrollo_detallado.md). Hoy, desde la aplicación:
 
-- **No hay pantallas de gestión** (US-106 y US-107): clubes, jugadores, competencias, categorías e inscripciones existen en los casos de uso, pero todavía no en la interfaz.
-- **La sesión no se recuerda** al cerrar la ventana (US-106).
+- **No hay pantallas de gestión** (US-107): jugadores, competencias, categorías e inscripciones existen en los casos de uso, pero todavía no en la interfaz. Clubes sí.
+- **La sesión recordada no vence** (v0.1): con "Recordarme", cualquiera que use tu cuenta del sistema operativo abre la app sin contraseña. La expiración llega con la US-403.
 - **No se pueden cargar partidos ni estadísticas** (US-108).
 - **No se puede editar ni borrar** clubes, competencias ni jugadores (el PRD solo pide crear, listar y vincular): un dato mal cargado hoy solo se corrige en la base.
