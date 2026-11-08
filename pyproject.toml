@@ -7,9 +7,9 @@ name = "statspro-basketball"
 version = "0.1.0"
 description = "Aplicación de estadísticas de básquet, ejecución local (offline-first)"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "flet==1.1.2",
+    "flet[desktop]==1.1.2",
     "pandas==3.0.6",
     "tabulate==0.10.0",
 ]
@@ -50,7 +50,7 @@ docstring-code-format = true
 docstring-code-line-length = 72
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 mypy_path = "src"
 strict = true
 explicit_package_bases = true
