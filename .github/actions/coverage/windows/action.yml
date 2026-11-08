@@ -20,11 +20,12 @@ runs:
       shell: pwsh
       run: uv sync --locked
 
-    # Smoke test: si un import esta roto, la CLI ni siquiera muestra la ayuda y el job falla aca.
-    - name: Probar que la CLI arranca
+    # Smoke test: importa el punto de entrada (y con el, toda la GUI) sin abrir ninguna ventana.
+    # Si un import esta roto, el job falla aca. No se llama a main(): bloquearia esperando la ventana.
+    - name: Probar que la app importa
       shell: pwsh
       run: |
-        uv run --locked python src/main.py --help
+        uv run --locked python -c "import main"
 
     - name: Ejecutar pytest con coverage
       shell: pwsh
