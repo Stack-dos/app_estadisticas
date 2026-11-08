@@ -7,16 +7,19 @@ pasa a las pantallas, que solo dependen de casos de uso y DTOs.
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 import flet as ft
 
 import config.rutas as r
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
+from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.servicios.password_hasher import PasswordHasher
 from infraestructura.logger import get_logger
 from infraestructura.persistencia.database_manager import SQLiteManager
+from infraestructura.persistencia.json_sesion_almacen import JsonSesionAlmacen
 from infraestructura.repositorios.sqlite_usuario_repositorio import SqliteUsuarioRepositorio
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
 from infraestructura.ui.flet.screens.inicio_screen import crear_inicio_view
@@ -44,7 +47,9 @@ class Dependencias:
     login_uc: LoginLocalUseCase
 
 
-def construir_dependencias(conexion: sqlite3.Connection, hasher: PasswordHasher) -> Dependencias:
+def construir_dependencias(
+    conexion: sqlite3.Connection, hasher: PasswordHasher, almacen: SesionAlmacen
+) -> Dependencias:
     """
     Arma repositorios y casos de uso sobre una conexion ya abierta.
 
@@ -53,13 +58,14 @@ def construir_dependencias(conexion: sqlite3.Connection, hasher: PasswordHasher)
     Args:
         conexion (sqlite3.Connection): Conexion abierta y con el esquema inicializado.
         hasher (PasswordHasher): Hasher de contraseñas (en los tests, uno con pocas iteraciones).
+        almacen (SesionAlmacen): Donde se guarda la sesion recordada (en los tests, un archivo temporal).
 
     Returns:
         Dependencias: La sesion (vacia) y los casos de uso listos para usar.
     """
     repo_usuario = SqliteUsuarioRepositorio(conexion)
     return Dependencias(
-        sesion=SessionManager(),
+        sesion=SessionManager(almacen),
         registrar_uc=RegistrarEntrenadorUseCase(repo_usuario, hasher),
         login_uc=LoginLocalUseCase(repo_usuario, hasher),
     )
@@ -126,7 +132,7 @@ def ejecutar() -> None:
     conexion = db.connect()
     try:
         db.inicializar_schema()
-        deps = construir_dependencias(conexion, Pbkdf2PasswordHasher())
+        deps = construir_dependencias(conexion, Pbkdf2PasswordHasher(), JsonSesionAlmacen(Path(r.SESSION_FILE)))
         ft.run(lambda page: _main(page, deps))
     finally:
         db.close_connection()
