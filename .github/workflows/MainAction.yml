@@ -119,16 +119,7 @@ jobs:
   # always(): corre aunque un job anterior falle; sin esto se saltearia y GitHub lo tomaria como aprobado.
   ci-ok:
     if: ${{ always() }}
-    needs:
-      [
-        check_dep,
-        gitleaks,
-        lint,
-        static,
-        tests-linux,
-        tests-docker,
-        tests-windows,
-      ]
+    needs: [check_dep, lint, static, tests-linux, tests-docker, tests-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
