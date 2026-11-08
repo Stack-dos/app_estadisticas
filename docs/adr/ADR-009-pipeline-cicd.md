@@ -30,8 +30,8 @@ confirmado como el camino definitivo, sin plan de migrar a runners self-hosted. 
 `.github/workflows/MainAction.yml`: jobs de auditoría de dependencias (`pip-audit`), detección de
 secretos (`gitleaks`), lint y formato (`ruff`), tipos (`mypy --strict`), tests con cobertura en
 Linux/Windows/Docker (matriz de Python 3.12 a 3.14 solo en Linux; Windows y Docker una corrida
-con 3.13), smoke test del punto de entrada (hoy `main.py --help`; desde la US-105, el import
-de la GUI) y un job agregador `ci-ok`, disparado en Pull
+con 3.13), smoke test del punto de entrada (desde la US-105, `python -c "import main"`: importa la GUI
+sin abrir la ventana; antes era `main.py --help` de la CLI) y un job agregador `ci-ok`, disparado en Pull
 Request, en `push` a `main`/`develop` y manualmente. Dependencias gestionadas con `uv`
 (reproducibles vía `uv.lock`) y actualizadas automáticamente con Dependabot.
 
