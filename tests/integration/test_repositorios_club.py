@@ -57,6 +57,24 @@ def test_guardar(db_conexion):
     # La validacion de tipos de Club(nombre=None) es de la entidad: se prueba en tests/unit/test_entidades.py
 
 
+def test_guardar_con_entrenador_crea_el_club_y_lo_vincula_al_usuario(db_conexion):
+    club_rep = SqliteClubRepositorio(db_conexion)
+
+    club = club_rep.guardar_con_entrenador(Club(nombre="Juniors"), id_usuario=1, rol="principal")
+
+    assert club.idClub is not None
+    assert [c.nombre for c in club_rep.buscar_por_id_usuario(1)] == ["Juniors"]
+
+
+def test_guardar_con_entrenador_inexistente_no_deja_el_club_huerfano(db_conexion):
+    """Si falla el vinculo (la clave foranea rechaza el usuario 302), el ROLLBACK deshace tambien el club."""
+    club_rep = SqliteClubRepositorio(db_conexion)
+
+    assert club_rep.guardar_con_entrenador(Club(nombre="Juniors"), id_usuario=302, rol="principal") is None
+
+    assert club_rep.buscar_por_nombre("Juniors") is None
+
+
 def test_link_user_club(db_conexion):
     us_aux = UsuarioClub(rol="Asistente", idUsuario=1, idClub=2)
     club_rep = SqliteClubRepositorio(db_conexion)

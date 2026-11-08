@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
-from aplicacion.casos_uso.crear_club import CrearClubUseCase
+from aplicacion.casos_uso.crear_club import ROL_CREADOR, CrearClubUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO
 from dominio.entidades.club import Club
@@ -21,26 +21,28 @@ def repo_club():
 # ----------------------------------------------------------------------------- CrearClub
 
 
-def test_crear_club_devuelve_el_dto_con_el_id_asignado(repo_club):
-    repo_club.guardar.return_value = Club("Atenas", idClub=3)
+def test_crear_club_vincula_al_usuario_como_entrenador_principal(repo_club):
+    """Fix US-106: antes solo creaba el club, que nunca aparecia en "mis clubes" del usuario."""
+    repo_club.guardar_con_entrenador.return_value = Club("Atenas", idClub=3)
 
-    resultado = CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Atenas"))
+    resultado = CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Atenas"), idUsuario=7)
 
     assert resultado == ClubDTO(idClub=3, nombre="Atenas")
-    repo_club.guardar.assert_called_once_with(club=Club("Atenas"))
+    repo_club.guardar_con_entrenador.assert_called_once_with(club=Club("Atenas"), id_usuario=7, rol=ROL_CREADOR)
+    repo_club.guardar.assert_not_called()  # el club sin vinculo es solo para rivales (US-108)
 
 
 def test_crear_club_devuelve_none_si_el_repositorio_no_pudo_guardar(repo_club):
-    repo_club.guardar.return_value = None
+    repo_club.guardar_con_entrenador.return_value = None
 
-    assert CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Atenas")) is None
+    assert CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Atenas"), idUsuario=7) is None
 
 
 def test_crear_club_con_nombre_de_tipo_invalido_no_llega_al_repositorio(repo_club):
     with pytest.raises(TypeError):
-        CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre=None))
+        CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre=None), idUsuario=7)
 
-    repo_club.guardar.assert_not_called()
+    repo_club.guardar_con_entrenador.assert_not_called()
 
 
 # ------------------------------------------------------------------ ListarClubesUsuario
