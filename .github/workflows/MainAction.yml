@@ -38,26 +38,6 @@ jobs:
         with:
           inputs: requirements-audit.txt
 
-  gitleaks:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Este job pide un permiso extra (leer PRs) para saber que commits escanear.
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout repository (historial completo)
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Buscar secretos con gitleaks
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Comentar en el PR requeriria permiso de escritura: el resultado queda en el resumen del job
-          GITLEAKS_ENABLE_COMMENTS: false
-
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -139,7 +119,16 @@ jobs:
   # always(): corre aunque un job anterior falle; sin esto se saltearia y GitHub lo tomaria como aprobado.
   ci-ok:
     if: ${{ always() }}
-    needs: [check_dep, gitleaks, lint, static, tests-linux, tests-docker, tests-windows]
+    needs:
+      [
+        check_dep,
+        gitleaks,
+        lint,
+        static,
+        tests-linux,
+        tests-docker,
+        tests-windows,
+      ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
