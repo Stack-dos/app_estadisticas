@@ -13,17 +13,17 @@ referencia práctica: "qué hace exactamente cada uno".
 ## 1. Dónde encaja un caso de uso
 
 Un caso de uso es **una acción que el usuario puede pedir** ("registrar un jugador", "inscribir un
-club en una competencia"). Es el único lugar donde viven las reglas de negocio: el comando de la CLI
+club en una competencia"). Es el único lugar donde viven las reglas de negocio: la pantalla de la GUI
 no las conoce, y el repositorio solo sabe leer y guardar.
 
 ```mermaid
 flowchart LR
-    CLI["Comando CLI<br/>(argparse)"] -->|"DTO de entrada"| UC["Caso de uso<br/>ejecutar()"]
+    UI["Pantalla de la GUI<br/>(Flet)"] -->|"DTO de entrada"| UC["Caso de uso<br/>ejecutar()"]
     UC -->|"entidades de dominio"| REPO["Repositorio<br/>(interfaz ABC)"]
     REPO --> DB[("SQLite")]
     DB --> REPO
     REPO -->|"entidades de dominio"| UC
-    UC -->|"DTO de salida<br/>o excepción de dominio"| CLI
+    UC -->|"DTO de salida<br/>o excepción de dominio"| UI
 ```
 
 ### Convenciones que cumplen los 17 casos de uso
@@ -32,12 +32,12 @@ flowchart LR
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Clase con `ejecutar()`**              | Cada caso de uso es una clase con un único método público, `ejecutar()`.                                                                                                                                                                                                                      |
 | **Repositorios por constructor**        | Reciben la **interfaz** (`ClubRepositorio`, `JugadorRepositorio`…), nunca la clase SQLite concreta. Así se pueden testear con un repositorio falso (AC2 de la US-103).                                                                                                                        |
-| **DTO de entrada y de salida**          | La CLI nunca ve las entidades de dominio: entra un DTO y sale un DTO.                                                                                                                                    |
+| **DTO de entrada y de salida**          | La interfaz nunca ve las entidades de dominio: entra un DTO y sale un DTO.                                                                                                                                    |
 | **`None` = no se pudo guardar**         | Si el repositorio devuelve `None`, el caso de uso devuelve `None`. El repositorio ya dejó el detalle del error en el log.                                                                                                                                                                     |
-| **Los listados nunca devuelven `None`** | Si no hay resultados devuelven `[]`, así la CLI puede iterar sin chequear.                                                                                                                                                                                                                    |
-| **Las excepciones de negocio suben**    | El caso de uso **no** las atrapa: sube hasta el comando CLI, que decide cómo mostrárselas al usuario (sin traceback, AC3).                                                                                                                                                                    |
+| **Los listados nunca devuelven `None`** | Si no hay resultados devuelven `[]`, así la interfaz puede iterar sin chequear.                                                                                                                                                                                                                    |
+| **Las excepciones de negocio suben**    | El caso de uso **no** las atrapa: sube hasta la pantalla, que la muestra junto al formulario con `ejecutar_mostrando_errores` (sin traceback; ver la guía 13).                                                                                                                                                                    |
 | **IDs de salida con `id_persistido`**   | Las entidades declaran su ID como `int \| None` (antes de guardarse no lo tienen) pero los DTOs de salida piden `int`. `id_persistido()` (en `src/utils.py`) devuelve el ID o lanza `RuntimeError` si un repositorio devolviera una entidad sin ID. Deja limpio a `mypy --strict`. |
-| **Validación gratis al construir**      | Al construir una entidad (`Jugador(...)`, `Club(...)`) su `__post_init__` valida los tipos (`TypeError`, un bug del programa) y los valores (`DatoInvalidoError`, un error del usuario: nombre vacío o año imposible). Esta última es una `ErrorDeDominio`, así que la CLI la muestra como mensaje.                                                                                                                                                               |
+| **Validación gratis al construir**      | Al construir una entidad (`Jugador(...)`, `Club(...)`) su `__post_init__` valida los tipos (`TypeError`, un bug del programa) y los valores (`DatoInvalidoError`, un error del usuario: nombre vacío o año imposible). Esta última es una `ErrorDeDominio`, así que la GUI la muestra como mensaje.                                                                                                                                                               |
 
 ---
 
@@ -489,8 +489,8 @@ Todos son `@dataclass` simples, sin lógica, en `src/aplicacion/dtos/`.
 
 ## 5. Excepciones de dominio
 
-Definidas en `src/dominio/exceptions.py`. Todas heredan de `ErrorDeDominio`, así que la CLI puede
-capturarlas juntas con un solo `except ErrorDeDominio`.
+Definidas en `src/dominio/exceptions.py`. Todas heredan de `ErrorDeDominio`, así que la GUI puede
+capturarlas juntas con un solo `except ErrorDeDominio` (en `infraestructura/ui/flet/errores.py`).
 
 | Excepción                                                | La lanza                                                                                       | Cuándo                                                                      |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
@@ -504,7 +504,9 @@ capturarlas juntas con un solo `except ErrorDeDominio`.
 | `CompetenciaNoEncontradaError`                           | `InscribirClubEnCompetenciaUseCase`                                                            | La competencia no existe                                                    |
 | `CategoriaNoEncontradaError`                             | `InscribirClubEnCompetenciaUseCase`                                                            | La categoría no existe                                                      |
 | `InscripcionDuplicadaError`                              | `InscribirClubEnCompetenciaUseCase`                                                            | El club ya está inscripto en esa competencia y categoría                    |
-| `UsuarioNoEncontradoError`, `CredencialesInvalidasError` | _(todavía nadie)_                                                                              | Se usan a partir de la US-104 (autenticación)                               |
+| `CredencialesInvalidasError`                             | `LoginLocalUseCase`                                                                            | El email no existe o la contraseña no coincide (mismo mensaje en los dos casos) |
+| `EmailYaRegistradoError`                                 | `RegistrarEntrenadorUseCase`                                                                   | Ya hay un usuario con ese email                                             |
+| `UsuarioNoEncontradoError`                               | _(todavía nadie)_                                                                              | Reservada para la sesión persistente (US-106)                               |
 | `CategoriaDuplicadaError` | `CrearCategoriaUseCase` | Ya existe una categoría con ese nombre (sin distinguir mayúsculas ni espacios de los extremos) |
 | `InscripcionNoEncontradaError` | `AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase` | La inscripción no existe |
 | `ListaBuenaFeNoEncontradaError` | `AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`, `ListarInscripcionesClubUseCase` | La inscripción no tiene lista de buena fe (no debería pasar: es 1:1 y se crean juntas) |
@@ -514,13 +516,14 @@ capturarlas juntas con un solo `except ErrorDeDominio`.
 Además, las entidades pueden lanzar `TypeError` (tipo incorrecto) al construirse. Esa **no** es una excepción
 de dominio: es un error de programación (un bug), no algo que el usuario pueda corregir, y no se atrapa.
 `DatoInvalidoError` sí es de dominio, y además hereda de `ValueError`: así el código que ya capturaba
-`ValueError` sigue funcionando, y `main()` la muestra como un mensaje más.
+`ValueError` sigue funcionando, y la GUI la muestra como un mensaje más.
 
 ---
 
 ## 6. Cómo se usa un caso de uso
 
-El armado de dependencias lo hace quien invoca (hoy, el comando CLI), nunca el caso de uso:
+El armado de dependencias lo hace el composition root de la GUI (`construir_dependencias` en
+`infraestructura/ui/flet/app.py`), nunca el caso de uso:
 
 ```python
 conexion = SQLiteManager(r.DB_FILE, r.SCHEMA_SQL, r.VISTA_SQL).connect()
@@ -541,29 +544,30 @@ caso de uso no se entera de la diferencia.
 
 ## 7. Estado en la interfaz
 
-> **Aviso (2026-10-31):** la CLI se retira en la **US-105**. La columna "Comando CLI" describe la interfaz actual; la columna
-> "Pantalla (GUI)" indica dónde queda cada caso de uso después del retiro.
+La CLI se retiró en la US-105: hoy la única interfaz es la GUI de escritorio (Flet). Los casos de uso
+siguientes ya están implementados y testeados; la columna "Pantalla" indica qué historia los lleva a la GUI.
 
-| Caso de uso                          | Comando CLI (hasta la US-105) | Pantalla (GUI)                     | Estado                                                        |
-| ------------------------------------ | ----------------------------- | ---------------------------------- | ------------------------------------------------------------- |
-| `RegistrarEntrenadorUseCase`         | `stats auth register`         | `RegistroScreen` (US-105)          | ✅ Implementado (US-104)                                      |
-| `LoginLocalUseCase`                  | `stats auth login`            | `LoginScreen` (US-105)             | ✅ Implementado (US-104)                                      |
-| `RegistrarJugadorUseCase`            | `stats jugador add`           | `JugadoresScreen` (US-107)         | ✅ Implementado |
-| `CrearClubUseCase`                   | `stats club add`              | `ClubesScreen` (US-106)            | ✅ Implementado |
-| `VincularJugadorAClubUseCase`        | `stats jugador link`          | `JugadoresScreen` (US-107)         | ✅ Implementado |
-| `CrearCompetenciaUseCase`            | `stats competencia add`       | `CompetenciasScreen` (US-107)      | ✅ Implementado |
-| `InscribirClubEnCompetenciaUseCase`  | `stats competencia inscribir` | `InscripcionesScreen` (US-107)     | ✅ Implementado |
-| `ListarClubesUsuarioUseCase`         | `stats club list`             | `ClubesScreen` (US-106)            | ✅ Implementado (la CLI usa `--id-usuario` provisorio; la sesión llega en la US-106) |
-| `ListarJugadoresClubUseCase`         | `stats jugador list`          | `JugadoresScreen` (US-107)         | ✅ Implementado |
-| `ListarPartidosPorClubUseCase`       | `stats partido list`          | `PartidosScreen` (US-107)          | ✅ Implementado |
-| `CambiarClubActivoUseCase`           | `stats club select`           | `ClubesScreen` (US-106)            | ✅ Implementado (validación); guardar el club en la sesión es de la US-106 |
-| `CrearCategoriaUseCase`              | `stats categoria add`         | `CompetenciasScreen` (US-107)      | ✅ Implementado |
-| `ListarCategoriasUseCase`            | `stats categoria list`        | `CompetenciasScreen` (US-107)      | ✅ Implementado |
-| `ListarCompetenciasUseCase`          | `stats competencia list`      | `CompetenciasScreen` (US-107)      | ✅ Implementado |
-| `ListarInscripcionesClubUseCase`     | `stats inscripcion list`      | `InscripcionesScreen` (US-107)     | ✅ Implementado |
-| `AgregarJugadorAListaBuenaFeUseCase` | `stats lista add`             | `ListaBuenaFeScreen` (US-107)      | ✅ Implementado |
-| `ListarListaBuenaFeUseCase`          | `stats lista list`            | `ListaBuenaFeScreen` (US-107)      | ✅ Implementado |
-| `DesvincularJugadorDeClubUseCase`    | `stats jugador unlink`        | `JugadoresScreen` (US-107)         | ✅ Implementado |
-| `QuitarJugadorDeListaBuenaFeUseCase` | `stats lista remove`          | `ListaBuenaFeScreen` (US-107)      | ✅ Implementado |
+| Caso de uso                          | Pantalla (GUI)                 | Estado                                                                                        |
+| ------------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------- |
+| `RegistrarEntrenadorUseCase`         | `RegistroScreen` (US-105)      | ✅ En la GUI (US-105)                                                                          |
+| `LoginLocalUseCase`                  | `LoginScreen` (US-105)         | ✅ En la GUI (US-105)                                                                          |
+| `RegistrarJugadorUseCase`            | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
+| `CrearClubUseCase`                   | `ClubesScreen` (US-106)        | ✅ Implementado; pantalla pendiente                                                            |
+| `VincularJugadorAClubUseCase`        | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
+| `CrearCompetenciaUseCase`            | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `InscribirClubEnCompetenciaUseCase`  | `InscripcionesScreen` (US-107) | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarClubesUsuarioUseCase`         | `ClubesScreen` (US-106)        | ✅ Implementado (el usuario sale de la sesión desde la US-106); pantalla pendiente             |
+| `ListarJugadoresClubUseCase`         | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarPartidosPorClubUseCase`       | `PartidosScreen` (US-107)      | ✅ Implementado; pantalla pendiente                                                            |
+| `CambiarClubActivoUseCase`           | `ClubesScreen` (US-106)        | ✅ Implementado (validación); guardar el club en la sesión es de la US-106; pantalla pendiente |
+| `CrearCategoriaUseCase`              | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarCategoriasUseCase`            | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarCompetenciasUseCase`          | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarInscripcionesClubUseCase`     | `InscripcionesScreen` (US-107) | ✅ Implementado; pantalla pendiente                                                            |
+| `AgregarJugadorAListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarListaBuenaFeUseCase`          | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `DesvincularJugadorDeClubUseCase`    | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
+| `QuitarJugadorDeListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
 
-La referencia de uso de cada comando (opciones, ejemplos, errores) está en el [RUNBOOK](../../RUNBOOK.md) hasta la US-105.
+Cómo abrir la aplicación y qué se puede hacer hoy: [RUNBOOK](../../RUNBOOK.md). Cómo está armada la GUI:
+[13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).

@@ -17,10 +17,10 @@
 6. [`@pytest.mark.parametrize`: muchos casos, un solo test](#6-pytestmarkparametrize-muchos-casos-un-solo-test)
 7. [El patrón `**overrides`: fábricas de datos de prueba](#7-el-patrón-overrides-fábricas-de-datos-de-prueba)
 8. [Fixtures y `conftest.py`](#8-fixtures-y-conftestpy)
-9. [Testeando comandos CLI](#9-testeando-comandos-cli-ejecutar-main-y-de-punta-a-punta)
+9. [Testeando la GUI (sin abrir la ventana)](#9-testeando-la-gui-sin-abrir-la-ventana)
 10. [Cobertura](#10-cobertura-coverage)
 11. [Buenas prácticas](#11-buenas-prácticas)
-12. [Checklist: agregar un caso de uso o un comando nuevo](#12-checklist-agregar-un-caso-de-uso-o-un-comando-nuevo)
+12. [Checklist: agregar un caso de uso o una pantalla nueva](#12-checklist-agregar-un-caso-de-uso-o-una-pantalla-nueva)
 
 ---
 
@@ -39,15 +39,15 @@ uv run pytest -v --cov=src --cov-report=html   # con reporte de cobertura (tambi
 
 | Carpeta / archivo | Qué contiene |
 | --- | --- |
-| `tests/unit/` | Tests que **no tocan SQLite**: entidades, excepciones, casos de uso (con repositorios falsos), comandos de la CLI, helpers |
-| `tests/integration/` | Tests con **SQLite real** en memoria (repositorios, esquema y vistas SQL) y el recorrido completo de la CLI contra una base temporal |
-| `tests/conftest.py` | Fixtures compartidas: bases de datos en memoria (`db_conexion`, `db_conexion_sin_seed`, `db_conexion_sandbox`) y **fábricas de datos** (`crear_jugador`, `crear_partido`, `crear_boxscore`) |
+| `tests/unit/` | Tests que **no tocan SQLite**: entidades, excepciones, casos de uso (con repositorios falsos), `SessionManager`, pantallas y router de la GUI (sin ventana), helpers. `ayudantes_flet.py` no es un test: son funciones para buscar controles dentro de una pantalla |
+| `tests/integration/` | Tests con **SQLite real** en memoria (repositorios, esquema y vistas SQL), el flujo registro → login → sesión y el recorrido completo de los casos de uso contra una base temporal |
+| `tests/conftest.py` | Fixtures compartidas: `prohibir_abrir_la_ventana` (automática, ver 9.4), bases de datos en memoria (`db_conexion`, `db_conexion_sin_seed`, `db_conexion_sandbox`) y **fábricas de datos** (`crear_jugador`, `crear_partido`, `crear_boxscore`) |
 | `pyproject.toml` → `[tool.pytest.ini_options]` | `pythonpath = src` (los tests importan `dominio`, `aplicacion`… directo) y `testpaths = tests` |
 | `pyproject.toml` → `[tool.coverage.*]` | Qué medir (con cobertura de ramas, `branch = true`) y el mínimo de cobertura (`fail_under`) |
 
 **Sobre los nombres de archivo y `__init__.py`:** en el proyecto **no hay `__init__.py`** (ni en `src/` ni en `tests/`): desde Python 3.3 las carpetas funcionan como
 paquetes "namespace" sin ese archivo. La única consecuencia práctica para los tests es que **dos archivos de test no pueden llamarse igual**, aunque estén en carpetas
-distintas (pytest los confundiría). Por eso los archivos tienen nombres únicos (`test_uc_jugadores.py`, `test_cli_comandos.py`…).
+distintas (pytest los confundiría). Por eso los archivos tienen nombres únicos (`test_uc_jugadores.py`, `test_login_screen.py`…).
 
 ---
 
@@ -70,12 +70,12 @@ dónde poner cada prueba. Se suelen ordenar en una **pirámide**: muchos tests b
 
 | Tipo | Qué prueba | Cuándo conviene | En este proyecto |
 | --- | --- | --- | --- |
-| **Unitario** | Una unidad de lógica **aislada** (una clase, una función). Lo externo (base de datos, archivos, red) se reemplaza por un doble de prueba | Reglas de negocio, validaciones, ramas de error. Es la base de la pirámide | `tests/unit/`: entidades, casos de uso con `MagicMock`, comandos con repos falsos |
+| **Unitario** | Una unidad de lógica **aislada** (una clase, una función). Lo externo (base de datos, archivos, red) se reemplaza por un doble de prueba | Reglas de negocio, validaciones, ramas de error. Es la base de la pirámide | `tests/unit/`: entidades, casos de uso con `MagicMock`, pantallas con `page` falsa |
 | **De integración** | Que dos o más piezas **reales** funcionen bien juntas | Todo lo que habla con algo externo: SQL, archivos, esquema de la base | `tests/integration/test_repositorios_*.py` (repositorio + SQLite en memoria), `test_database.py` (esquema y vistas) |
-| **End-to-end (E2E)** | Un flujo completo, "como lo usaría el usuario", de la entrada a la salida | Pocos, para los recorridos críticos | `tests/integration/test_cli_e2e.py`: `main()` real contra una base temporal (crear club → jugador → vínculo → competencia → inscripción) |
-| **De humo (smoke)** | Solo que "**prende**": lo mínimo indispensable funciona | Verificación rápida tras un cambio o un deploy | `test_schema_sql_ejecuta_sin_errores`, `test_seed_sql_ejecuta_sin_errores` (¿los scripts SQL se aplican sin explotar?) |
-| **De regresión** | Que un bug **ya corregido** no vuelva a aparecer | Cada vez que se arregla un bug: se agrega el test que lo habría detectado | `test_los_datos_persisten_entre_ejecuciones` (el `schema.sql` borraba las tablas en cada arranque) y `test_buscar_por_club_excluye_vinculos_cerrados` |
-| **De aceptación** | Que se cumple un **criterio de aceptación** de la historia de usuario, en el lenguaje del negocio | Cerrar una US: "¿hace lo que el PRD pidió?" | Los AC de la US-103 (ej. AC3 "errores sin traceback") están cubiertos por `test_cli_main.py` y `test_cli_e2e.py` |
+| **End-to-end (E2E)** | Un flujo completo, "como lo usaría el usuario", de la entrada a la salida | Pocos, para los recorridos críticos | `tests/integration/test_flujo_casos_de_uso.py`: todos los casos de uso armados contra un archivo SQLite temporal (crear club → jugador → vínculo → competencia → inscripción). La GUI con ventana real **no** se prueba automáticamente: se prueba a mano |
+| **De humo (smoke)** | Solo que "**prende**": lo mínimo indispensable funciona | Verificación rápida tras un cambio o un deploy | `test_schema_sql_ejecuta_sin_errores`, `test_seed_sql_ejecuta_sin_errores` (¿los scripts SQL se aplican sin explotar?) y, en el CI, `python -c "import main"` (¿la app importa sin errores?) |
+| **De regresión** | Que un bug **ya corregido** no vuelva a aparecer | Cada vez que se arregla un bug: se agrega el test que lo habría detectado | `test_los_datos_persisten_entre_arranques` (el `schema.sql` borraba las tablas en cada arranque) y `test_buscar_por_club_excluye_vinculos_cerrados` |
+| **De aceptación** | Que se cumple un **criterio de aceptación** de la historia de usuario, en el lenguaje del negocio | Cerrar una US: "¿hace lo que el PRD pidió?" | Los AC de la US-105 (ej. AC4 "errores sin traceback") están cubiertos por `test_errores.py` y los tests de cada pantalla |
 | **De contrato** | Que una implementación **cumple el contrato** de su interfaz | Cuando hay varias implementaciones de lo mismo (ej. SQLite hoy, otra base mañana) | *Todavía no aplica*: hay una sola implementación por repositorio. `MagicMock(spec=...)` ya protege parte de esto |
 | **Basado en propiedades** | Una regla que debe cumplirse para **miles de entradas generadas al azar** (con la librería `hypothesis`) | Lógica matemática (ej. "los puntos siempre = T2C·2 + T3C·3 + T1C") | *Todavía no aplica*. Buen candidato para el motor de estadísticas del Hito 2 |
 | **De snapshot / golden** | Que una salida compleja (un reporte, un PDF, una tabla) **no cambie** respecto de una versión guardada | Reportes y exportaciones | *Todavía no aplica* (Hito 3: reportes) |
@@ -179,7 +179,7 @@ Si el contrato cambia (se renombra un método del repositorio), los tests que lo
 repo_falso.buscar_por_id.side_effect = [Jugador(...), None]     # 1ª llamada: un jugador. 2ª: None
 ```
 
-**`configure_mock`** permite configurar varias cosas de una vez con claves punteadas (así lo hacen los tests de comandos de la CLI):
+**`configure_mock`** permite configurar varias cosas de una vez con claves punteadas:
 
 ```python
 repo = MagicMock(spec=ClubRepositorio)
@@ -210,14 +210,13 @@ Ambos sirven para **reemplazar algo temporalmente** durante un test (y lo restau
 - **`monkeypatch` (fixture de pytest):** reemplaza atributos, variables de entorno o `sys.argv`; sin `with`, se restaura al terminar el test.
 
 ```python
-# tests/unit/test_cli_main.py: main() no debe tocar la base real, así que se reemplaza inicializar_db
-monkeypatch.setattr(main, "inicializar_db", lambda: None)
-monkeypatch.setattr(sys, "argv", ["stats", "club", "add", "--nombre", "Atenas"])
+# tests/conftest.py: ningún test puede abrir la ventana real, así que se reemplaza flet.run por algo que falla
+monkeypatch.setattr("flet.run", _falla)
 ```
 
-Con Inyección de Dependencias bien aplicada, **casi nunca hace falta `patch`**: al caso de uso o al comando se le pasa el repositorio falso por parámetro. Si se encuentran necesitando
+Con Inyección de Dependencias bien aplicada, **casi nunca hace falta `patch`**: al caso de uso o a la pantalla se le pasa el repositorio falso por parámetro. Si se encuentran necesitando
 `patch` seguido, suele ser señal de que esa clase debería recibir la dependencia por constructor. En el proyecto se usa `monkeypatch` solo para lo que es global por naturaleza:
-`sys.argv`, la ruta de la base (`rutas.DB_FILE`) y funciones de arranque como `inicializar_db`.
+`flet.run` (que abriría una ventana) y la ruta de la base (`rutas.DB_FILE`).
 
 ---
 
@@ -310,26 +309,26 @@ Tres cosas para fijarse:
    (por ejemplo, que el error habla del club 9 y no de otro).
 3. **El efecto secundario que NO debe ocurrir:** `assert_not_called()` demuestra que la regla **cortó antes de guardar**. Es la mitad más importante del test.
 
-Si necesitás inspeccionar la excepción (no solo su mensaje): `with pytest.raises(X) as info:` y luego `info.value` (la instancia) o `info.value.code` (útil con `SystemExit`).
+Si necesitás inspeccionar la excepción (no solo su mensaje): `with pytest.raises(X) as info:` y luego `info.value` (la instancia).
 
 ### 5.2 Qué probar en cada caso de uso
 
 | Qué | Cómo | Ejemplo real |
 | --- | --- | --- |
 | Cada regla de negocio lanza **su** excepción | Un caso por regla, con el mock configurado para romperla | `test_uc_competencias.py`: club/competencia/categoría inexistente y duplicado, `parametrize` con 4 casos |
-| La excepción **sube**, no se traga | El caso de uso no la atrapa (la atrapa `main()`) | Los tests de casos de uso verifican las excepciones de negocio |
+| La excepción **sube**, no se traga | El caso de uso no la atrapa (la atrapa la pantalla, con `ejecutar_mostrando_errores`) | Los tests de casos de uso verifican las excepciones de negocio |
 | Ante el error, **no se guarda nada** | `assert_not_called()` sobre el método de escritura | Todos los `test_*_lanza_excepcion_y_no_guarda` |
 | El repositorio **falló** (devuelve `None`) | No es excepción de dominio: el caso de uso devuelve `None` | `test_crear_club_devuelve_none_si_el_repositorio_no_pudo_guardar` |
 
 ### 5.3 Testear la jerarquía de excepciones
 
 `tests/unit/test_exceptions.py` verifica la **estructura**: que toda excepción de `dominio/exceptions.py` herede de `ErrorDeDominio` y que se pueda capturar con la clase base
-conservando su mensaje. Es lo que permite que `main()` use **un único** `except ErrorDeDominio`. El test descubre las clases con `inspect.getmembers`, así que
+conservando su mensaje. Es lo que permite que la GUI use **un único** `except ErrorDeDominio` (en `ui/flet/errores.py`). El test descubre las clases con `inspect.getmembers`, así que
 **si mañana alguien agrega una excepción nueva que olvide heredar de `ErrorDeDominio`, el test falla solo**, sin tener que actualizarlo.
 
 ### 5.4 Cuándo NO usar `pytest.raises`
 
-- Para errores que **no** son de negocio (un bug real, como el `RuntimeError` de `id_persistido`): se testean para asegurar que **no** se esconden (ver `test_main_no_esconde_los_errores_que_no_son_de_dominio`).
+- Para errores que **no** son de negocio (un bug real, como el `RuntimeError` de `id_persistido`): se testean para asegurar que **no** se confunden con errores de negocio (ver `test_errores.py`: un bug muestra el mensaje genérico y deja el traceback en el log).
 - Para "cualquier excepción" (`pytest.raises(Exception)`): es demasiado laxo, pasaría con cualquier error, incluso uno inesperado. Siempre la clase más específica posible.
 
 ---
@@ -475,66 +474,94 @@ Fixtures del proyecto:
 | `crear_jugador`, `crear_partido`, `crear_boxscore` | **Fábricas** de entidades válidas (sección 7) |
 | `repo_jugador`, `repo_club`… | (definidas en cada archivo de test) `MagicMock(spec=...)` del repositorio |
 
-Fixtures **nativas** de pytest que se usan mucho: `tmp_path` (carpeta temporal), `monkeypatch` (reemplazos temporales) y `capsys` (captura de lo impreso, sección 9).
+Fixtures **nativas** de pytest que se usan mucho: `tmp_path` (carpeta temporal), `monkeypatch` (reemplazos temporales) y `caplog` (captura de los logs, sección 9.3).
 
 ---
 
-## 9. Testeando comandos CLI (`ejecutar`, `main()` y de punta a punta)
+## 9. Testeando la GUI (sin abrir la ventana)
 
-> **Aviso (2026-10-31):** la CLI y sus tests se borran en la **US-105**. Esta sección queda como referencia hasta entonces; en la GUI, la lógica se testea en los casos de uso y en el `SessionManager`, y las pantallas se mantienen finas (ver la US-105 en el PRD).
+Una pantalla de Flet es una función que **arma controles** (`TextField`, `Button`…) y les engancha *handlers* (funciones que corren cuando el usuario hace algo).
+Para testearla **no hace falta abrir la ventana**: se arma la pantalla, se completan los campos a mano y se llama al handler directamente, como lo haría Flet.
+Conceptos de Flet (handler, `View`, rutas): [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).
 
-Hay tres niveles, del más chico al más grande:
-
-### 9.1 El comando solo: `Namespace` a mano + repo falso + `capsys`
-
-No hace falta simular una terminal: `argparse.Namespace` es solo un objeto con atributos, y se le inyecta un repositorio falso.
+### 9.1 Una pantalla: `page` falsa + caso de uso falso
 
 ```python
-def test_club_add_informa_el_club_creado(capsys):
-    repo = MagicMock(spec=ClubRepositorio)
-    repo.configure_mock(**{"guardar.return_value": Club("Atenas", idClub=3)})
+@pytest.fixture
+def page():
+    return MagicMock(spec=ft.Page)          # la "ventana": solo registra qué le pidieron
 
-    club_add.ejecutar(argparse.Namespace(nombre="Atenas"), repo)      # sin sys.argv ni terminal
 
-    assert capsys.readouterr().out == "Club creado: Atenas (id=3)\n"
+def test_login_exitoso_inicia_sesion_y_navega_al_inicio(page, login_uc, sesion):
+    vista = crear_login_view(page, login_uc, sesion)
+    campo(vista, "Email").value = "profe@test.com"         # "el usuario escribe"
+    campo(vista, "Contraseña").value = "secreta123"
+
+    boton(vista, "Ingresar").on_click()                     # "el usuario hace clic"
+
+    login_uc.ejecutar.assert_called_once_with(LoginDTO(email="profe@test.com", password="secreta123"))
+    page.navigate.assert_called_once_with("/inicio")
 ```
 
-**`capsys`** es una fixture nativa que **captura lo que se imprimió**. `capsys.readouterr()` devuelve `.out` (stdout) y `.err` (stderr): los errores van a `err` y los mensajes normales a `out`,
-y los tests verifican cada uno por separado.
+- **`campo`, `boton` y `etiqueta_error`** viven en `tests/unit/ayudantes_flet.py` y buscan un control por su texto. Así el test no depende de la posición del control en la lista:
+  si se reordena el formulario, el test sigue andando. Ojo: `ft.TextButton` **no** hereda de `ft.Button`, por eso `boton` busca los dos tipos.
+- **Qué se verifica:** el DTO que recibió el caso de uso, si navegó (`page.navigate`) y qué dice la etiqueta de error. En los caminos de error, que **no** navegó
+  (`page.navigate.assert_not_called()`) y que la sesión sigue vacía.
+- **Se puede porque la pantalla recibe todo por parámetro** (`crear_login_view(page, login_uc, sesion)`): la misma idea que la inyección de dependencias en los casos de uso.
 
-**Es testeable porque el comando recibe el repositorio como parámetro** (`ejecutar(args, repo=None)`): en producción no se pasa y arma el real; en los tests se inyecta uno falso.
-Si el comando armara la conexión SQLite adentro sin forma de reemplazarla, cada test tocaría la base real.
+### 9.2 El router: una `page` falsa que hace de Flet
 
-### 9.2 Comandos que terminan el programa: `SystemExit`
-
-`abortar()` llama a `sys.exit(1)`. En un test, eso se captura con `pytest.raises(SystemExit)` y se mira el código:
+El router (`_main` en `app.py`) reacciona a `page.on_route_change`. En el test, Flet no está, así que el test hace de Flet: cambia `page.route` y llama al handler a mano.
 
 ```python
-with pytest.raises(SystemExit) as info:
-    competencia_add.ejecutar(argparse.Namespace(nombre="Vieja", anio=1900, tipo=None), repo)
+@pytest.fixture
+def page():
+    page = MagicMock(spec=ft.Page)
+    page.route = "/"
+    page.views = []           # una lista real, para poder mirar qué pantalla quedó dibujada
+    return page
 
-assert info.value.code == 1
-assert capsys.readouterr().err.startswith("Error:")      # el mensaje va a stderr, sin traceback
+
+def test_sin_sesion_inicio_redirige_al_login_sin_dibujar(page, deps):
+    _main(page, deps)
+    page.navigate.reset_mock()
+    page.route = "/inicio"
+
+    page.on_route_change()        # "Flet avisa que cambió la ruta"
+
+    page.navigate.assert_called_once_with("/login")
+    assert page.views == []
 ```
 
-Convención de códigos de salida: **0** = éxito, **1** = error de negocio, **2** = uso incorrecto de la CLI (lo devuelve `argparse` solo).
+La decisión de **a dónde** ir (`resolver_ruta`) es una función pura, así que se testea aparte con `parametrize` y sin ningún mock (`tests/unit/test_navegacion.py`).
 
-### 9.3 El parser y `main()`
+### 9.3 Errores en la pantalla: `caplog`
 
-`tests/unit/test_cli_main.py` prueba (sin base de datos) que el parser asocia cada comando con su función y que `main()` traduce los errores:
+`ejecutar_mostrando_errores` muestra el mensaje en la etiqueta y **escribe en el log**. La fixture nativa **`caplog`** captura los logs del test para verificarlos:
 
 ```python
-args = main.construir_parser().parse_args(["club", "add", "--nombre", "Atenas"])
-assert args.func is club_add.ejecutar and args.nombre == "Atenas"
+def test_error_inesperado_deja_el_traceback_en_el_log(caplog):
+    etiqueta = crear_etiqueta_error()
+
+    ejecutar_mostrando_errores(lambda: 1 / 0, etiqueta)
+
+    assert etiqueta.value == MENSAJE_ERROR_INESPERADO
+    assert "ZeroDivisionError" in caplog.text
 ```
 
-Pasarle una lista a `parse_args()` hace que lea esa lista en vez de `sys.argv`: el test no depende de cómo se ejecutó pytest. Para `main()`, se reemplaza `sys.argv` con `monkeypatch`
-y se neutraliza `inicializar_db` para **no tocar nunca la base real**.
+### 9.4 La red de seguridad: ningún test abre la ventana
 
-### 9.4 De punta a punta (E2E) con una base temporal
+`ft.run(...)` abre la ventana y **bloquea hasta que se cierra**. Si un test lo llamara (por ejemplo, llamando a `main.main()`), la suite quedaría colgada, y en el CI nadie la
+cerraría. Por eso `tests/conftest.py` tiene una fixture `autouse=True` (se aplica a **todos** los tests sin pedirla) que reemplaza `flet.run` por una función que falla
+con un mensaje claro. Se agregó después de que un test viejo de la CLI abriera la ventana real durante una corrida.
 
-`tests/integration/test_cli_e2e.py` corre `main()` completo contra un archivo SQLite en `tmp_path`, simulando ejecuciones sucesivas del programa. La ruta de la base se cambia con
-`monkeypatch.setattr(rutas, "DB_FILE", ...)`. Este nivel encontró un bug real: cada arranque borraba los datos (el `schema.sql` tenía `DROP TABLE`), algo que ningún test unitario podía ver.
+### 9.5 De punta a punta (E2E) con una base temporal
+
+`tests/integration/test_flujo_casos_de_uso.py` arma **todos** los casos de uso sobre un archivo SQLite en `tmp_path` y recorre el flujo completo (club → jugador → vínculo →
+competencia → inscripción → lista de buena fe). La fixture `abrir` simula **arranques sucesivos** de la app sobre el mismo archivo: así se detectó un bug real (cada arranque borraba los
+datos, porque el `schema.sql` tenía `DROP TABLE`), algo que ningún test unitario podía ver. También verifica, con un `parametrize`, que cada error de negocio llega como `ErrorDeDominio`.
+
+**Qué no se testea automáticamente:** la ventana real (que el botón se vea, que Enter funcione en Flet de verdad). Eso se prueba a mano antes de cerrar una US.
 
 ---
 
@@ -558,11 +585,11 @@ y se neutraliza `inicializar_db` para **no tocar nunca la base real**.
 - **Independientes entre sí:** cada test arma su estado desde cero; nunca asume que otro corrió antes (por eso las fixtures recrean la base en cada test).
 - **Un bug corregido = un test de regresión:** antes de dar por cerrado un arreglo, escribir el test que lo habría detectado y comprobar que **falla sin el arreglo**.
 - **Verificar que el test puede fallar:** romper a propósito el código un momento y confirmar que el test lo detecta (mutación a mano). Un test que nunca falla no protege nada.
-- **No testear la librería:** no hace falta probar que `argparse` convierte `"5"` en `5`; sí que el parser del proyecto asocia el argumento correcto al comando.
+- **No testear la librería:** no hace falta probar que Flet dibuja un `TextField`; sí que la pantalla del proyecto le pasa al caso de uso lo que se escribió en él.
 
 ---
 
-## 12. Checklist: agregar un caso de uso o un comando nuevo
+## 12. Checklist: agregar un caso de uso o una pantalla nueva
 
 Por cada **caso de uso** nuevo (en `tests/unit/`):
 
@@ -570,13 +597,14 @@ Por cada **caso de uso** nuevo (en `tests/unit/`):
 - [ ] Un test por **cada excepción de dominio** que pueda lanzar (con `match=` y `assert_not_called()` sobre la escritura); agrupables con `@parametrize`.
 - [ ] El caso en que el repositorio devuelve `None` (no pudo guardar) o una lista vacía.
 - [ ] Si hace más de una escritura (como `InscribirClubEnCompetenciaUseCase`), un test **de integración** del método del repositorio que confirme la **atomicidad**: forzar que la segunda escritura falle y comprobar que la primera tampoco quedó.
+- [ ] Sumarlo a `_casos_de_uso` de `test_flujo_casos_de_uso.py` y al recorrido completo si es parte de un flujo importante.
 
-Por cada **comando de la CLI**:
+Por cada **pantalla** nueva (en `tests/unit/test_<nombre>_screen.py`):
 
-- [ ] En `test_cli_comandos.py`: mensaje de éxito (con `capsys`) y el caso de "el repositorio no pudo guardar" (`SystemExit` con código 1 y mensaje en stderr).
-- [ ] En `test_cli_main.py`: que el parser asocia el comando con su función y con los tipos correctos, y qué pasa si faltan argumentos.
-- [ ] Si lista datos: que la salida sea una tabla y que el caso "sin resultados" muestre un aviso.
-- [ ] En `test_cli_e2e.py`: sumarlo al recorrido completo si es parte de un flujo importante.
+- [ ] Camino feliz: completar los campos con `campo(...)`, disparar `boton(...).on_click()` y verificar el DTO que recibió el caso de uso y a dónde navegó.
+- [ ] Un error de negocio (`side_effect = <ErrorDeDominio>`): el mensaje aparece en `etiqueta_error(vista)` y **no** navega.
+- [ ] Un error inesperado (`side_effect = RuntimeError`): mensaje genérico y no navega.
+- [ ] Si la ruta es nueva: sumarla a `RUTAS_PUBLICAS` o `RUTAS_INTERNAS` y a los casos de `test_navegacion.py`.
 
 Por cada **entidad o regla de dominio** nueva:
 
