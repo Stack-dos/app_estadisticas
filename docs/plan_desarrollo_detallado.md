@@ -220,13 +220,14 @@ treeView-beta
       servicios/ ## interfaces (ABC) de servicios que no son repositorios (PasswordHasher, US-104)
     aplicacion/
       dtos/ ## dataclasses de entrada/salida entre capas
-      servicios/ ## servicios de aplicación (SessionManager: US-105 en memoria, US-106 persistente)
+      servicios/ ## servicios de aplicación (SessionManager: US-105 en memoria, US-106 persistente) y el puerto SesionAlmacen
       casos_uso/ ## orquestadores (reciben repos por DI), un archivo por acción
     infraestructura/
       logger.py ## ✅ configuración central del logging
       repositorios/ ## implementaciones SQLite de las interfaces de dominio
       persistencia/
         database_manager.py ## SQLiteManager
+        json_sesion_almacen.py ## JsonSesionAlmacen: la sesión recordada en ~/.statspro/session.json (US-106)
         sql/
           schema.sql
           views.sql
@@ -299,7 +300,7 @@ Ubicación: `src/aplicacion/dtos/`. Convención de nombres: `jugador_dto.py` pue
 
 ### Gestión de sesión y club activo
 
-La GUI es un único proceso que queda abierto, así que la sesión vive **en memoria** dentro del `SessionManager` mientras la app está abierta (US-105). Solo si el usuario marca **"Recordarme"** al iniciar sesión, el `SessionManager` además la guarda en `~/.statspro/session.json` para que sobreviva al cierre de la app (US-106). Es el único componente que lee y escribe ese archivo.
+La GUI es un único proceso que queda abierto, así que la sesión vive **en memoria** dentro del `SessionManager` mientras la app está abierta (US-105). Solo si el usuario marca **"Recordarme"** al iniciar sesión, el `SessionManager` además la guarda en `~/.statspro/session.json` para que sobreviva al cierre de la app (US-106). Es el único que decide cuándo se guarda o se borra; quien escribe el archivo es el adaptador `JsonSesionAlmacen`, a través del puerto `SesionAlmacen`.
 
 **Estructura del archivo de sesión** (`SessionDTO`, US-106):
 
@@ -636,41 +637,13 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 - _Integración (`tests/integration/test_repositorios_\*.py`, un archivo por repositorio):_ CRUD completo por repositorio usando DB `:memory:`; `buscar_por_dni`retorna`None`si no existe, sin lanzar excepción; el`save()` de un partido y sus estadísticas es atómico; los repositorios de lectura usan las vistas SQL correctamente.
 
-**Archivos a crear (consolidado, nombres en español):**
-
-```mermaid
----
-config:
-  treeView:
-    showIcons: true
----
-src/
-  dominio/
-    repositorios/
-      usuario_repositorio.py
-      club_repositorio.py
-      jugador_repositorio.py
-      competencia_repositorio.py
-      partido_repositorio.py
-  infraestructura/
-    repositorios/
-      sqlite_usuario_repositorio.py
-      sqlite_club_repositorio.py
-      sqlite_jugador_repositorio.py
-      sqlite_competencia_repositorio.py
-      sqlite_partido_repositorio.py
-```
-
 ### Épica H1-E2: Lógica de Aplicación e Interfaz
 
 #### US-103 — Gestión de Entidades (Casos de Uso Administrativos)
 
 **Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-101, US-102 · **Estado:** ✅ Hecha
 
-> **La CLI de esta historia se retira en la US-105 (2026-10-31).** Siguen vigentes las entidades,
-> los casos de uso, los DTOs, los repositorios y sus tests; los comandos de `ui/cli/`, el
-> formatter de `tabulate` y los tests de la CLI se borran y sus funciones pasan a las pantallas
-> de las US-106 y US-107. El texto de abajo describe lo que se construyó en su momento.
+> **La CLI de esta historia se retira en la US-105 (2026-10-31).** Siguen vigentes las entidades, los casos de uso, los DTOs, los repositorios y sus tests; los comandos de `ui/cli/`, el formatter de `tabulate` y los tests de la CLI se borran y sus funciones pasan a las pantallas de las US-106 y US-107. El texto de abajo describe lo que se construyó en su momento.
 
 **Objetivo Funcional:** implementar la lógica de negocio pura y la interfaz de usuario por comandos para la gestión integral de las entidades del sistema (jugadores, clubes, competencias, inscripciones), asegurando la validación de reglas deportivas y la integridad de los datos.
 
@@ -757,70 +730,11 @@ src/
 - _Unitarios (`tests/unit/`):_ validación de entidades (tipos, valores —vacíos, rangos— y las reglas de `JugadorPartido`), propiedades calculadas, jerarquía de excepciones de dominio, los 17 casos de uso con repositorios falsos (`unittest.mock`) —camino feliz y una prueba por cada excepción—, comandos de la CLI (con `capsys`) y helpers.
 - _Integración (`tests/integration/`):_ persistencia real en DB `:memory:` (repositorios, esquema y vistas, atomicidad de la inscripción) y la CLI de punta a punta contra una base temporal.
 
-**Archivos:**
-
-```text
-src/dominio/entidades/
-├── usuario.py
-├── club.py
-├── jugador.py
-├── jugador_club.py
-├── competencia.py
-├── categoria.py
-├── inscripcion.py
-├── lista_buena_fe.py
-├── jugador_lista_buena_fe.py
-├── partido.py
-└── estadistica_jugador.py
-
-src/aplicacion/casos_uso/
-├── registrar_jugador.py
-├── crear_club.py
-├── vincular_jugador_club.py
-├── desvincular_jugador_club.py
-├── crear_competencia.py
-├── inscribir_club_competencia.py
-├── listar_clubes_usr.py
-├── listar_jugador_club.py
-├── partidos_por_club.py
-├── cambiar_club_activo.py
-├── crear_categoria.py
-├── listar_categorias.py
-├── listar_competencias.py
-├── listar_inscripciones_club.py
-├── agregar_jugador_lista.py
-├── listar_lista_buena_fe.py
-└── quitar_jugador_lista.py
-
-src/infraestructura/ui/cli/
-├── commands/
-│   ├── jugador_add.py               ✅ stats jugador add
-│   ├── jugador_link.py              ✅ stats jugador link
-│   ├── jugador_unlink.py            ✅ stats jugador unlink
-│   ├── jugador_list.py              ✅ stats jugador list
-│   ├── club_add.py                  ✅ stats club add
-│   ├── club_list.py                 ✅ stats club list  (--id-usuario provisorio)
-│   ├── competencia_add.py           ✅ stats competencia add
-│   ├── competencia_inscribir.py     ✅ stats competencia inscribir
-│   ├── competencia_list.py          ✅ stats competencia list
-│   ├── categoria_add.py             ✅ stats categoria add
-│   ├── categoria_list.py            ✅ stats categoria list
-│   ├── inscripcion_list.py          ✅ stats inscripcion list
-│   ├── lista_add.py                 ✅ stats lista add
-│   ├── lista_remove.py              ✅ stats lista remove
-│   ├── lista_list.py                ✅ stats lista list
-│   └── game_list.py                 ✅ stats partido list
-└── formatters/
-    └── table_formatter.py
-```
-
 #### US-104 — Autenticación de Usuarios
 
 **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103 · **Estado:** ✅ Hecha (PR #46)
 
-> **Los comandos `stats auth ...` de esta historia se retiran en la US-105**, que pone el
-> registro y el login en pantallas de la GUI usando los mismos casos de uso. El hasher, los casos
-> de uso, los DTOs y sus tests no cambian.
+> **Los comandos `stats auth ...` de esta historia se retiran en la US-105**, que pone el registro y el login en pantallas de la GUI usando los mismos casos de uso. El hasher, los casos de uso, los DTOs y sus tests no cambian.
 
 **Objetivo Funcional:** permitir el registro y el acceso seguro de entrenadores al sistema, con contraseñas hasheadas y nunca almacenadas en texto plano.
 
@@ -852,76 +766,24 @@ src/infraestructura/ui/cli/
 - _Unitarias:_ `hash`/`verify` de `PasswordHasher` (incluye que dos hashes de la misma contraseña sean distintos, por el salt dinámico); `RegistrarEntrenadorUseCase`/`LoginLocalUseCase` con `UsuarioRepositorio` mock (camino feliz + `EmailYaRegistradoError` + `CredencialesInvalidasError`).
 - _Integración:_ flujo completo registro → login con DB `:memory:`.
 
-**Archivos a crear:**
-
-```text
-src/dominio/servicios/
-└── password_hasher.py        ← interfaz PasswordHasher (ABC)
-
-src/infraestructura/security/
-└── password_hasher.py        ← Pbkdf2PasswordHasher
-
-src/aplicacion/casos_uso/
-├── registrar_entrenador.py
-└── login_local.py
-
-src/aplicacion/dtos/
-└── auth_dto.py
-
-src/infraestructura/ui/cli/commands/   ← se borran en la US-105
-├── auth_register.py
-├── auth_login.py
-└── auth_logout.py
-
-tests/unit/
-├── test_password_hasher.py
-├── test_uc_auth.py
-└── test_cli_auth.py            ← se borra en la US-105
-tests/integration/
-└── test_auth_flujo.py
-```
-
 #### Ajuste previo a la US-105 — Quitar el DNI de los jugadores
 
-> **No es una historia de usuario:** es un cambio chico sobre código ya terminado (US-101 a US-103)
-> que conviene hacer antes de seguir, para no arrastrarlo. Va en su propia rama, por ejemplo
-> `feature/quitar-dni-jugador`. No es un `hotfix/`: según la sección 15, esas ramas son para bugs
-> en producción y salen de `main`, y todavía no hay ninguna versión entregada.
+> **No es una historia de usuario:** es un cambio chico sobre código ya terminado (US-101 a US-103) que conviene hacer antes de seguir, para no arrastrarlo. Va en su propia rama, por ejemplo `feature/quitar-dni-jugador`. No es un `hotfix/`: según la sección 15, esas ramas son para bugs en producción y salen de `main`, y todavía no hay ninguna versión entregada.
 
-- **Decisión (2026-10-31):** los jugadores **no tienen DNI**. No aporta a las estadísticas, los
-  archivos de la CAB no lo traen (US-201, US-206) y pedirlo obligaba a inventar DNIs para los
-  jugadores rivales. Un jugador se identifica por apellido y nombre dentro de su club. El año de
-  nacimiento pasa a ser opcional por el mismo motivo.
-- **Esfuerzo:** S (1-2 días) · **Dependencias:** ninguna · **Lo hace:** la Pista B en la ronda 1,
-  después del `SessionManager` (ver "Plan de trabajo en paralelo").
+- **Decisión (2026-10-31):** los jugadores **no tienen DNI**. No aporta a las estadísticas, los archivos de la CAB no lo traen (US-201, US-206) y pedirlo obligaba a inventar DNIs para los jugadores rivales. Un jugador se identifica por apellido y nombre dentro de su club. El año de nacimiento pasa a ser opcional por el mismo motivo.
+- **Esfuerzo:** S (1-2 días) · **Dependencias:** ninguna · **Lo hace:** la Pista B en la ronda 1, después del `SessionManager` (ver "Plan de trabajo en paralelo").
 - **Qué cambia:**
-  - **Base de datos:** se quita `jugador.dni` de `schema.sql` y de `seed.sql`. Una base vieja sigue
-    funcionando (la columna acepta nulos), así que recrear la base local puede esperar a la US-108,
-    que igual lo pide, y hacerse una sola vez.
-  - **Dominio:** `Jugador` sin `dni` y con `anioNacimiento: int | None`; se borra
-    `DNIDuplicadoError`; `JugadorRepositorio` pierde `buscar_por_dni`.
-  - **Aplicación:** `CrearJugadorDTO` sin `dni`; `RegistrarJugadorUseCase` sin la regla de DNI
-    duplicado.
-  - **Infraestructura:** `SqliteJugadorRepositorio` (`guardar`, el armado de la entidad y
-    `buscar_por_dni`). La CLI existe hasta la US-105, así que `jugador add` y `main.py` pierden
-    `--dni`.
-  - **Tests:** los que arman jugadores con DNI o prueban el duplicado: `conftest.py`,
-    `test_entidades.py`, `test_entidades_valores.py`, `test_uc_jugadores.py`,
-    `test_repositorios_jugador.py`, `test_repositorios_competencia.py`, `test_database.py`,
-    `test_sandbox_sql.py` y los de la CLI.
-  - **Documentación del código actual**, en el mismo PR que el código porque describe lo que el
-    código hace hoy: `docs/info_modulo/03-casos-de-uso.md`, `04-arquitectura.md`,
-    `07-protocolos.md`, `09-testing.md`, `docs/arquitectura/01-repository-pattern.md`, el DER de
-    `docs/diagramas/diagramas.md`, `RUNBOOK.md` y `README.md`.
+  - **Base de datos:** se quita `jugador.dni` de `schema.sql` y de `seed.sql`. Una base vieja sigue funcionando (la columna acepta nulos), así que recrear la base local puede esperar a la US-108, que igual lo pide, y hacerse una sola vez.
+  - **Dominio:** `Jugador` sin `dni` y con `anioNacimiento: int | None`; se borra `DNIDuplicadoError`; `JugadorRepositorio` pierde `buscar_por_dni`.
+  - **Aplicación:** `CrearJugadorDTO` sin `dni`; `RegistrarJugadorUseCase` sin la regla de DNI duplicado.
+  - **Infraestructura:** `SqliteJugadorRepositorio` (`guardar`, el armado de la entidad y `buscar_por_dni`). La CLI existe hasta la US-105, así que `jugador add` y `main.py` pierden `--dni`.
+  - **Tests:** los que arman jugadores con DNI o prueban el duplicado: `conftest.py`, `test_entidades.py`, `test_entidades_valores.py`, `test_uc_jugadores.py`, `test_repositorios_jugador.py`, `test_repositorios_competencia.py`, `test_database.py`, `test_sandbox_sql.py` y los de la CLI.
+  - **Documentación del código actual**, en el mismo PR que el código porque describe lo que el código hace hoy: `docs/info_modulo/03-casos-de-uso.md`, `04-arquitectura.md`, `07-protocolos.md`, `09-testing.md`, `docs/arquitectura/01-repository-pattern.md`, el DER de `docs/diagramas/diagramas.md`, `RUNBOOK.md` y `README.md`.
 - **Criterios de Aceptación:**
-  - **AC1.** No queda ninguna referencia al DNI en `src/` ni en `tests/`
-    (`grep -rin dni src tests` no devuelve nada).
-  - **AC2.** Se puede dar de alta un jugador sin año de nacimiento; si se informa, se sigue
-    validando (mayor a 1900 y no posterior al año actual).
+  - **AC1.** No queda ninguna referencia al DNI en `src/` ni en `tests/` (`grep -rin dni src tests` no devuelve nada).
+  - **AC2.** Se puede dar de alta un jugador sin año de nacimiento; si se informa, se sigue validando (mayor a 1900 y no posterior al año actual).
   - **AC3.** Todos los checks del CI pasan.
-- **Qué no entra:** evitar jugadores repetidos ahora que no hay DNI. En el alta manual lo resuelve
-  la US-107 (buscar por nombre antes de dar de alta) y en la importación, la US-206
-  (`IdentificadorJugadores`).
+- **Qué no entra:** evitar jugadores repetidos ahora que no hay DNI. En el alta manual lo resuelve la US-107 (buscar por nombre antes de dar de alta) y en la importación, la US-206 (`IdentificadorJugadores`).
 
 #### US-105 — Interfaz Gráfica Base (Flet) y Retiro de la CLI
 
@@ -965,7 +827,7 @@ tests/integration/
 1. **Versión de Flet:** la API cambió de forma incompatible entre la serie 0.x y la 1.0. Se elige la última estable al momento de arrancar y se fija exacta; verificar que `uv sync` en el CI y en Docker no descargue el cliente de escritorio (los tests solo importan módulos).
    **Decidido:** `flet[desktop]==1.1.2`.
 2. **Cómo se testea la GUI:** Flet no trae un harness de tests maduro. Propuesta: pantallas finas (sin lógica de negocio, AC6 de la US-401 adelantado) y tests sobre lo que no depende de la ventana: `SessionManager`, el manejador de errores y las funciones puras que arman filas o validan campos.
-   **Decidido:** eso, y además cada pantalla se testea sin ventana: recibe `page` por parámetro (en el test, `MagicMock(spec=ft.Page)`), el test completa los campos y llama al handler del botón. El router se testea con una `page` falsa y una fixture automática de `conftest.py` impide que un test abra la ventana. Detalle en `docs/info_modulo/09-testing.md` (§9) y `13-gui-flet-y-eventos.md` (§12).
+   **Decidido:** eso, y además cada pantalla se testea sin ventana: recibe `page` por parámetro (en el test, `MagicMock(spec=ft.Page)`), el test completa los campos y llama al handler del botón. El router se testea con una `page` falsa y una fixture automática de `conftest.py` impide que un test abra la ventana. Detalle en `docs/info_modulo/09-testing.md` (§9) y `13-gui-flet-y-eventos.md` (§13).
 3. **Python mínimo:** pasó de 3.11 a **3.12** (`requires-python`, mypy, actions, `Dockerfile.test`, `Makefile`): los _stubs_ de numpy que trae la cadena de dependencias usan la sentencia `type` de 3.12 y mypy fallaba al chequear contra 3.11.
 
 **Criterios de Aceptación:**
@@ -991,51 +853,9 @@ tests/integration/
   la documentación que describía la CLI.
 - **Juntos, antes de empezar:** versión de Flet y cómo se testean las pantallas.
 
-**Archivos:**
-
-```text
-src/main.py                                  ← se reduce a invocar app.py
-src/aplicacion/servicios/session_manager.py   ← nuevo (en memoria)
-src/infraestructura/ui/flet/
-├── app.py                                   ← nuevo: composition root + rutas
-├── errores.py                               ← nuevo: manejador común de ErrorDeDominio
-└── screens/
-    ├── login_screen.py
-    ├── registro_screen.py
-    └── inicio_screen.py
-
-src/infraestructura/ui/cli/                  ← se borra
-scripts/                                     ← se borra
-tests/unit/test_cli_*.py, test_table_formatter.py   ← se borran
-tests/integration/test_cli_e2e.py            ← se borra (lo no cubierto pasa a tests de casos de uso)
-.github/actions/coverage/{linux,windows}/action.yml ← smoke test nuevo
-pyproject.toml / uv.lock                     ← + flet, − tabulate, script statspro
-
-src/utils.py                                 ← − abortar, fecha_iso
-src/infraestructura/persistencia/database_manager.py ← − abrir_conexion
-
-tests/conftest.py                            ← + fixture que impide abrir la ventana en los tests
-tests/unit/test_session_manager.py
-tests/unit/test_navegacion.py                ← resolver_ruta (ruta protegida) y router con page falsa
-tests/unit/test_errores.py                   ← manejador común de errores
-tests/unit/ayudantes_flet.py                 ← buscar controles por texto en una pantalla
-tests/unit/test_registro_screen.py           ← pantallas con mocks, sin ventana
-tests/unit/test_login_screen.py
-tests/unit/test_inicio_screen.py
-tests/unit/test_utils.py                     ← solo id_persistido
-tests/integration/test_sesion_flujo.py
-tests/integration/test_flujo_casos_de_uso.py ← reemplaza a test_cli_e2e.py
-tests/integration/test_auth_flujo.py         ← − el test que llamaba a main.main()
-docs/info_modulo/13-gui-flet-y-eventos.md    ← guía nueva
-```
-
 #### US-106 — Sesión Persistente ("Recordarme") y Club Activo
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-105
-
-> **Antes era la US-105** y estaba pensada para la CLI, donde persistir la sesión era obligatorio
-> porque cada comando era un proceso nuevo. En la GUI la sesión ya vive en memoria (US-105); esta
-> historia agrega persistirla solo si el usuario lo pide, el club activo y la pantalla de clubes.
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-105 · **Estado:** 🔧 Implementada, falta la prueba manual guiada y el PR
 
 **Objetivo Funcional:** que la app recuerde la sesión entre una apertura y la siguiente cuando el usuario lo pide, y que el entrenador trabaje siempre en el contexto de un club activo elegido por él.
 
@@ -1047,24 +867,41 @@ docs/info_modulo/13-gui-flet-y-eventos.md    ← guía nueva
 2. **Dónde se persiste:** archivo **JSON**, no la base SQLite — no compite por locks con la base y permite borrar la sesión a mano sin tocar datos de negocio.
 3. **Ruta única:** `~/.statspro/session.json`, resuelta con `pathlib.Path.home()` (funciona igual en Windows y Linux).
 4. **Sin token ni expiración en v0.1:** `SessionDTO` tiene solo `usuario_id`, `email` y `club_activo_id`. Un token tiene sentido cuando cliente y servidor están en procesos distintos; acá el mismo proceso lee su propio archivo. El archivo **nunca** guarda la contraseña ni su hash. **Riesgo aceptado para v0.1:** con "Recordarme", cualquiera con acceso a esa cuenta del sistema operativo abre la app sin contraseña; la expiración configurable llega con la US-403 (AC7).
-5. **Configurable, no hardcodeado:** loader mínimo `src/config/settings.py` + `.env.example` (idea de `docs/ideas-aprendizaje.md`, sección 4) con `STATSPRO_SESSION_PATH` (default `~/.statspro/session.json`) y `STATSPRO_DB_PATH` (default: lo que ya calcula `config/rutas.py`), para que los tests apunten a archivos temporales sin parchear código.
+5. **Configurable, no hardcodeado:** loader mínimo `src/config/settings.py` + `.env.example` (idea de `docs/ideas-aprendizaje.md`, sección 4) con `STATSPRO_SESSION_PATH` (default `~/.statspro/session.json`) y `STATSPRO_DB_PATH` (default: lo que ya calcula `config/rutas.py`), para que los tests apunten a archivos temporales sin parchear código.~~ **Cambiado al arrancar la US:** sin `settings.py`, `.env` ni `python-dotenv`. La ruta del archivo se **inyecta por constructor** (`JsonSesionAlmacen(ruta)`), así los tests usan `tmp_path` sin variables de entorno; el default vive en `config/rutas.py` (`SESSION_FILE`). Si se necesita cambiarla sin tocar código, se suma una variable de entorno en `ejecutar()` (paso 6); `python-dotenv` no se agrega por tres líneas.
 
 **Decisión a tomar al arrancar la US:** si el `SessionManager` (capa de aplicación) escribe el JSON directamente o a través de un puerto — una interfaz `SesionAlmacen` en `dominio/servicios/` y una implementación `JsonSesionAlmacen` en `infraestructura/` —, igual que se hizo con `PasswordHasher` en la US-104. El puerto respeta la regla de capas (la aplicación no hace I/O) y permite testear el `SessionManager` sin archivos.
+
+**Decidido:** con puerto. Pero el puerto va en **`aplicacion/servicios/sesion_almacen.py`**, no en `dominio/servicios/`: su contrato usa `SessionDTO`, que es de la capa de aplicación, y el dominio no puede importar de la aplicación (`PasswordHasher` sí está en el dominio porque solo usa `str`). El adaptador es `infraestructura/persistencia/json_sesion_almacen.py`.
+
+**Otras decisiones tomadas al arrancar:**
+
+- **Rehidratar la sesión al abrir la app** (leer el archivo, volver a buscar el usuario en la base y revalidar el club con `CambiarClubActivoUseCase`) es un caso de uso propio, `RestaurarSesionUseCase`, y no lógica del `SessionManager`: revalidar es una regla de negocio, y el `SessionManager` sigue siendo un guardador simple.
+- **Club activo en memoria como `ClubDTO`** (la barra superior necesita el nombre); en el archivo, solo el `id`.
+- **El guard `requiere_club_activo` se posterga a la US-107**, cuando exista la primera pantalla que lo necesite (hoy no hay ninguna ruta que lo use).
+- **Una función compartida arma la barra superior** (título, club activo, "Clubes", "Cerrar sesión") para todas las pantallas internas.
+- **Al restaurar se compara el id _y_ el email** del usuario guardado: si la base se recreó, ese id puede ser de otra persona, y sin el email se entraría con su cuenta.
+- **`construir_dependencias` restaura la sesión antes de devolver** ("la app tal como arranca"): `ejecutar()` no cambia y el router manda directo a `/inicio`. `RestaurarSesionUseCase` no entra en `Dependencias` (lo usa el arranque, no una pantalla).
+- **El registro no tiene "Recordarme":** se registra una vez; si quiere que lo recuerde, lo marca en el próximo login.
+- **Nombre de club repetido → `ClubYaExisteError`** (`ErrorDeDominio`, mensaje claro en la pantalla) que lanza `CrearClubUseCase` antes de guardar, sin distinguir mayúsculas. `club.nombre` sigue siendo `UNIQUE` en toda la base; si debería ser único por usuario se discute en la US-108 (rivales).
+- **"Usar este club" navega al inicio:** elegir club es "me pongo a trabajar", y al navegar la barra se redibuja con el club nuevo.
+- **El adaptador JSON es "mejor esfuerzo":** `cargar` nunca lanza (archivo inexistente, dañado o con tipos incorrectos → `None` + warning, sin loguear el contenido); `guardar` y `borrar` atrapan `OSError` y lo loguean, porque no poder recordar la sesión no debe impedir iniciarla ni cerrarla. Sin escritura atómica: un archivo a medias es un JSON roto y solo obliga a loguearse de nuevo.
 
 **Gap real encontrado y su corrección (bug de una pieza ya cerrada de la US-103):** `CrearClubUseCase` crea el club pero **nunca inserta en `usuarioClub`** — la tabla N:M que vincula usuario y club con `rolEntrenador`. Sin ese vínculo, `ListarClubesUsuarioUseCase` (que hace `JOIN usuarioClub`) y `CambiarClubActivoUseCase` no encuentran ningún club para ningún usuario real. Se corrige acá, **documentado explícitamente como fix**: `CrearClubUseCase` pasa a recibir el `idUsuario` de la sesión y lo vincula como entrenador al crear el club.
 
 **Capa de Aplicación:**
 
-- **Servicio:** `SessionManager` (US-105) se extiende con `set_active_club(id_club)` (falla si no hay sesión), `club_activo()` y la persistencia opcional (guardar al iniciar sesión con "Recordarme", cargar al arrancar la app, borrar al cerrar sesión).
-- **DTO:** `SessionDTO` (`usuario_id`, `email`, `club_activo_id`).
-- **Caso de uso extendido:** `CrearClubUseCase` (US-103) recibe `idUsuario` y vincula en `usuarioClub` — no se crea un caso de uso nuevo para esto. **Ojo con la US-108:** los clubes rivales no son del usuario, así que el alta de un rival no puede pasar por este mismo camino sin más: la US-108 hace opcional el `idUsuario` (club sin vínculo).
+- **Servicio:** `SessionManager` (US-105) se extiende con `set_active_club(club: ClubDTO)` (falla si no hay sesión), `club_activo() -> ClubDTO | None` y la persistencia opcional: recibe un `SesionAlmacen` por constructor; `iniciar_sesion(usuario, recordar=False)` guarda la sesión (con "Recordarme") o borra la guardada antes (sin él); `set_active_club` vuelve a guardar si la sesión se recuerda; `cerrar_sesion` borra. Iniciar sesión deja el club activo en `None`. **Hecho (pasos 2 a 4).**
+- **Puerto y adaptador:** `SesionAlmacen` (`guardar`, `cargar`, `borrar`) y `JsonSesionAlmacen(ruta)`. **Hecho (paso 2).**
+- **DTO:** `SessionDTO` (`usuario_id`, `email`, `club_activo_id`). **Hecho (paso 2).**
+- **Caso de uso nuevo:** `RestaurarSesionUseCase` (rehidratar al abrir la app: vuelve a buscar el usuario, exige que coincida el email y revalida el club con `CambiarClubActivoUseCase`; si algo no cierra, borra el archivo o deja la sesión sin club). **Hecho (paso 5).**
+- **Caso de uso extendido:** `CrearClubUseCase` (US-103) recibe `idUsuario` y vincula en `usuarioClub` en la misma transacción (`ClubRepositorio.guardar_con_entrenador`) — no se crea un caso de uso nuevo para esto. Además lanza `ClubYaExisteError` si el nombre ya existe. **Hecho (pasos 1 y 9).** **Ojo con la US-108:** los clubes rivales no son del usuario, así que el alta de un rival no puede pasar por este mismo camino sin más: la US-108 hace opcional el `idUsuario` (club sin vínculo).
 
 **Capa de Infraestructura (UI):**
 
-- `LoginScreen` suma la casilla "Recordarme".
-- `ClubesScreen`: alta de club, listado de "mis clubes" (`ListarClubesUsuarioUseCase` con el usuario de la sesión) y botón "Usar este club" (`CambiarClubActivoUseCase` + `SessionManager.set_active_club`).
-- El club activo se muestra siempre en la barra superior.
-- Guard de navegación `requiere_club_activo`: las pantallas operativas (US-107 y US-108) sin club activo llevan a `ClubesScreen` con un aviso.
+- `LoginScreen` suma la casilla "Recordarme" (`ft.Checkbox`). **Hecho (paso 7).**
+- `ClubesScreen` (ruta `/clubes`): alta de club, listado de "mis clubes" (`ListarClubesUsuarioUseCase` con el usuario de la sesión, un `ft.ListTile` por club, el activo marcado "✓ En uso") y botón "Usar este club" (`CambiarClubActivoUseCase` + `SessionManager.set_active_club`, y va al inicio). Al crear un club la lista se rehace en el lugar, sin navegar. **Hecho (paso 9).**
+- El club activo se muestra siempre en la barra superior: `crear_barra_superior` (`ui/flet/barra_superior.py`) arma la `AppBar` de todas las pantallas internas ("StatsPro · club", Inicio, Clubes, Cerrar sesión). Sin club, el inicio invita a elegir uno. **Hecho (paso 8).**
+- Guard de navegación `requiere_club_activo`: las pantallas operativas (US-107 y US-108) sin club activo llevan a `ClubesScreen` con un aviso. **Se posterga a la US-107** (ver las decisiones).
 
 **Criterios de Aceptación:**
 
@@ -1081,49 +918,22 @@ docs/info_modulo/13-gui-flet-y-eventos.md    ← guía nueva
 
 **Testing Mínimo:**
 
-- _Unitarias:_ `SessionManager` con archivo temporal (`tmp_path`) — guardar, cargar, borrar, archivo dañado; `CrearClubUseCase` vincula al usuario (repositorio mock).
-- _Integración:_ registro → login con "Recordarme" → crear club → elegirlo → un `SessionManager` nuevo leyendo el mismo archivo (simula reabrir la app) recupera usuario y club activo, y el club aparece en `ListarClubesUsuarioUseCase`. DB `:memory:` y archivo temporal.
+- _Unitarias:_ `SessionManager` (con almacén mock: cuándo guarda y cuándo borra); `JsonSesionAlmacen` con archivo temporal (`tmp_path`) — guardar, cargar, borrar, archivo dañado, disco que falla; `RestaurarSesionUseCase`; `CrearClubUseCase` vincula al usuario y rechaza nombres repetidos (repositorio mock); pantallas de login, inicio y clubes, y la barra superior, sin ventana.
+- _Integración:_ registro → login con "Recordarme" → crear club → elegirlo → un `SessionManager` nuevo leyendo el mismo archivo (simula reabrir la app) recupera usuario y club activo, y el club aparece en `ListarClubesUsuarioUseCase`. DB `:memory:` y archivo temporal. **Hecho** en `tests/integration/test_sesion_club_activo_flujo.py`: "reabrir" es volver a llamar a `construir_dependencias` con la misma base y el mismo archivo; cubre también sin "Recordarme", cerrar sesión, archivo dañado, usuario borrado y club desvinculado.
 - _Manual guiado:_ el mismo flujo cerrando y abriendo la app de verdad.
 
 **Reparto en dos pistas:**
 
-- **Pista B (ronda 1, en paralelo con la US-105):** `settings.py` + `.env.example` +
-  `python-dotenv`; persistencia del `SessionManager` (`set_active_club`, `club_activo`, guardar,
-  cargar y borrar); fix de `CrearClubUseCase`; tests unitarios y de integración.
+- **Pista B (ronda 1, en paralelo con la US-105):** persistencia del `SessionManager`
+  (`set_active_club`, `club_activo`, guardar, cargar y borrar, con el puerto `SesionAlmacen`);
+  `RestaurarSesionUseCase`; fix de `CrearClubUseCase`; tests unitarios y de integración.
 - **Pista A (ronda 2):** casilla "Recordarme", `ClubesScreen`, club activo en la barra superior y
   guard `requiere_club_activo`.
-- **Juntos, antes de la ronda 2:** si la sesión se guarda a través de un puerto.
-
-**Archivos:**
-
-```text
-src/config/
-└── settings.py            ← nuevo: lee .env (python-dotenv) y expone STATSPRO_SESSION_PATH/STATSPRO_DB_PATH
-
-src/aplicacion/
-├── servicios/session_manager.py   ← se extiende (club activo + persistencia)
-├── dtos/session_dto.py           ← SessionDTO (usuario_id, email, club_activo_id)
-└── casos_uso/crear_club.py       ← fix: vincula en usuarioClub
-
-src/infraestructura/ui/flet/screens/
-├── login_screen.py        ← + "Recordarme"
-└── clubes_screen.py       ← nuevo
-
-.env.example
-pyproject.toml / uv.lock   ← + python-dotenv (versión exacta)
-
-tests/unit/test_session_manager.py          ← se extiende
-tests/integration/test_sesion_club_activo_flujo.py
-```
+- **Juntos, antes de la ronda 2:** si la sesión se guarda a través de un puerto (**decidido:** sí, ver las decisiones).
 
 #### US-107 — Pantallas de Gestión Administrativa
 
 **Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106
-
-> **Antes era "CLI con Command Pattern"**: completaba la CLI (`partido boxscore`, DNI y club en
-> `jugador list`) y aplicaba los guards de sesión. Con la CLI retirada, esta historia cumple el
-> mismo papel en la GUI: que todas las entidades se puedan gestionar desde la interfaz. Puede
-> entregarse en dos PRs (jugadores; competencias, inscripciones, listas y partidos) si conviene.
 
 **Objetivo Funcional:** gestionar desde la GUI todo lo que la US-103 dejó resuelto en casos de uso (jugadores, competencias, categorías, inscripciones, listas de buena fe y partidos), siempre en el contexto del club activo.
 
@@ -1163,10 +973,8 @@ tests/integration/test_sesion_club_activo_flujo.py
 
 **Reparto en dos pistas:**
 
-- **Pista B, ronda 1:** `buscar_por_nombre` y `BuscarJugadoresPorNombreUseCase`,
-  `boxscore_por_partido` y `ObtenerBoxscorePartidoUseCase`, con sus tests.
-- **Pista A, ronda 2:** `tabla_datos.py` **primero** (la Pista B la necesita), después
-  `JugadoresScreen` y `PartidosScreen`.
+- **Pista B, ronda 1:** `buscar_por_nombre` y `BuscarJugadoresPorNombreUseCase`, `boxscore_por_partido` y `ObtenerBoxscorePartidoUseCase`, con sus tests.
+- **Pista A, ronda 2:** `tabla_datos.py` **primero** (la Pista B la necesita), después `JugadoresScreen` y `PartidosScreen`.
 - **Pista B, ronda 2:** `CompetenciasScreen`, `InscripcionesScreen` y `ListaBuenaFeScreen`.
 
 **Archivos:**
@@ -1293,12 +1101,9 @@ tests/integration/
 - **Antes era la US-108.** El "comando" como unidad de trazabilidad pasa a ser la **acción del usuario** en la GUI (un botón que invoca un caso de uso).
 - **Objetivo Funcional:** proveer observabilidad transversal estructurada para depuración y soporte, con correlación de eventos extremo-a-extremo por acción del usuario.
 - **Reparto en dos pistas:**
-  - **Pista B (trabajo suelto, cualquier ronda):** núcleo — `ExecutionContext`, formato JSON,
-    redacción de secretos (AC3) y selección de sink (AC4), con sus tests unitarios.
-  - **Pista A (ronda 4):** conectar los eventos a las acciones de las pantallas y a los casos de
-    uso de la lista de eventos obligatorios, y el test de integración del `correlation_id`.
-  - **Juntos, antes:** los nombres de los campos del evento (`accion`, `correlation_id`,
-    resultado, duración), que son el contrato entre las dos pistas.
+  - **Pista B (trabajo suelto, cualquier ronda):** núcleo — `ExecutionContext`, formato JSON, redacción de secretos (AC3) y selección de sink (AC4), con sus tests unitarios.
+  - **Pista A (ronda 4):** conectar los eventos a las acciones de las pantallas y a los casos de uso de la lista de eventos obligatorios, y el test de integración del `correlation_id`.
+  - **Juntos, antes:** los nombres de los campos del evento (`accion`, `correlation_id`, resultado, duración), que son el contrato entre las dos pistas.
 - **Archivos a crear:**
 
 ```text
@@ -1365,8 +1170,6 @@ pytest.ini / .coveragerc        ➡️ migrados a pyproject.toml ([tool.pytest.i
                                      ejecutados con `uv run`: misma versión de ruff que el CI)
 pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy/pytest/coverage + comando `statspro`; uv.lock; sin requerimientos.txt)
 Makefile                        ✅ existe (instalar_dependencias [uv sync], run_test, run_linter_ruf, corregir_linter, pre_commit, docker_test, static_check)
-docs/info_modulo/11-flujo-de-trabajo-git.md  ❌ no existe
-docs/catalogo-criticidad.md     ❌ no existe (lo pide la sección 14; se inicializa en esta US)
 ```
 
 - **Criterios de Aceptación:**
