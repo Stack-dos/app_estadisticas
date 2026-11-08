@@ -141,6 +141,38 @@ class SqliteClubRepositorio(ClubRepositorio):
                                 pero no se pudo reconstruir el objeto de retorno: {e}""")
             raise
 
+    def guardar_con_entrenador(self, club: Club, id_usuario: int, rol: str) -> Club | None:
+        """Guarda un club y vincula al usuario como su entrenador en una unica transaccion atomica.
+
+        Utiliza el context manager de sqlite3, que hace COMMIT al salir sin error o ROLLBACK ante
+        cualquier excepcion: si falla el vinculo (por ejemplo, un usuario inexistente, que rechaza la
+        clave foranea), el club tampoco queda guardado (no pueden existir clubes huerfanos, que nadie ve).
+
+        Args:
+            club (Club): Entidad Club a guardar (sin ID).
+            id_usuario (int): ID del usuario que crea el club.
+            rol (str): Rol del usuario en el club (`rolEntrenador`).
+
+        Returns:
+            Club | None: El club guardado con su ID, o None si ocurre un error.
+        """
+        try:
+            with self.conexion:
+                cursor = self.conexion.cursor()
+                cursor.execute("INSERT INTO club (nombre) VALUES (?);", (club.nombre,))
+                id_club = cursor.lastrowid
+                if id_club is None:
+                    raise sqlite3.DatabaseError("SQLite no devolvio el id del club recien insertado")
+                cursor.execute(
+                    "INSERT INTO usuarioClub (idUsuario, idClub, rolEntrenador) VALUES (?, ?, ?);",
+                    (id_usuario, id_club, rol),
+                )
+        except sqlite3.Error as e:
+            logger.error(f"Error al guardar el club con su entrenador: {e}", exc_info=True)
+            return None
+
+        return Club(idClub=id_club, nombre=club.nombre)
+
     def link_user_to_club(self, us_club: UsuarioClub) -> UsuarioClub | None:
         """Funcion para linkear un usuario a un club especifico
 
