@@ -77,7 +77,7 @@ tests automáticos: `ejecutar()` (abre la ventana) y cómo se ven las pantallas.
 2. "Crear cuenta" → registrarse: entra directo al inicio y saluda con el nombre.
 3. "Cerrar sesión" → vuelve al login con los campos vacíos.
 4. Login con contraseña equivocada y con un email que no existe: el mismo mensaje en los dos casos.
-5. Registro con email repetido, email inválido, nombre vacío y contraseña de menos de 8 caracteres: mensaje en rojo, la app sigue abierta.
+5. Registro con email repetido, email inválido, nombre vacío y contraseña de menos de 6 caracteres: mensaje en rojo, la app sigue abierta.
 6. Enter en el campo de la contraseña equivale al botón (login y registro).
 7. La contraseña se ve oculta y el ícono del ojo la muestra.
 8. Revisar `logs/app.log`: no aparece ninguna contraseña.
