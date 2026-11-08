@@ -1,6 +1,6 @@
 # Version de Python de la imagen: se elige al construir, ej.
 #   docker build -f Dockerfile.test --build-arg PYTHON_VERSION=3.13 -t app-estadisticas-tests .
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.12
 FROM python:${PYTHON_VERSION}-slim
 
 # uv (instalador de dependencias), copiado desde su imagen oficial
