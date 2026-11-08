@@ -8,6 +8,16 @@ from dominio.entidades.partido import JugadorPartido, Partido
 from infraestructura.persistencia.database_manager import SQLiteManager
 
 
+@pytest.fixture(autouse=True)
+def prohibir_abrir_la_ventana(monkeypatch):
+    """Ningun test abre la GUI: `ft.run` bloquea hasta que se cierra la ventana y colgaria la suite (y el CI)."""
+
+    def _falla(*args, **kwargs):
+        raise RuntimeError("Un test intento abrir la ventana de Flet (ft.run): testear sin ventana")
+
+    monkeypatch.setattr("flet.run", _falla)
+
+
 @pytest.fixture
 def db_conexion():
     conexion = sqlite3.connect(":memory:")
