@@ -259,6 +259,12 @@ def _sin_preparacion(uc: SimpleNamespace) -> None:
             id="club sin nombre",
         ),
         pytest.param(
+            lambda uc: uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT),
+            lambda uc: uc.crear_club.ejecutar(CrearClubDTO(nombre="atenas"), ID_DT),
+            "Ya existe un club llamado 'atenas'",
+            id="club con nombre repetido",
+        ),
+        pytest.param(
             _sin_preparacion,
             lambda uc: uc.registrar_jugador.ejecutar(CrearJugadorDTO(nombre="A", apellido="B", anioNacimiento=3000)),
             "El año de nacimiento debe estar entre",

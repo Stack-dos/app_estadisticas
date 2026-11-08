@@ -9,13 +9,15 @@ from aplicacion.casos_uso.crear_club import ROL_CREADOR, CrearClubUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO
 from dominio.entidades.club import Club
-from dominio.exceptions import ClubNoEncontradoError
+from dominio.exceptions import ClubNoEncontradoError, ClubYaExisteError
 from dominio.repositorios.club_repositorio import ClubRepositorio
 
 
 @pytest.fixture
 def repo_club():
-    return MagicMock(spec=ClubRepositorio)
+    repo = MagicMock(spec=ClubRepositorio)
+    repo.buscar_por_nombre.return_value = None  # por defecto no hay clubes con ese nombre
+    return repo
 
 
 # ----------------------------------------------------------------------------- CrearClub
@@ -43,6 +45,24 @@ def test_crear_club_con_nombre_de_tipo_invalido_no_llega_al_repositorio(repo_clu
         CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre=None), idUsuario=7)
 
     repo_club.guardar_con_entrenador.assert_not_called()
+
+
+@pytest.mark.parametrize("existente", ["Atenas", "atenas", "ATENAS"])
+def test_crear_club_con_nombre_repetido_lanza_club_ya_existe(repo_club, existente):
+    repo_club.buscar_por_nombre.return_value = [Club(existente, idClub=1)]
+
+    with pytest.raises(ClubYaExisteError, match="Ya existe un club llamado 'Atenas'"):
+        CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Atenas"), idUsuario=7)
+
+    repo_club.guardar_con_entrenador.assert_not_called()
+
+
+def test_crear_club_con_nombre_parecido_no_es_repetido(repo_club):
+    """buscar_por_nombre es parcial (LIKE '%Atenas%'): "Atenas del Sur" no es el mismo club."""
+    repo_club.buscar_por_nombre.return_value = [Club("Atenas del Sur", idClub=1)]
+    repo_club.guardar_con_entrenador.return_value = Club("Atenas", idClub=2)
+
+    assert CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Atenas"), idUsuario=7) == ClubDTO(2, "Atenas")
 
 
 # ------------------------------------------------------------------ ListarClubesUsuario
