@@ -7,6 +7,7 @@ import pytest
 from ayudantes_flet import boton
 
 from aplicacion.dtos.auth_dto import UsuarioDTO
+from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from infraestructura.ui.flet.screens.inicio_screen import crear_inicio_view
 
@@ -18,7 +19,7 @@ def page():
 
 @pytest.fixture
 def sesion():
-    sesion = SessionManager()
+    sesion = SessionManager(MagicMock(spec=SesionAlmacen))
     sesion.iniciar_sesion(UsuarioDTO(idUsuario=1, nombre="Profesor", email="profe@test.com"))
     return sesion
 
@@ -41,4 +42,4 @@ def test_cerrar_sesion_cierra_la_sesion_y_vuelve_al_login(page, sesion):
 def test_sin_sesion_no_se_puede_construir(page):
     # La ruta protegida nunca deberia llegar aca sin sesion: si llega, es un bug y falla fuerte.
     with pytest.raises(RuntimeError):
-        crear_inicio_view(page, SessionManager())
+        crear_inicio_view(page, SessionManager(MagicMock(spec=SesionAlmacen)))

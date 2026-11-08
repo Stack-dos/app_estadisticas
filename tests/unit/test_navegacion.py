@@ -8,6 +8,7 @@ import pytest
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
 from aplicacion.dtos.auth_dto import UsuarioDTO
+from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from infraestructura.ui.flet.app import RUTAS_INTERNAS, RUTAS_PUBLICAS, Dependencias, _main, resolver_ruta
 
@@ -51,7 +52,7 @@ def test_ninguna_ruta_es_publica_e_interna_a_la_vez():
 @pytest.fixture
 def deps():
     return Dependencias(
-        sesion=SessionManager(),
+        sesion=SessionManager(MagicMock(spec=SesionAlmacen)),
         registrar_uc=MagicMock(spec=RegistrarEntrenadorUseCase),
         login_uc=MagicMock(spec=LoginLocalUseCase),
     )

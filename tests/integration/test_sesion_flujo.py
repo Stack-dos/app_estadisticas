@@ -8,13 +8,16 @@ import pytest
 
 from aplicacion.dtos.auth_dto import LoginDTO, RegistrarDTO
 from dominio.exceptions import CredencialesInvalidasError
+from infraestructura.persistencia.json_sesion_almacen import JsonSesionAlmacen
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
 from infraestructura.ui.flet.app import construir_dependencias
 
 
 @pytest.fixture
-def deps(db_conexion):
-    return construir_dependencias(db_conexion, Pbkdf2PasswordHasher(iteraciones=1_000))
+def deps(db_conexion, tmp_path):
+    return construir_dependencias(
+        db_conexion, Pbkdf2PasswordHasher(iteraciones=1_000), JsonSesionAlmacen(tmp_path / "session.json")
+    )
 
 
 def test_dependencias_arrancan_sin_sesion(deps):
