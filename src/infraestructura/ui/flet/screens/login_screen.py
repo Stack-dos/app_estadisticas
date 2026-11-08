@@ -3,6 +3,8 @@
 Pantalla fina, igual que la de registro: lee los campos, arma el DTO y llama al caso de uso. El
 mensaje de credenciales invalidas es generico a proposito (lo arma `LoginLocalUseCase`): no dice si
 el email existe, para no permitir enumerar usuarios. La pantalla lo muestra tal cual.
+
+"Recordarme" (US-106) solo se pasa al `SessionManager`: la pantalla no sabe que hay un archivo.
 """
 
 import flet as ft
@@ -17,6 +19,9 @@ def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: Session
     """
     Arma la pantalla de login. Si las credenciales son validas, inicia la sesion y va a "/inicio".
 
+    Con "Recordarme" marcado, la sesion sobrevive al cierre de la app; sin marcar, se borra la que
+    hubiera recordada de antes.
+
     Args:
         page (ft.Page): La ventana, para navegar y redibujar.
         login_uc (LoginLocalUseCase): Caso de uso de login.
@@ -27,6 +32,7 @@ def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: Session
     """
     email = ft.TextField(label="Email", autofocus=True, keyboard_type=ft.KeyboardType.EMAIL)
     password = ft.TextField(label="Contraseña", password=True, can_reveal_password=True)
+    recordar = ft.Checkbox(label="Recordarme", value=False)
     error = crear_etiqueta_error()
 
     def ingresar() -> None:
@@ -34,7 +40,8 @@ def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: Session
 
         def accion() -> None:
             usuario = login_uc.ejecutar(LoginDTO(email=email.value, password=password.value))
-            sesion.iniciar_sesion(usuario)
+            # bool(): el value de un Checkbox es `bool | None` (None es el tercer estado, "indeterminado")
+            sesion.iniciar_sesion(usuario, recordar=bool(recordar.value))
             page.navigate("/inicio")  # adentro de la accion: si el login falla, no se navega
 
         ejecutar_mostrando_errores(accion, error)
@@ -48,6 +55,7 @@ def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: Session
             ft.Text("Iniciar sesión", size=24),
             email,
             password,
+            recordar,
             error,
             ft.Button("Ingresar", on_click=ingresar),
             ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro")),
