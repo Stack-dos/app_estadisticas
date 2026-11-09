@@ -969,7 +969,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 #### US-111 — Base Visual de la GUI (tema, página y formularios)
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08 · **Estado:** 🔧 Implementada (2026-11-09), falta la prueba manual guiada y el PR
 
 **Objetivo Funcional:** definir **una sola vez** cómo se ven las pantallas (colores, tipografía, espaciados, ancho del contenido, cómo se arma un formulario) en un tema y unos pocos componentes compartidos, y aplicarlo a las pantallas que ya existen, para que todas las que vienen (US-107, US-108, US-205, US-301...) nazcan acomodadas y parejas.
 
@@ -977,9 +977,24 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Por qué ahora (decisión 2026-11-08):** hasta la US-106 las pantallas se armaron para que funcionen, apilando controles sin un criterio común. El único repaso visual previsto era el de la US-401 (v1.0); para entonces habría unas 15 pantallas para rehacer, y las versiones v0.1 a v0.3 saldrían con pantallas sin acomodar. Es el mismo patrón que ya usan `crear_barra_superior` y `crear_etiqueta_error`, llevado a todo lo visual.
 
-**Fuera de alcance (US-401):** modo oscuro, adaptación a celular (responsive), pantallas finales. El logo en pantalla **sí** entra acá (AC6); el ícono del ejecutable y de la ventana (`.ico`, `.png`) queda en la US-404. Esta US deja todo en el tema para que esos cambios sean de un solo lugar.
+**Fuera de alcance (US-401):** elegir el modo oscuro a mano y revisarlo pantalla por pantalla, adaptación a celular (responsive), pantallas finales. Esta US sí define `page.dark_theme` con la misma semilla: sin eso, con Windows en oscuro Flet usaba su paleta por defecto y el tema propio no se veía. El logo en pantalla **sí** entra acá (AC6); el ícono del ejecutable y de la ventana (`.ico`, `.png`) queda en la US-404. Esta US deja todo en el tema para que esos cambios sean de un solo lugar.
 
-**Decisiones a tomar juntos al arrancar:**
+**Decisión tomada (2026-11-09): combinación elegida en el muestrario** — propuesta «Pizarra», modificada:
+
+| Perilla | Elección |
+| --- | --- |
+| Color | Semilla `#4A5866`, variante **tonal** (la de Flet por defecto; el principal sale más azul que la semilla) |
+| Formato | **Menú lateral** (`ft.NavigationRail`) con el logo arriba; la barra superior conserva el club activo y "Cerrar sesión" |
+| Densidad | Cómoda: espacios 8 / 16 / 24, título 24, campo de 56 px |
+| Tablas | Filas alternadas (lo aplica `tabla_datos.py`, US-107) |
+| Campos | Con relleno |
+| Botón principal | Ancho completo |
+| Esquinas | Suaves: 8 px en botones, campos y tarjetas |
+| Letra | IBM Plex Sans, empaquetada en `src/assets/fuentes/` (licencia OFL) |
+
+Se revisó en modo oscuro. Login y registro usan el formato del muestrario para el menú lateral: panel de marca a la izquierda (logo blanco, nombre y lema sobre el color principal) y el formulario centrado a la derecha. Imágenes y letra viven en `src/assets/` (`assets_dir` absoluta, desde `config/rutas.py`); `public/logo_statpro.jpg` queda solo como referencia.
+
+**Opciones que se compararon:**
 
 - **Muestrario en lugar de bocetos (2026-11-08):** las combinaciones se comparan en un muestrario interactivo (https://claude.ai/artifact/PSH4GU5MA6kVn5s5bZbFZb): 9 propuestas aplicadas a 23 pantallas del PRD (las de hoy, gestión, carga e importación de partidos con su vista previa, estadísticas, gráficos, scouting, perfil y los informes PDF). Se elige ahí y la elección queda escrita en esta US y en la guía 13:
   - **Color:** semilla de Material 3 (`ft.Theme(color_scheme_seed=...)`) y su **variante**: «tonal» (lo que hace Flet por defecto, baja la saturación) o «fiel a la semilla» (mantiene el color tal cual; en Flet probablemente con `ft.ColorScheme(primary=...)`, a confirmar). Con el naranja del logo, «tonal» da botones color ladrillo.
@@ -990,7 +1005,8 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 - **Tema:** `ui/flet/estilo.py` — colores, tamaños de letra, espaciados (por ejemplo `ESPACIO_CHICO`, `ESPACIO`, `ESPACIO_GRANDE`), ancho máximo del contenido y ancho de los formularios, y el `ft.Theme` que `ejecutar()` asigna a `page.theme`. Tamaño inicial y mínimo de la ventana.
 - **Componentes** (`ui/flet/components/`):
-  - `pagina.py` — `crear_pagina(...)`: el contenedor de cada pantalla. Título, márgenes, contenido centrado con ancho máximo, y desplazamiento vertical (_scroll_) cuando no entra.
+  - `pagina.py` — `crear_pagina(...)`: el contenido de cada pantalla. Título, subtítulo, márgenes, ancho máximo y un panel lateral opcional. Lo envuelven `crear_vista_interna(...)` (barra superior, menú lateral y _scroll_) y `crear_vista_acceso(...)` (login y registro: marca y formulario centrado).
+  - `menu_lateral.py` — `crear_menu_lateral(...)`: `ft.NavigationRail` con el logo y un destino por sección (`DESTINOS`); reemplaza a los botones "Inicio" y "Clubes" de la barra superior. Cada US que suma una sección agrega su fila.
   - `formulario.py` — `crear_formulario(...)`: campos en columna con el ancho del tema, la etiqueta de error de `errores.py` debajo, el botón principal destacado (`ft.FilledButton`) y los secundarios como texto, siempre en el mismo lugar.
 - **Repaso:** `login_screen.py`, `registro_screen.py`, `inicio_screen.py` y `clubes_screen.py` pasan a usar el tema y los componentes, sin cambiar su comportamiento.
 - **Logo (decidido el 2026-11-08):** el isotipo de `public/logo/` (pelota, flecha que sube y barras), redibujado en vector a partir del logo generado con IA (`public/logo_statpro.jpg`, que queda solo como referencia: es un JPG sin transparencia y su texto dice «Basketball Stats Pro»). El nombre visible sigue siendo **StatsPro**. Hay tres versiones: a color (`statspro-isotipo.svg`), en blanco para fondos de color (`statspro-isotipo-blanco.svg`) e ícono de app sobre fondo azul noche (`statspro-icono-app.svg`, lo usa la US-404). Las tres salen del mismo dibujo; si se toca, se regeneran juntas.
@@ -1002,13 +1018,13 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 - **AC3 — Formularios iguales:** login, registro y alta de club usan `crear_formulario`: mismo ancho, error debajo de los campos, botón principal en el mismo lugar, y **Enter** envía el formulario.
 - **AC4 — Sin cambios de comportamiento:** los tests de las pantallas existentes siguen pasando sin tocar lo que verifican (buscan controles por su texto, no por su posición).
 - **AC5 — Guía visual:** las reglas (qué componente usar, dónde va cada cosa) y la combinación elegida en el muestrario quedan en la guía `docs/info_modulo/13-gui-flet-y-eventos.md`, junto con los conceptos de Flet nuevos (`ft.Theme`, `ft.Container`, `ft.Image`, alineación y _scroll_).
-- **AC6 — Logo:** el login muestra el isotipo junto al nombre «StatsPro», y la barra superior de todas las pantallas internas (`crear_barra_superior`) lo muestra al principio. Se ve nítido en 1366×768 y maximizado, y la app arranca aunque falte el archivo (Flet muestra el hueco, no lanza error).
+- **AC6 — Logo:** el login muestra el isotipo junto al nombre «StatsPro», y todas las pantallas internas lo muestran arriba del menú lateral (con el formato elegido, el menú es lo primero que se ve; antes de elegirlo, este AC decía «la barra superior»). Se ve nítido en 1366×768 y maximizado, y la app arranca aunque falte el archivo (Flet muestra el hueco, no lanza error).
 
 **Testing Mínimo:**
 
-- _Unitarias:_ `crear_pagina` incluye el título y respeta el ancho máximo; `crear_formulario` ubica la etiqueta de error y el botón principal; Enter en el último campo dispara la acción.
-- _Las existentes:_ toda la suite de pantallas sigue en verde (AC4).
-- _Manual guiado:_ recorrer login → registro → inicio → clubes en 1366×768 y maximizada, y comparar con los bocetos.
+- _Unitarias:_ `crear_pagina` incluye el título y respeta el ancho máximo; `crear_formulario` ubica la etiqueta de error y el botón principal; Enter en el último campo dispara la acción; el menú marca la pantalla actual y navega; el tema usa la misma semilla y letra en claro y en oscuro.
+- _Las existentes:_ toda la suite de pantallas sigue en verde (AC4). Los ayudantes de `tests/unit/ayudantes_flet.py` recorren el árbol de controles completo, así los tests no dependen de cómo está anidada la pantalla; lo único que cambió en ellos es cómo encuentran la lista de clubes (por su `key`) y que la navegación se prueba en el menú, no en la barra.
+- _Manual guiado:_ recorrer login → registro → inicio → clubes en 1366×768 y maximizada, en claro y en oscuro, y comparar con el muestrario.
 
 **Reparto en dos pistas:**
 
@@ -1019,18 +1035,23 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 **Archivos:**
 
 ```text
-src/assets/logo/              ← isotipo, versión blanca e ícono (se mueven desde public/logo/)
+src/assets/
+├── logo/                     ← isotipo, versión blanca e ícono (movidos desde public/logo/)
+└── fuentes/                  ← IBMPlexSans.ttf y su licencia OFL.txt
+src/config/rutas.py           ← + ASSETS_DIR
 src/infraestructura/ui/flet/
-├── estilo.py                 ← nuevo: tema, espaciados, anchos, ventana
-├── app.py                    ← page.theme, tamaño de la ventana y assets_dir en ejecutar()
-├── barra_superior.py         ← + isotipo al principio
+├── estilo.py                 ← nuevo: tema, espaciados, anchos, logo, ventana
+├── app.py                    ← aplicar_tema(page) y assets_dir en ejecutar()
+├── barra_superior.py         ← sin Inicio ni Clubes (pasaron al menú)
 ├── components/
-│   ├── pagina.py             ← nuevo
-│   └── formulario.py         ← nuevo
+│   ├── pagina.py             ← nuevo: crear_pagina, crear_vista_interna, crear_vista_acceso
+│   ├── formulario.py         ← nuevo
+│   └── menu_lateral.py       ← nuevo
 └── screens/                  ← login, registro, inicio y clubes usan los componentes
 
-tests/unit/test_componentes_base.py
-docs/info_modulo/13-gui-flet-y-eventos.md   ← + guía visual y bocetos
+tests/unit/ayudantes_flet.py          ← recorren el árbol de controles completo
+tests/unit/test_componentes_base.py   ← nuevo
+docs/info_modulo/13-gui-flet-y-eventos.md   ← + sección 16: guía visual y conceptos nuevos
 ```
 
 #### US-107 — Competencias, Inscripciones y Listas de Buena Fe en Pantalla
@@ -1058,7 +1079,8 @@ docs/info_modulo/13-gui-flet-y-eventos.md   ← + guía visual y bocetos
 
 **Capa de Infraestructura (UI):**
 
-- **Componente compartido:** `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados, también los de la US-112. Reemplaza a `formatters/table_formatter.py` de la CLI. Toma colores y espaciados de `estilo.py` (US-111).
+- **Componente compartido:** `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados, también los de la US-112. Reemplaza a `formatters/table_formatter.py` de la CLI. Toma colores y espaciados de `estilo.py` (US-111), con **filas alternadas** (lo elegido en el muestrario): una fila sí y otra no con fondo `SURFACE_CONTAINER_LOW`.
+- **Menú lateral:** cada sección nueva suma su fila a `DESTINOS` en `components/menu_lateral.py` (US-111): «Torneos» lleva a competencias, inscripciones y listas.
 - **Guard `requiere_club_activo`** (postergado desde la US-106): las pantallas de esta US y de las US-112 y US-108 sin club activo llevan a `ClubesScreen` con un aviso.
 - **Base visual:** todas las pantallas usan `crear_pagina` y sus formularios `crear_formulario` (US-111), siguiendo la guía visual de la guía 13.
 - **Pantallas** (`screens/`):
@@ -1136,7 +1158,7 @@ tests/integration/test_competencia_categoria.py
 
 **Capa de Infraestructura (UI):**
 
-- Usa `tabla_datos.py`, `requiere_club_activo` (US-107), `crear_pagina` y `crear_formulario` (US-111).
+- Usa `tabla_datos.py`, `requiere_club_activo` (US-107), `crear_pagina`, `crear_vista_interna` y `crear_formulario` (US-111), y suma «Jugadores» y «Partidos» a `DESTINOS` del menú lateral.
 - **Pantallas** (`screens/`):
   - `JugadoresScreen` — alta (`RegistrarJugadorUseCase`; antes de guardar muestra los jugadores con el mismo nombre, para vincular uno existente en vez de duplicarlo), listado del club activo (`ListarJugadoresClubUseCase`), buscar por nombre un jugador que todavía no está en el club (`BuscarJugadoresPorNombreUseCase`) para vincularlo al club activo (`VincularJugadorAClubUseCase`), y dar de baja (`DesvincularJugadorDeClubUseCase`).
   - `PartidosScreen` — listado de partidos del club activo (`ListarPartidosPorClubUseCase`, con nombres desde `v_partidos_resumen`) y detalle con el boxscore (`ObtenerBoxscorePartidoUseCase`). Dos desplegables filtran el listado (2026-11-08): **Competencia** (solo aquellas en las que el club activo está inscripto, de `ListarInscripcionesClubUseCase`) y **Categoría** (solo las inscriptas en la competencia elegida); los dos arrancan en «Todas». El filtro se aplica sobre la lista ya cargada: los partidos de un club son pocos y no hace falta otra consulta. Desde la US-108, si el partido tiene puntos por cuarto, el detalle los muestra en una línea arriba del boxscore; si no, no muestra nada.
