@@ -9,6 +9,7 @@ run_test:
 run_linter_ruf:
 	uv run ruff check .
 	uv run ruff format --check .
+	uv run actionlint
 
 corregir_linter:
 	uv run ruff check --fix . && uv run ruff format .
