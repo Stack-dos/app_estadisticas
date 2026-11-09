@@ -585,14 +585,14 @@ siguientes ya están implementados y testeados; la columna "Pantalla" indica qu�
 | ------------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------- |
 | `RegistrarEntrenadorUseCase`         | `RegistroScreen` (US-105)      | ✅ En la GUI (US-105)                                                                          |
 | `LoginLocalUseCase`                  | `LoginScreen` (US-105)         | ✅ En la GUI (US-105)                                                                          |
-| `RegistrarJugadorUseCase`            | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
+| `RegistrarJugadorUseCase`            | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
 | `CrearClubUseCase`                   | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106)                                                                          |
-| `VincularJugadorAClubUseCase`        | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
+| `VincularJugadorAClubUseCase`        | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
 | `CrearCompetenciaUseCase`            | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
 | `InscribirClubEnCompetenciaUseCase`  | `InscripcionesScreen` (US-107) | ✅ Implementado; pantalla pendiente                                                            |
 | `ListarClubesUsuarioUseCase`         | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106; el usuario sale de la sesión)                                            |
-| `ListarJugadoresClubUseCase`         | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
-| `ListarPartidosPorClubUseCase`       | `PartidosScreen` (US-107)      | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarJugadoresClubUseCase`         | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarPartidosPorClubUseCase`       | `PartidosScreen` (US-112)      | ✅ Implementado; pantalla pendiente                                                            |
 | `CambiarClubActivoUseCase`           | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106): "Usar este club" + `SessionManager.set_active_club`                    |
 | `RestaurarSesionUseCase`             | _(ninguna: al abrir la app)_   | ✅ US-106, lo llama `construir_dependencias`                                                   |
 | `CrearCategoriaUseCase`              | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
@@ -601,8 +601,19 @@ siguientes ya están implementados y testeados; la columna "Pantalla" indica qu�
 | `ListarInscripcionesClubUseCase`     | `InscripcionesScreen` (US-107) | ✅ Implementado; pantalla pendiente                                                            |
 | `AgregarJugadorAListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
 | `ListarListaBuenaFeUseCase`          | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
-| `DesvincularJugadorDeClubUseCase`    | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
+| `DesvincularJugadorDeClubUseCase`    | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
 | `QuitarJugadorDeListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+
+**Planificados en la US-107 (2026-11-08): categorías por competencia.** Una competencia habilita las categorías
+que juega (tabla `competenciaCategoria`) y solo se puede inscribir un club en una categoría habilitada:
+
+| Caso de uso                               | Pantalla (GUI)                     | Estado                                                            |
+| ----------------------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `HabilitarCategoriaEnCompetenciaUseCase`  | `CompetenciasScreen` (US-107)      | 📋 Planificado                                                     |
+| `ListarCategoriasDeCompetenciaUseCase`    | `InscripcionesScreen` (US-107)     | 📋 Planificado                                                     |
+| `QuitarCategoriaDeCompetenciaUseCase`     | `CompetenciasScreen` (US-107)      | 📋 Planificado (rechaza si hay clubes inscriptos)                  |
+| `CrearCompetenciaUseCase`                 | `CompetenciasScreen` (US-107)      | 📋 Se extiende: recibe las categorías al crear                     |
+| `InscribirClubEnCompetenciaUseCase`       | `InscripcionesScreen` (US-107)     | 📋 Se extiende: rechaza una categoría no habilitada                |
 
 Cómo abrir la aplicación y qué se puede hacer hoy: [RUNBOOK](../../RUNBOOK.md). Cómo está armada la GUI:
 [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).
