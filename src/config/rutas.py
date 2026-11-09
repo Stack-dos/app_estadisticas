@@ -12,6 +12,8 @@ SCHEMA_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "s
 VISTA_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "views.sql")
 SEED_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "seed.sql")
 CLEAR_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "limpieza.sql")
+# Imagenes y letras de la GUI (US-111). `flet build` (US-404) tambien busca los assets en src/assets/
+ASSETS_DIR = os.path.join(RUTA_SRC, "assets")
 RUTA_RAIZ = os.path.dirname(RUTA_SRC)
 DB_FILE = os.path.join(RUTA_RAIZ, "estadisticas.db")
 LOG_DIR = os.path.join(RUTA_RAIZ, "logs")
