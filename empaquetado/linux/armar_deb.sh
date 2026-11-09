@@ -30,7 +30,7 @@ mkdir -p "$PAQUETE/DEBIAN" "$PAQUETE/opt/statspro" "$PAQUETE/usr/bin" \
 cp -a "$CARPETA_APP/." "$PAQUETE/opt/statspro/"
 ln -s /opt/statspro/StatsPro "$PAQUETE/usr/bin/statspro"
 install -m 644 "$AQUI/statspro.desktop" "$PAQUETE/usr/share/applications/statspro.desktop"
-install -m 644 "$AQUI/../../src/assets/logo/statspro-icono-app.svg" \
+install -m 644 "$AQUI/../../src/assets/icon.svg" \
                "$PAQUETE/usr/share/icons/hicolor/scalable/apps/statspro.svg"
 
 # libgtk-3-0t64 es el nombre desde Ubuntu 24.04 / Debian 13; libgtk-3-0 el de antes
