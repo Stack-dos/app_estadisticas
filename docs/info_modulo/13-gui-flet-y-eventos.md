@@ -402,7 +402,7 @@ Python. Por eso **todo handler que llama a un caso de uso tiene que atrapar las 
   usuario.
 - Atrapar `Exception` en general es mala práctica porque esconde bugs. Acá se justifica porque es
   **el borde de la aplicación**: el último lugar antes de que el error rompa la sesión. El bug no se
-  esconde: queda en `logs/app.log` con `logger.exception(...)`.
+  esconde: queda en `~/.statspro/logs/app.log` con `logger.exception(...)`.
 - Al usuario nunca se le muestra `str(e)` de un bug: puede tener detalles internos (rutas, SQL).
 
 ### El manejador común: `errores.py`
