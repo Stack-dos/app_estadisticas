@@ -12,11 +12,14 @@ from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO
 from aplicacion.servicios.session_manager import SessionManager
-from infraestructura.ui.flet.barra_superior import crear_barra_superior
+from infraestructura.ui.flet.components.formulario import crear_formulario
+from infraestructura.ui.flet.components.pagina import crear_pagina, crear_vista_interna
 from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostrando_errores
+from infraestructura.ui.flet.estilo import ESPACIO
 
 SIN_CLUBES = "Todavía no tenés clubes. Creá el primero."
 EN_USO = "✓ En uso"
+LISTA_CLUBES = "lista_clubes"  # key de la lista: los tests la buscan por aca
 
 
 def crear_clubes_view(
@@ -42,7 +45,7 @@ def crear_clubes_view(
     usuario = sesion.usuario_actual()
     nombre = ft.TextField(label="Nombre del club", autofocus=True)
     error = crear_etiqueta_error()
-    lista = ft.Column()
+    lista = ft.Column(key=LISTA_CLUBES)
 
     def usar(club: ClubDTO) -> None:
         """Handler de "Usar este club": valida, lo deja activo y va al inicio (la barra se redibuja con el club)."""
@@ -84,17 +87,15 @@ def crear_clubes_view(
         ejecutar_mostrando_errores(accion, error)
         page.update()
 
-    nombre.on_submit = crear
     refrescar()  # la primera vez no hace falta update(): la pantalla todavia no se dibujo
 
-    return ft.View(
-        route="/clubes",
-        appbar=crear_barra_superior(page, sesion),
-        controls=[
-            ft.Text("Mis clubes", size=24),
-            nombre,
-            ft.Button("Crear club", on_click=crear),
-            error,
-            lista,
+    # Alta en un panel al costado del listado; Enter en el nombre crea igual que el boton (crear_formulario)
+    alta = ft.Column(
+        [
+            ft.Text("Nuevo club", weight=ft.FontWeight.W_600),
+            crear_formulario([nombre], error, "Crear club", crear, ancho=None),
         ],
+        spacing=ESPACIO,
     )
+    contenido = crear_pagina("Mis clubes", [lista], lateral=alta)
+    return crear_vista_interna(page, sesion, "/clubes", contenido)
