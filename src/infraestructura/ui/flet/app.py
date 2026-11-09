@@ -27,6 +27,7 @@ from infraestructura.persistencia.json_sesion_almacen import JsonSesionAlmacen
 from infraestructura.repositorios.sqlite_club_repositorio import SqliteClubRepositorio
 from infraestructura.repositorios.sqlite_usuario_repositorio import SqliteUsuarioRepositorio
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
+from infraestructura.ui.flet.estilo import aplicar_tema
 from infraestructura.ui.flet.screens.clubes_screen import crear_clubes_view
 from infraestructura.ui.flet.screens.inicio_screen import crear_inicio_view
 from infraestructura.ui.flet.screens.login_screen import crear_login_view
@@ -119,7 +120,7 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
         page (ft.Page): La ventana que entrega Flet.
         deps (Dependencias): Casos de uso y sesion armados por `ejecutar()`.
     """
-    page.title = "StatsPro"
+    aplicar_tema(page)  # tema, letra y tamaño de la ventana (US-111)
 
     # Tabla de rutas: cada lambda construye su pantalla recien al navegar (asi vuelve con los campos vacios).
     # Cada pantalla recibe solo lo que usa, nunca `deps` entero.
@@ -157,7 +158,8 @@ def ejecutar() -> None:
     try:
         db.inicializar_schema()
         deps = construir_dependencias(conexion, Pbkdf2PasswordHasher(), JsonSesionAlmacen(Path(r.SESSION_FILE)))
-        ft.run(lambda page: _main(page, deps))
+        # assets_dir absoluta: relativa, Flet la buscaria desde donde se lanzo la app y no encontraria el logo
+        ft.run(lambda page: _main(page, deps), assets_dir=r.ASSETS_DIR)
     finally:
         db.close_connection()
         logger.info("Interfaz grafica cerrada")
