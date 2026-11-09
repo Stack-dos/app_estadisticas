@@ -10,6 +10,8 @@ import flet as ft
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
 from aplicacion.dtos.auth_dto import RegistrarDTO
 from aplicacion.servicios.session_manager import SessionManager
+from infraestructura.ui.flet.components.formulario import crear_formulario
+from infraestructura.ui.flet.components.pagina import crear_vista_acceso
 from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostrando_errores
 
 
@@ -45,17 +47,14 @@ def crear_registro_view(page: ft.Page, registrar_uc: RegistrarEntrenadorUseCase,
         ejecutar_mostrando_errores(accion, error)
         page.update()
 
-    password.on_submit = registrar
-
-    return ft.View(
-        route="/registro",
-        controls=[
-            ft.Text("Registrarse", size=24),
-            nombre,
-            email,
-            password,
-            error,
-            ft.Button("Registrarme", on_click=registrar),
-            ft.TextButton("Ya tengo cuenta", on_click=lambda: page.navigate("/login")),
-        ],
+    # Enter en la contraseña (el ultimo campo) registra igual que el boton: lo conecta crear_formulario
+    formulario = crear_formulario(
+        [nombre, email, password],
+        error,
+        "Registrarme",
+        registrar,
+        secundarios=[ft.TextButton("Ya tengo cuenta", on_click=lambda: page.navigate("/login"))],
+    )
+    return crear_vista_acceso(
+        "/registro", "Crear cuenta", "Registrate como entrenador. Después creás o elegís tu club.", formulario
     )
