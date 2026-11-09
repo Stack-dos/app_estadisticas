@@ -1,0 +1,57 @@
+# Configuracion de git-cliff (US-109, AC10): arma CHANGELOG.md a partir de los Conventional Commits.
+# Uso (en el PR develop -> main, junto con el cambio de version; ver RUNBOOK):
+#   uvx git-cliff@2.14.2 --tag v0.1.0 -o CHANGELOG.md
+# El archivo se regenera entero cada vez: no se edita a mano (si un texto sale mal, se corrige el titulo del PR).
+
+[changelog]
+header = """
+# Changelog
+
+Todos los cambios importantes de StatsPro, por versión.
+
+El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y las versiones siguen
+[Versionado Semántico](https://semver.org/lang/es/). Este archivo se genera con
+[git-cliff](https://git-cliff.org/) a partir de los mensajes de commit: no se edita a mano.
+"""
+# Las secciones se ordenan por el comentario <!-- N --> (git-cliff ordena los grupos alfabeticamente);
+# striptags lo saca antes de escribir el titulo.
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Sin publicar]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
+{% if commit.breaking %}**[rompe compatibilidad]** {% endif %}\
+{{ commit.message | upper_first }}\
+{% endfor %}
+{% endfor %}
+"""
+# Sin trim: si no, se pierde la linea en blanco entre el encabezado y la primera version
+trim = false
+# Un solo salto de linea al final: si no, el hook end-of-file-fixer cambia el archivo en cada regeneracion
+postprocessors = [{ pattern = '\n+$', replace = "\n" }]
+
+[git]
+conventional_commits = true
+# Descarta lo que no sigue Conventional Commits (commits viejos, merges de los PR de promocion)
+filter_unconventional = true
+# El "(#12)" que GitHub agrega al titulo del squash pasa a ser un link al PR
+commit_preprocessors = [
+    { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/nicopinera/app_estadisticas/pull/${1}))" },
+]
+# Solo entra lo que le importa a quien usa la app; el primero que coincide gana.
+# Fuera: docs, test, ci, build (incluye los "build(deps)" de Dependabot), chore y style.
+commit_parsers = [
+    { message = "^feat", group = "<!-- 0 -->Agregado" },
+    { message = "^(refactor|perf|revert)", group = "<!-- 1 -->Cambiado" },
+    { message = "^fix\\(seguridad\\)", group = "<!-- 3 -->Seguridad" },
+    { message = "^fix", group = "<!-- 2 -->Corregido" },
+    { message = ".*", skip = true },
+]
+# Solo las versiones de verdad: los commits de un pre-release (v0.1.0-rc.1) quedan en la version final
+tag_pattern = "v[0-9]+\\.[0-9]+\\.[0-9]+$"
+sort_commits = "oldest"
