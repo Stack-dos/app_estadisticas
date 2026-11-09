@@ -535,12 +535,12 @@ solo aporta el `SessionManager` en memoria mientras avanza con el backend de las
 Las pistas se cruzan a propósito en la ronda 2 (B también hace pantallas), para que los dos
 integrantes pasen por las dos capas.
 
-| Ronda | Pista A                                                                                                                                                       | Pista B                                                                                                                          |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                                                                                                 | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de las US-106, US-107 y US-112 |
-| 2     | US-106: pantallas de sesión y clubes; US-111: tema y componentes (**primero**, después de los bocetos juntos); US-107: `tabla_datos.py`; US-112: jugadores y partidos | US-111: repaso de las pantallas existentes y guía visual; US-107: pantallas de competencias, inscripciones y listas de buena fe  |
-| 3     | US-108: `CargaPartidoScreen`                                                                                                                                  | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                                             |
-| 4     | US-110: conectar los eventos de log a las acciones de las pantallas                                                                                           | US-204 (migraciones), si el ADR-004 ya está decidido                                                                             |
+| Ronda | Pista A                                                                                                                                                               | Pista B                                                                                                                             |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                                                                                                         | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de las US-106, US-107 y US-112 |
+| 2     | US-106: pantallas de sesión y clubes; US-111: tema y componentes (**primero**, después de los bocetos juntos); US-107: `tabla_datos.py`; US-112: jugadores y partidos | US-111: repaso de las pantallas existentes y guía visual; US-107: pantallas de competencias, inscripciones y listas de buena fe     |
+| 3     | US-108: `CargaPartidoScreen`                                                                                                                                          | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                                                |
+| 4     | US-110: conectar los eventos de log a las acciones de las pantallas                                                                                                   | US-204 (migraciones), si el ADR-004 ya está decidido                                                                                |
 
 Las rondas marcan orden, no duración: una ronda termina cuando las dos pistas mergearon.
 
@@ -981,16 +981,16 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Decisión tomada (2026-11-09): combinación elegida en el muestrario** — propuesta «Pizarra», modificada:
 
-| Perilla | Elección |
-| --- | --- |
-| Color | Semilla `#4A5866`, variante **tonal** (la de Flet por defecto; el principal sale más azul que la semilla) |
-| Formato | **Menú lateral** (`ft.NavigationRail`) con el logo arriba; la barra superior conserva el club activo y "Cerrar sesión" |
-| Densidad | Cómoda: espacios 8 / 16 / 24, título 24, campo de 56 px |
-| Tablas | Filas alternadas (lo aplica `tabla_datos.py`, US-107) |
-| Campos | Con relleno |
-| Botón principal | Ancho completo |
-| Esquinas | Suaves: 8 px en botones, campos y tarjetas |
-| Letra | IBM Plex Sans, empaquetada en `src/assets/fuentes/` (licencia OFL) |
+| Perilla         | Elección                                                                                                               |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Color           | Semilla `#4A5866`, variante **tonal** (la de Flet por defecto; el principal sale más azul que la semilla)              |
+| Formato         | **Menú lateral** (`ft.NavigationRail`) con el logo arriba; la barra superior conserva el club activo y "Cerrar sesión" |
+| Densidad        | Cómoda: espacios 8 / 16 / 24, título 24, campo de 56 px                                                                |
+| Tablas          | Filas alternadas (lo aplica `tabla_datos.py`, US-107)                                                                  |
+| Campos          | Con relleno                                                                                                            |
+| Botón principal | Ancho completo                                                                                                         |
+| Esquinas        | Suaves: 8 px en botones, campos y tarjetas                                                                             |
+| Letra           | IBM Plex Sans, empaquetada en `src/assets/fuentes/` (licencia OFL)                                                     |
 
 Se revisó en modo oscuro. Login y registro usan el formato del muestrario para el menú lateral: panel de marca a la izquierda (logo blanco, nombre y lema sobre el color principal) y el formulario centrado a la derecha. Imágenes y letra viven en `src/assets/` (`assets_dir` absoluta, desde `config/rutas.py`); `public/logo_statpro.jpg` queda solo como referencia.
 
@@ -999,7 +999,7 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 - **Muestrario en lugar de bocetos (2026-11-08):** las combinaciones se comparan en un muestrario interactivo (https://claude.ai/artifact/PSH4GU5MA6kVn5s5bZbFZb): 9 propuestas aplicadas a 23 pantallas del PRD (las de hoy, gestión, carga e importación de partidos con su vista previa, estadísticas, gráficos, scouting, perfil y los informes PDF). Se elige ahí y la elección queda escrita en esta US y en la guía 13:
   - **Color:** semilla de Material 3 (`ft.Theme(color_scheme_seed=...)`) y su **variante**: «tonal» (lo que hace Flet por defecto, baja la saturación) o «fiel a la semilla» (mantiene el color tal cual; en Flet probablemente con `ft.ColorScheme(primary=...)`, a confirmar). Con el naranja del logo, «tonal» da botones color ladrillo.
   - **Formato** (tarjetas, columna limpia o menú lateral con `ft.NavigationRail`), **densidad**, **estilo de tablas** (lo usa `tabla_datos.py`, US-107), **campos**, **botón principal**, **esquinas** y **letra**.
-- **Dónde viven las imágenes:** Flet sirve imágenes desde la carpeta que se pasa como `assets_dir`, y `flet build` (US-404) la busca en `src/assets/`. Recomendado: mover ahí `public/logo/` y dejar en `public/` solo el original de referencia.
+- **Dónde viven las imágenes:** Flet sirve imágenes desde la carpeta que se pasa como `assets_dir`, y `flet build` (US-109 para escritorio, US-404 para Android) la busca en `src/assets/`. Recomendado: mover ahí `public/logo/` y dejar en `public/` solo el original de referencia.
 
 **Capa de Infraestructura (UI):**
 
@@ -1330,7 +1330,7 @@ tests/unit/
 
 #### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI)
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI) · **Estado:** 🔧 En curso (2026-11-09)
 - **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto; y que **publicar una versión** (desde la v0.1) sea un proceso automático y repetible: tag → tests → binarios → GitHub Release con changelog.
 
 > **Ampliada (2026-11-08):** se le suma todo el **release** de escritorio (Windows y Linux), que antes era de la US-404, para que la
@@ -1342,12 +1342,23 @@ tests/unit/
 > - **El tag va en `main`**, después de mergear `develop`: marca exactamente el código publicado (un tag en `develop` apunta a otro commit).
 > - **Estrategia de merge mixta** (ver la sección 15): _squash_ en los PR de trabajo y _merge commit_ en los de promoción. Con
 >   _squash_ en todos los niveles, a `main` llegaría un solo commit por hito y el changelog tendría una línea.
-> - **Matriz de runners** (`windows-latest` para el `.exe`, `ubuntu-latest` para el `.deb`): PyInstaller y `flet build` no compilan
+> - **Matriz de runners** (`windows-latest` para el `.exe` y el `.zip`, `ubuntu-latest` para el `.deb`): `flet build` no compila
 >   para otro sistema operativo (no hay compilación cruzada, tampoco con Wine).
-> - **Sin `.zip` del código:** GitHub ya agrega "Source code (zip/tar.gz)" a cada release.
+> - **El `.zip` es la app portable, no el código:** el código ya lo agrega GitHub ("Source code (zip/tar.gz)") a cada release.
 >
-> **Decisión a tomar al arrancar:** `flet build windows|linux` (basado en Flutter) o `flet pack` (PyInstaller configurado para Flet).
-> PyInstaller "a secas" no incluye el cliente de escritorio de Flet: el binario compila pero no abre ninguna ventana.
+> **Decisiones tomadas al arrancar (2026-11-09):**
+>
+> - **Empaquetado con `flet build windows|linux`** (basado en Flutter), no `flet pack` (PyInstaller): es la misma herramienta que
+>   arma el APK de la US-404 y toma sola la carpeta `src/assets/` (letra y logo de la US-111). `flet build windows` no genera un solo
+>   `.exe` sino una carpeta (el `.exe` más sus bibliotecas). PyInstaller "a secas" ni siquiera sirve: no incluye el cliente de
+>   escritorio de Flet y el binario no abre ninguna ventana.
+> - **Tres artefactos por release:** `.exe` = **instalador** de Windows armado con Inno Setup a partir de esa carpeta (acceso directo
+>   en el menú Inicio, desinstalador); `.zip` = la misma carpeta comprimida, **portable** (se descomprime y se abre, sin instalar);
+>   `.deb` = paquete de Linux (`dpkg-deb`). El `.apk` de Android se suma al release en la US-404.
+> - **Base y logs en `~/.statspro/`** (la carpeta del usuario, donde ya vive `session.json`), siempre, también en desarrollo. Hoy
+>   `config/rutas.py` los pone junto al código, y una app instalada en `Program Files` o `/opt` no puede escribir ahí. La
+>   `estadisticas.db` actual se mueve a mano una sola vez (el RUNBOOK dice cómo).
+> - **Sin gitleaks, a propósito:** se sacó del CI y no vuelve. El AC3 ya no pide detectar secretos en el historial.
 
 - **Archivos a crear/existentes:**
 
@@ -1356,36 +1367,41 @@ tests/unit/
 .github/actions/style/{ruff,mypy}/action.yml                   ✅ existen
 .github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen
 .github/dependabot.yml          ✅ existe (uv, github-actions y docker; semanal)
-.pre-commit-config.yaml         ✅ existe (+ hook de actionlint)
-pyproject.toml                  ✅ existe (+ reglas "S" de ruff)
+.pre-commit-config.yaml         ✅ existe   ← hook de actionlint ✅ (AC12, 2026-11-09; actionlint-py fijado en el grupo dev)
+pyproject.toml                  ✅ existe   ← reglas "S" de ruff ✅ (AC13, 2026-11-09) · falta [tool.flet] para flet build (AC9)
 Makefile                        ✅ existe
 
+.github/workflows/MainAction.yml  ← actionlint en el job lint ✅ y sin el comentario de gitleaks ✅ (2026-11-09)
+.github/workflows/titulo-pr.yml  ✅ nuevo (2026-11-09): título del PR en Conventional Commits (AC11)
+src/config/rutas.py             ✅ base y logs en ~/.statspro/ (AC15) + tests/unit/test_rutas.py
 .github/workflows/release.yml   ← nuevo: se dispara con el tag vX.Y.Z (AC9)
+build/windows/statspro.iss      ← nuevo: script de Inno Setup que arma el instalador .exe (AC9)
 cliff.toml                      ← nuevo: configuración de git-cliff (AC10)
 CHANGELOG.md                    ← nuevo: Keep a Changelog, generado con git-cliff (AC10)
-RUNBOOK.md                      ← + cómo sacar un release y qué estrategia de merge va en cada PR
+RUNBOOK.md                      ← + cómo sacar un release, qué estrategia de merge va en cada PR y cómo mover la base a ~/.statspro/
 ```
 
 - **Criterios de Aceptación:**
   - **AC1.** `make run_test` ejecuta la suite completa y falla si la cobertura baja del piso de `[tool.coverage.report]` de `pyproject.toml` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro `cobertura-minima`; cumple el ≥ 80 % pedido) y guarda el reporte HTML como _artifact_.
   - **AC2.** `make run_linter_ruf` falla ante cualquier infracción de estilo o de formato.
-  - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error de linting o de tipos, dependencias con vulnerabilidades conocidas o secretos en el historial.
+  - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error de linting o de tipos o dependencias con vulnerabilidades conocidas. (Hasta el 2026-11-09 también pedía detectar secretos en el historial con gitleaks; se sacó a propósito.)
   - **AC4.** `pre-commit install` configura hooks locales en un único comando (los hooks de ruff se ejecutan con `uv run`: usan la versión fijada en `pyproject.toml`, la misma del CI).
-  - **AC6 — Job agregador y required status checks (nuevo, antes solo vivía en `ideas-aprendizaje.md` §8.9):** un job final `ci-ok` que depende de todos los demás y falla si alguno falló; registrado como _required status check_ de la rama, para que un PR con el CI en rojo no se pueda mergear.
+  - **AC6 — Job agregador y required status checks (nuevo, antes solo vivía en `ideas-aprendizaje.md` §8.9) ✅ (ruleset configurado el 2026-11-09, junto con `titulo-pr`):** un job final `ci-ok` que depende de todos los demás y falla si alguno falló; registrado como _required status check_ de la rama, para que un PR con el CI en rojo no se pueda mergear.
   - **AC7 — `ruff format --check` (nuevo, antes §8.2):** el job `lint` también falla si algún archivo no está formateado con `ruff format`, no solo si viola reglas de estilo.
   - **AC8 — Smoke test de la app (nuevo, antes §8.14):** un paso que falla si el punto de entrada no se puede importar. Con la CLI era `uv run python src/main.py --help`; desde la US-105 es un paso que importa el composition root de la GUI (`app.py`) sin abrir ninguna ventana.
   - **AC9 — Release por tag (antes AC3 de la US-404):** `release.yml` se dispara con `push: tags: ["v*.*.*"]` y, en orden:
     1. corre la suite de tests (si falla, no se publica nada);
     2. falla si la versión de `pyproject.toml` no coincide con el tag (`v0.1.0` ↔ `version = "0.1.0"`);
-    3. compila en una matriz de runners: `windows-latest` arma el `.exe`, `ubuntu-latest` el `.deb` (`dpkg-deb`; la versión del paquete va sin la `v`);
+    3. compila con `flet build` en una matriz de runners: `windows-latest` arma el instalador `.exe` (Inno Setup) y el `.zip` portable, `ubuntu-latest` el `.deb` (`dpkg-deb`; la versión del paquete va sin la `v`). Ningún artefacto lleva `data/` ni una base: la app arranca con la base vacía;
     4. crea el GitHub Release con los binarios y, como notas, la sección de esa versión del `CHANGELOG.md`.
        Un tag con sufijo (`v0.1.0-rc.1`) crea un _pre-release_: sirve para probar el workflow sin publicar una versión de verdad. Permisos: `contents: write` solo en el job que publica.
   - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`uvx git-cliff --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR `develop → main`, junto con el cambio de versión.
-  - **AC11 — Título del PR:** un job falla si el título del PR no sigue Conventional Commits (`amannn/action-semantic-pull-request`). Con _squash_, el título del PR es el mensaje del commit que llega a la rama, y de ahí sale el changelog. El repo se configura para que el _squash_ use siempre el título del PR.
-  - **AC12 — Workflows revisados:** actionlint en pre-commit y en el job `lint` (detecta errores como un input mal escrito en un `with:`).
-  - **AC13 — SAST:** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
-  - **AC14 — Binario probado:** antes de publicar la v0.1, el `.exe` y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia): la app arranca, se registra un usuario y se crea un club.
-- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6); un PR con título `arreglos varios` falla (AC11); un tag `v0.1.0-rc.1` genera un _pre-release_ con los dos binarios y sus notas (AC9); un tag que no coincide con `pyproject.toml` falla sin publicar nada (AC9); el binario abre en una máquina limpia (AC14).
+  - **AC11 — Título del PR:** un job falla si el título del PR no sigue Conventional Commits (`amannn/action-semantic-pull-request`). Con _squash_, el título del PR es el mensaje del commit que llega a la rama, y de ahí sale el changelog. El repo se configura para que el _squash_ use siempre el título del PR. Va en un workflow aparte (`titulo-pr.yml`) porque necesita el evento `edited`: corregir el título vuelve a correr el chequeo sin relanzar los tests; por eso es un _required status check_ propio, además de `ci-ok`. También valida el mensaje del commit en los PR de un solo commit (`validateSingleCommit`), porque ahí GitHub propone ese mensaje en vez del título.
+  - **AC12 — Workflows revisados:** actionlint en pre-commit, en `make run_linter_ruf` y en el job `lint` (detecta, por ejemplo, una expresión mal escrita como `${{ github.evnt_name }}`, y con shellcheck, que viene en `ubuntu-latest`, errores en los scripts de los `run:`). Su versión sale de `uv.lock` (paquete `actionlint-py` del grupo `dev`), igual que ruff. Los inputs de un `with:` los valida solo para las acciones que conoce: con versiones más nuevas que su catálogo (por ejemplo `actions/checkout@v7`) no los revisa.
+  - **AC13 — SAST ✅ (2026-11-09):** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
+  - **AC14 — Binario probado:** antes de publicar la v0.1, el instalador `.exe`, el `.zip` portable y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia, como Windows Sandbox): la app arranca, se registra un usuario y se crea un club.
+  - **AC15 — Datos fuera de la carpeta de instalación (nuevo, 2026-11-09):** la base (`estadisticas.db`) y los logs viven en `~/.statspro/` (junto a `session.json`), con la app instalada y también en desarrollo; la carpeta se crea si no existe. La app instalada nunca escribe en su propia carpeta. ✅ (2026-11-09: `config/rutas.py` con `DATOS_DIR`; `ejecutar()` crea la carpeta antes de abrir la base; `tests/unit/test_rutas.py`.)
+- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6); un PR con título `arreglos varios` falla (AC11); un tag `v0.1.0-rc.1` genera un _pre-release_ con el `.exe`, el `.zip` y el `.deb` y sus notas (AC9); un tag que no coincide con `pyproject.toml` falla sin publicar nada (AC9); el binario abre en una máquina limpia (AC14); tests de `config/rutas.py`: la base y los logs apuntan a `~/.statspro/` (AC15).
 
 ---
 
@@ -2423,6 +2439,10 @@ tests/unit/test_credential_policy.py
 > binarios. Acá quedan Android, macOS, la versión visible en la app, la guía de instalación y las
 > prolijidades del instalador (ícono, firma). Los AC3 y AC5 de abajo pasan a extender lo que ya
 > existe.
+>
+> **Empaquetado decidido en la US-109 (2026-11-09):** `flet build`. Windows y Linux ya salen en cada
+> release (`.exe` instalador con Inno Setup, `.zip` portable y `.deb`); acá se suma el `.apk` al
+> mismo release (y macOS, si se decide), con la misma herramienta.
 
 > **iOS fuera de alcance (decisión 2026-10-03):** el NFR-1 pedía también iOS 14+, pero esta US
 > nunca tuvo ningún AC para IPA y el propio plan listaba `build_ios.py` sin más contexto.
@@ -2434,7 +2454,9 @@ tests/unit/test_credential_policy.py
 
 - **Criterios de Aceptación:**
   - **AC1.** Binario desktop lanza la aplicación sin Python instalado en el sistema del usuario.
-  - **AC2.** APK de Android instalable en dispositivos Android 9+ sin dependencias adicionales.
+    Windows y Linux quedan cubiertos por el AC14 de la US-109; acá queda macOS.
+  - **AC2.** APK de Android instalable en dispositivos Android 9+ sin dependencias adicionales,
+    publicado en el GitHub Release junto al `.exe`, el `.zip` y el `.deb`.
   - **AC3.** El pipeline de release (US-109) suma macOS a la matriz: genera artefactos para las
     3 plataformas desktop en cada tag de versión.
   - **AC4.** Versión embebida en la aplicación (`AcercaDeScreen`, US-401) coincide con el tag de
@@ -2452,7 +2474,7 @@ tests/unit/test_credential_policy.py
 
 **Reparto en dos pistas:**
 
-- **Pista A:** desktop — `build_desktop.py` (AC1), versión embebida (AC4), ícono (AC6) y la guía de
+- **Pista A:** desktop — macOS (AC1), versión embebida (AC4), ícono (AC6) y la guía de
   instalación.
 - **Pista B:** Android y macOS — `build_android.py` (AC2) y la entrada de macOS en `release.yml`
   (AC3).
@@ -2461,11 +2483,11 @@ tests/unit/test_credential_policy.py
 
 ```text
 build/
-├── build_desktop.py   ← flet build (Windows/Linux/macOS) o PyInstaller, a decidir en la US
+├── windows/statspro.iss  ← existe desde la US-109 (instalador .exe); se le suma el ícono (AC6)
 ├── build_android.py   ← flet build apk
 └── generar_iconos.py  ← .ico y .png desde src/assets/logo/statspro-icono-app.svg (AC6)
 
-.github/workflows/release.yml   ← existe desde la US-109; se le suma macOS (y el APK, si se publica)
+.github/workflows/release.yml   ← existe desde la US-109; se le suma el APK (y macOS, si se decide)
 docs/install-guide.md           ← instrucciones de instalación por plataforma
 ```
 
@@ -2473,64 +2495,21 @@ docs/install-guide.md           ← instrucciones de instalación por plataforma
 
 ## 13. Definición de "Hecho" (DoD)
 
-> **Nota de transcripción importante:** las dos fuentes tenían **tres versiones distintas** de la
-> Definición de "Hecho" (una en el LaTeX, y **dos** dentro del mismo `.md` del submódulo — una
-> etiquetada "v2" a mitad de documento y otra al final, más corta y parcialmente contradictoria
-> entre sí). Se consolidan en una sola versión, la más completa, marcando esto como hallazgo en
-> la sección 20.
-
 Una Historia de Usuario se considera **Hecha** cuando cumple TODOS los siguientes puntos:
 
-1. **Código integrado:** merge a la rama principal sin conflictos; commits con formato
-   `tipo(alcance): descripción`.
-2. **Tests pasan:** cobertura ≥80% en lógica de negocio general; ≥95% en componentes críticos
-   (autenticación, persistencia transaccional, rollback, fórmulas estadísticas — ver Catálogo de
-   Criticidad). Todos los tests corren sin errores en CI.
-3. **Arquitectura respetada:** ninguna clase en `dominio/` importa de `infraestructura/` ni de
-   librerías externas (`sqlite3`, `pandas`). Verificable con grep o una herramienta de análisis
-   de imports.
-4. **SQL verificado:** si la US crea o modifica una vista SQL, la vista está en `views.sql` y
-   existe un test de integración que la consulta con datos de `seed.sql`.
-5. **Transacciones:** si la US persiste múltiples tablas (ej. partido + estadísticas), existe un
-   test que verifica que un fallo parcial hace rollback completo.
-6. **ADR documentado:** si la US requirió una decisión arquitectónica, el ADR correspondiente
-   está aprobado y en el repositorio.
+1. **Código integrado:** merge a la rama principal sin conflictos; commits con formato `tipo(alcance): descripción`.
+2. **Tests pasan:** cobertura ≥80% en lógica de negocio general; ≥95% en componentes críticos (autenticación, persistencia transaccional, rollback, fórmulas estadísticas — ver Catálogo de Criticidad). Todos los tests corren sin errores en CI.
+3. **Arquitectura respetada:** ninguna clase en `dominio/` importa de `infraestructura/` ni de librerías externas (`sqlite3`, `pandas`). Verificable con grep o una herramienta de análisis de imports.
+4. **SQL verificado:** si la US crea o modifica una vista SQL, la vista está en `views.sql` y existe un test de integración que la consulta con datos de `seed.sql`.
+5. **Transacciones:** si la US persiste múltiples tablas (ej. partido + estadísticas), existe un test que verifica que un fallo parcial hace rollback completo.
+6. **ADR documentado:** si la US requirió una decisión arquitectónica, el ADR correspondiente está aprobado y en el repositorio.
 7. **Sin imports cruzados:** verificado con una herramienta de linting de arquitectura.
-8. **Docstring mínimo:** todos los métodos públicos tienen docstring de una línea; los métodos
-   complejos documentan sus parámetros.
-9. **Si incluye UI:** validada manualmente en desktop (Windows, y Linux si hay entorno gráfico);
-   desde la US-401 (Hito 4), también en mobile. Desde la US-111, la pantalla usa `crear_pagina`,
-   sus formularios usan `crear_formulario` y no define colores ni espaciados propios.
-10. **Trazabilidad:** eventos de log relevantes implementados con `correlation_id` (desde la
-    US-110; las historias anteriores usan el logger actual).
+8. **Docstring mínimo:** todos los métodos públicos tienen docstring de una línea; los métodos complejos documentan sus parámetros.
+9. **Si incluye UI:** validada manualmente en desktop (Windows, y Linux si hay entorno gráfico); desde la US-401 (Hito 4), también en mobile. Desde la US-111, la pantalla usa `crear_pagina`, sus formularios usan `crear_formulario` y no define colores ni espaciados propios.
+10. **Trazabilidad:** eventos de log relevantes implementados con `correlation_id` (desde la US-110; las historias anteriores usan el logger actual).
 11. **Pipeline CI en verde:** lint + tests + cobertura.
 
-**El repositorio del agregado tiene su propia interfaz en el dominio**, y **la persistencia fue
-validada mediante una prueba de integración con SQLite** son, además, dos condiciones que ambas
-fuentes repiten como base mínima innegociable — se mantienen implícitas en los puntos 3 y 4
-de arriba.
-
----
-
-## 14. Catálogo Técnico de Criticidad
-
-Artefacto vivo del backlog de arquitectura donde se lista cada módulo con: nivel de criticidad,
-justificación, owner técnico y cobertura objetivo.
-
-**Ubicación:** `docs/catalogo-criticidad.md` (❌ no existe todavía — se inicializa en US-109).
-
-**Estructura mínima de la tabla:** `Módulo | Criticidad | Justificación | Owner | Cobertura
-objetivo | Evidencia`.
-
-**Criterios de clasificación (crítico si cumple al menos uno):**
-
-- Controla acceso, autenticación o autorización.
-- Persiste datos en múltiples tablas con transacciones.
-- Impacta la integridad histórica del dato deportivo.
-- Implementa cálculos estadísticos oficiales usados en decisiones tácticas.
-
-**Gobernanza:** owner primario Arquitecto Técnico; co-owner QA Lead. Revisión obligatoria en
-kickoff de hito y en cada planificación de sprint.
+**El repositorio del agregado tiene su propia interfaz en el dominio**, y **la persistencia fue validada mediante una prueba de integración con SQLite** son, además, dos condiciones que ambas fuentes repiten como base mínima innegociable — se mantienen implícitas en los puntos 3 y 4 de arriba.
 
 ---
 
@@ -2540,20 +2519,11 @@ kickoff de hito y en cada planificación de sprint.
 
 `vMAJOR.MINOR.PATCH` (Semantic Versioning 2.0):
 
-- **MAJOR** — cambios incompatibles con versiones anteriores (ej. rediseño del schema que
-  requiere migración manual).
-- **MINOR** — nuevas funcionalidades compatibles. **Cada hito completado incrementa el MINOR**
-  (H1 → v0.1.0, H2 → v0.2.0, H4 → v1.0.0).
+- **MAJOR** — cambios incompatibles con versiones anteriores (ej. rediseño del schema que requiere migración manual).
+- **MINOR** — nuevas funcionalidades compatibles. **Cada hito completado incrementa el MINOR** (H1 → v0.1.0, H2 → v0.2.0, H4 → v1.0.0).
 - **PATCH** — corrección de bugs sin nuevas funcionalidades (ej. v0.1.1).
 
-> Mientras `MAJOR = 0`, la API no se considera estable — cualquier hito puede cambiar el schema o
-> los contratos internos. La versión `1.0.0` se alcanza al completar el Hito 4.
-
 ### Estrategia de ramas
-
-> **Actualizado (2026-11-08):** antes esta sección describía ramas `release/vX.Y.Z` que el equipo
-> nunca usó. Ahora describe el flujo real: las ramas de hito y de épica, y el PR `develop → main`
-> que hace de release.
 
 ```text
 feature/usXXX ──squash──▶ feature/epicaN ──merge──▶ feature/hitoN ──merge──▶ develop ──merge──▶ main ──tag vX.Y.Z──▶ release.yml
@@ -2568,98 +2538,40 @@ feature/usXXX ──squash──▶ feature/epicaN ──merge──▶ feature/
 | `feature/usXXX`      | Una rama por historia de usuario, donde se trabaja.                                                         | **_squash_** (hacia la épica)    |
 | `hotfix/descripcion` | Bug crítico en una versión publicada; sale de `main`.                                                       | **_squash_** (hacia `main`)      |
 
-**Por qué dos estrategias.** El PR de una historia trae muchos commits de trabajo ("wip", "fix
-typo"): el _squash_ los junta en uno solo, con el título del PR como mensaje (por eso el título
-tiene que seguir Conventional Commits, AC11 de la US-109). Los PR de **promoción** (épica → hito →
-`develop` → `main`) no traen código nuevo: el _merge commit_ conserva los commits que llevan. Así a
-`main` llega **un commit por historia**, y git-cliff arma el changelog con un renglón por historia.
-Con _squash_ en todos los niveles, a `main` llegaría un solo commit por hito.
+**Por qué dos estrategias.** El PR de una historia trae muchos commits de trabajo ("wip", "fix typo"): el _squash_ los junta en uno solo, con el título del PR como mensaje (por eso el título tiene que seguir Conventional Commits, AC11 de la US-109). Los PR de **promoción** (épica → hito → `develop` → `main`) no traen código nuevo: el _merge commit_ conserva los commits que llevan. Así a `main` llega **un commit por historia**, y git-cliff arma el changelog con un renglón por historia. Con _squash_ en todos los niveles, a `main` llegaría un solo commit por hito.
 
 ### Proceso de release paso a paso
 
-1. **PR `develop → main`:** en ese mismo PR, subir `version` en `pyproject.toml` (ej. `0.1.0`) y
-   regenerar el changelog con `uvx git-cliff --tag v0.1.0 -o CHANGELOG.md`; revisar a mano el
-   texto generado. El CI tiene que pasar entero. Se mergea con _merge commit_.
-2. **(Recomendado) Probar el release:** `git tag v0.1.0-rc.1` sobre `main` y `git push origin
-v0.1.0-rc.1`: `release.yml` arma un _pre-release_ con los binarios. Probarlos en una máquina sin
-   Python (AC14 de la US-109). Si algo falla, se corrige con un PR y se repite con `-rc.2`.
-3. **Taggear la versión:** `git checkout main && git pull`, `git tag v0.1.0`, `git push origin
-v0.1.0`. El tag va en `main`, no en `develop`: marca exactamente el código publicado.
-4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con
-   `pyproject.toml` → compila el `.exe` (Windows) y el `.deb` (Linux) → crea el GitHub Release con
-   los binarios y la sección del changelog como notas.
+1. **PR `develop → main`:** en ese mismo PR, subir `version` en `pyproject.toml` (ej. `0.1.0`) y regenerar el changelog con `uvx git-cliff --tag v0.1.0 -o CHANGELOG.md`; revisar a mano el texto generado. El CI tiene que pasar entero. Se mergea con _merge commit_.
+2. **(Recomendado) Probar el release:** `git tag v0.1.0-rc.1` sobre `main` y `git push origin v0.1.0-rc.1`: `release.yml` arma un _pre-release_ con los binarios. Probarlos en una máquina sin Python (AC14 de la US-109). Si algo falla, se corrige con un PR y se repite con `-rc.2`.
+3. **Taggear la versión:** `git checkout main && git pull`, `git tag v0.1.0`, `git push origin v0.1.0`. El tag va en `main`, no en `develop`: marca exactamente el código publicado.
+4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con `pyproject.toml` → compila con `flet build` el instalador `.exe` y el `.zip` portable (Windows) y el `.deb` (Linux) → crea el GitHub Release con los binarios y la sección del changelog como notas.
 5. **Verificar el release:** confirmar en GitHub el tag, las notas y los binarios.
-6. **Volver a sincronizar `develop`:** el commit de versión y changelog entró por el PR
-   `develop → main`, así que `develop` ya lo tiene; solo hace falta mergear `main → develop` si hubo
-   un hotfix.
+6. **Volver a sincronizar `develop`:** el commit de versión y changelog entró por el PR `develop → main`, así que `develop` ya lo tiene; solo hace falta mergear `main → develop` si hubo un hotfix.
 
 ### Formato del `CHANGELOG.md`
 
-Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release
-con subsecciones (`Added`, `Changed`, `Fixed`, `Removed`, `Security`). Lo genera git-cliff a partir
-de los commits (`feat:` → Added, `fix:` → Fixed, etc., configurado en `cliff.toml`): no se edita a
-mano en cada PR, solo se revisa el texto generado antes del release.
+Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release con subsecciones (`Added`, `Changed`, `Fixed`, `Removed`, `Security`). Lo genera git-cliff a partir de los commits (`feat:` → Added, `fix:` → Fixed, etc., configurado en `cliff.toml`): no se edita a mano en cada PR, solo se revisa el texto generado antes del release.
 
 ### Hotfix — corregir un bug en producción
 
 1. `git checkout -b hotfix/descripcion-breve main`.
 2. Aplicar la corrección mínima; un test de regresión que falla sin el fix.
-3. En el mismo PR, subir `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y regenerar el
-   changelog con `uvx git-cliff --tag v0.1.1 -o CHANGELOG.md`.
-4. PR a `main` con _squash_ (título en Conventional Commits, ej. `fix: ...`); después,
-   `git tag v0.1.1` sobre `main` y `git push origin v0.1.1`: `release.yml` publica el release.
+3. En el mismo PR, subir `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y regenerar el changelog con `uvx git-cliff --tag v0.1.1 -o CHANGELOG.md`.
+4. PR a `main` con _squash_ (título en Conventional Commits, ej. `fix: ...`); después, `git tag v0.1.1` sobre `main` y `git push origin v0.1.1`: `release.yml` publica el release.
 5. Mergear `main → develop` para no perder el fix.
 
 ---
 
 ## 16. Roadmap Futuro (Hitos 5–9, visión de producto)
 
-> Los hitos 5–9 son **visión de producto, no compromisos de entrega**. Se refinan y priorizan
-> según feedback real de usuarios al cierre de v1.0. Se transcriben completos porque forman parte
-> del PRD original, aunque no son parte del plan de trabajo actual.
+> Los hitos 5–9 son **visión de producto, no compromisos de entrega**. Se refinan y priorizan según feedback real de usuarios al cierre de v1.0. Se transcriben completos porque forman parte del PRD original, aunque no son parte del plan de trabajo actual.
 
-- **Hito 5 · Ecosistema Conectado y Colaborativo (v1.5):** romper el aislamiento local.
-  Sincronización cloud híbrida (FastAPI + PostgreSQL, manteniendo la app 100% funcional
-  offline); exportación de "Match Cards" para redes sociales; base de datos compartida de
-  scouting entre DTs (con consentimiento explícito). Investigación previa de la sincronización
-  (local-first con Supabase como alternativa): ver `docs/spike/spike_supabase.md`.
-- **Hito 6 · Inteligencia Táctica con IA (v2.0):** pasar de análisis descriptivo a prescriptivo.
-  Motor de recomendación de quinteto (scikit-learn/XGBoost); detección automática de patrones
-  (rachas de tiro, degradación defensiva por fatiga, pérdidas en momentos de presión — z-score,
-  ARIMA); explicabilidad con SHAP values; integración de video scouting; marco de
-  experimentación A/B de estrategias.
-- **Hito 7 · Live Stats y Cancha Digital (v3.0):** captura de datos en tiempo real. Módulo de
-  captura en vivo en tablet (<200ms por acción); dashboard en vivo para el banco (PPP por
-  posesión, eFG% acumulado, +/- por jugador); mapa de tiro interactivo por zonas; control de
-  carga/fatiga con alertas.
-- **Hito 8 · Plataforma Federativa y Competición Multi-Liga (v4.0):** escalar de club a
-  federación. Integración con APIs federativas (CABB, FIBA); vista multi-club para oficiales de
-  liga; reportería regulatoria automatizada; benchmarking anónimo inter-club; gestión de árbitros
-  y planilleros.
-- **Hito 9 · Multi-Deporte y Ecosistema de Formación (v5.0):** extender más allá del básquet.
-  Motor estadístico multi-deporte configurable (voleibol, fútbol sala, handball); seguimiento de
-  desarrollo a largo plazo entre categorías; modelado de riesgo de lesión por carga acumulada;
-  módulo de formación para entrenadores; portal de seguimiento para familias (solo lectura,
-  opt-in).
-
----
-
-## 17. Estructura de Repositorios
-
-Cada módulo de datos se divide siguiendo el S.R.P. (Single Responsibility Principle):
-
-| Entidad / Agregado | Repositorio                    | Vistas Relacionadas                         | Estado real                                                    |
-| ------------------ | ------------------------------ | ------------------------------------------- | -------------------------------------------------------------- |
-| **Identidad**      | `SqliteUsuarioRepositorio`     | N/A                                         | ✅ funcional y testeado                                        |
-| **Clubes**         | `SqliteClubRepositorio`        | `v_listas_detalle`                          | ✅ funcional y testeado                                        |
-| **Jugadores**      | `SqliteJugadorRepositorio`     | `v_jugador_totales_temporada`               | ✅ funcional y testeado (el bug de `link_to_club` se corrigió) |
-| **Competencia**    | `SqliteCompetenciaRepositorio` | `v_listas_detalle`                          | ✅ funcional y testeado (bugs corregidos, ver sección 20)      |
-| **Partidos/Stats** | `SqlitePartidoRepositorio`     | `v_partidos_resumen`, `v_boxscore_completo` | ✅ funcional y testeado (reescrito, ver sección 20)            |
-
-> **Corrección respecto a ambas fuentes originales:** tanto el LaTeX como el `.md` del submódulo
-> listan esta tabla con **solo 4 filas**, omitiendo el repositorio de Competencia — pese a que el
-> propio texto de la US-102 en ambas fuentes lo describe en detalle. Es la inconsistencia
-> original que motivó esta revisión completa del documento.
+- **Hito 5 · Ecosistema Conectado y Colaborativo (v1.5):** romper el aislamiento local. Sincronización cloud híbrida (FastAPI + PostgreSQL, manteniendo la app 100% funcional offline); exportación de "Match Cards" para redes sociales; base de datos compartida de scouting entre DTs (con consentimiento explícito). Investigación previa de la sincronización (local-first con Supabase como alternativa): ver `docs/spike/spike_supabase.md`.
+- **Hito 6 · Inteligencia Táctica con IA (v2.0):** pasar de análisis descriptivo a prescriptivo. Motor de recomendación de quinteto (scikit-learn/XGBoost); detección automática de patrones (rachas de tiro, degradación defensiva por fatiga, pérdidas en momentos de presión — z-score, ARIMA); explicabilidad con SHAP values; integración de video scouting; marco de experimentación A/B de estrategias.
+- **Hito 7 · Live Stats y Cancha Digital (v3.0):** captura de datos en tiempo real. Módulo de captura en vivo en tablet (<200ms por acción); dashboard en vivo para el banco (PPP por posesión, eFG% acumulado, +/- por jugador); mapa de tiro interactivo por zonas; control de carga/fatiga con alertas.
+- **Hito 8 · Plataforma Federativa y Competición Multi-Liga (v4.0):** escalar de club a federación. Integración con APIs federativas (CABB, FIBA); vista multi-club para oficiales de liga; reportería regulatoria automatizada; benchmarking anónimo inter-club; gestión de árbitros y planilleros.
+- **Hito 9 · Multi-Deporte y Ecosistema de Formación (v5.0):** extender más allá del básquet. Motor estadístico multi-deporte configurable (voleibol, fútbol sala, handball); seguimiento de desarrollo a largo plazo entre categorías; modelado de riesgo de lesión por carga acumulada; módulo de formación para entrenadores; portal de seguimiento para familias (solo lectura, opt-in).
 
 ---
 
@@ -2668,198 +2580,31 @@ Cada módulo de datos se divide siguiendo el S.R.P. (Single Responsibility Princ
 (Duplicado intencional de la sección 8, en el formato de tabla de bloqueo que traían ambas
 fuentes, por si se prefiere consultar esta vista en vez de la de "Registro de Decisiones":)
 
-| ADR     | Título                   | Bloquea       | Decisión recomendada                                                                                                                                                              |
-| ------- | ------------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ADR-001 | Arquitectura Local-First | Hito 1        | ✅ SQLite + offline-first (ya definido)                                                                                                                                           |
-| ADR-002 | Framework UI             | US-105        | ✅ Flet, se descarta Compose Multiplatform; única interfaz desde el 2026-10-31 (ver `docs/adr/ADR-002-framework-ui.md`)                                                           |
-| ADR-003 | Protocolo de Ingesta     | US-201/US-206 | ⏳ Propuesta con archivos reales: mapeo fijo buscando encabezados por texto; falta elegir la librería de PDF (ver `docs/adr/ADR-003-protocolo-ingesta-excel.md`)                  |
-| ADR-004 | Versionado de DB         | Hito 2        | ⏳ Migraciones manuales vs. `alembic` — pregunta abierta sobre agregar SQLAlchemy solo por el runner (ver `docs/adr/ADR-004-versionado-db.md`)                                    |
-| ADR-005 | Reportes PDF             | US-302        | ✅ `reportlab` (ya definido, ver `docs/adr/ADR-005-reportes-pdf.md`)                                                                                                              |
-| ADR-006 | Seguridad y Cifrado      | US-104/US-403 | ✅ v0.1: `pbkdf2_hmac` con salt **dinámico** (ver `docs/adr/ADR-006-seguridad-cifrado.md`). v1.0: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma |
-| ADR-007 | Motor de Visualización   | US-301        | ✅ `matplotlib` (ya definido, ver `docs/adr/ADR-007-motor-visualizacion.md`)                                                                                                      |
-| ADR-008 | Estrategia de Backup     | Hito 4        | ✅ Export manual con `VACUUM INTO`/backup online de SQLite (ya definido, ver `docs/adr/ADR-008-estrategia-backup.md`)                                                             |
-| ADR-009 | Pipeline CI/CD           | US-109        | ✅ GitHub Actions hosteados por GitHub, ya implementado (ver `docs/adr/ADR-009-pipeline-cicd.md`)                                                                                 |
+| ADR     | Título                   | Bloquea       | Decisión recomendada                                                                                                                  |
+| ------- | ------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| ADR-001 | Arquitectura Local-First | Hito 1        | ✅ SQLite + offline-first (ya definido)                                                                                               |
+| ADR-002 | Framework UI             | US-105        | ✅ Flet, se descarta Compose Multiplatform; única interfaz desde el 2026-10-31 (ver `docs/adr/ADR-002`)                               |
+| ADR-003 | Protocolo de Ingesta     | US-201/US-206 | ⏳ Propuesta con archivos reales: mapeo fijo buscando encabezados por texto; falta elegir la librería de PDF (ver `docs/adr/ADR-003`) |
+| ADR-004 | Versionado de DB         | Hito 2        | ⏳ Migraciones manuales vs. `alembic` — pregunta abierta sobre agregar SQLAlchemy solo por el runner (ver `docs/adr/ADR-004`)         |
+| ADR-005 | Reportes PDF             | US-302        | ✅ `reportlab` (ya definido, ver `docs/adr/ADR-005`)                                                                                  |
+| ADR-006 | Seguridad y Cifrado      | US-104/US-403 | ✅ v0.1: `pbkdf2_hmac` con salt **dinámico**. v1.0: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma   |
+| ADR-007 | Motor de Visualización   | US-301        | ✅ `matplotlib` (ya definido, ver `docs/adr/ADR-007`)                                                                                 |
+| ADR-008 | Estrategia de Backup     | Hito 4        | ✅ Export manual con `VACUUM INTO`/backup online de SQLite (ya definido, ver `docs/adr/ADR-008`)                                      |
+| ADR-009 | Pipeline CI/CD           | US-109        | ✅ GitHub Actions hosteados por GitHub, ya implementado (ver `docs/adr/ADR-009`)                                                      |
 
 ---
 
 ## 19. Convenciones rápidas
 
-- **Commits:** `tipo: descripción corta` (`FEAT`, `FIX`, `DOCS`, `STYLE`, `REFACTOR`, `PERF`,
-  `TEST`) — ver `docs/info_modulo/02-reglas.md`. _(El LaTeX propone el formato `tipo(alcance):
-descripción` con alcance entre paréntesis — ambos formatos conviven en las fuentes, el equipo
-  debería fijar uno solo.)_
-- **Interfaces de repositorio:** el proyecto usa `ABC`/`@abstractmethod` en la práctica, **no**
-  `typing.Protocol` como sugiere `docs/info_modulo/07-protocolos.md` (que compara ambas). Ambas son válidas — vale un ADR corto
-  para dejarlo asentado.
-- **Logging:** `infraestructura/logger.py` ya implementado (rotación 10MB, 5 backups, nivel
-  INFO+ a archivo) — ver `docs/info_modulo/01-logger.md`. Es la base sobre la que debería crecer
-  la US-110 (JSON estructurado + `correlation_id`), no un reemplazo.
-- **Análisis estático:** el proyecto usa `ruff` en la práctica (`pyproject.toml`,
-  `.github/workflows/MainAction.yml`), no `flake8`/`pylint` como sugería el borrador original del
-  Acuerdo de Ingeniería (sección 5) — ya reflejado arriba.
+- **Commits:** `tipo: descripción corta` (`FEAT`, `FIX`, `DOCS`, `STYLE`, `REFACTOR`, `PERF`, `TEST`) — ver `docs/info_modulo/02-reglas.md`.
+- **Interfaces de repositorio:** el proyecto usa `ABC`/`@abstractmethod` en la práctica, **no** `typing.Protocol` como sugiere `docs/info_modulo/07-protocolos.md` (que compara ambas). Ambas son válidas — vale un ADR corto para dejarlo asentado.
+- **Logging:** `infraestructura/logger.py` ya implementado (rotación 10MB, 5 backups, nivel INFO+ a archivo) — ver `docs/info_modulo/01-logger.md`. Es la base sobre la que debería crecer la US-110 (JSON estructurado + `correlation_id`), no un reemplazo.
+- **Análisis estático:** el proyecto usa `ruff` en la práctica (`pyproject.toml`, `.github/workflows/MainAction.yml`), no `flake8`/`pylint` como sugería el borrador original del Acuerdo de Ingeniería (sección 5) — ya reflejado arriba.
 
 ---
 
 ## 20. Estado real del código vs. plan (hallazgos)
 
-> **Reescrita el 2026-08-17.** Las revisiones anteriores (2026-08-09 y siguientes) catalogaron una
-> cantidad grande de bugs en los 5 repositorios. **Se hizo una auditoría fresca hoy** —
-> `mypy --strict` (**0 errores**, antes 50) y `pytest -q` (**53 passed, 0 failed**), más relectura
-> completa de `sqlite_jugador_repositorio.py`, `sqlite_competencia_repositorio.py` y
-> `sqlite_partido_repositorio.py` — y **prácticamente todo lo de código quedó resuelto**. Se saca
-> de acá lo ya corregido (queda como historial en el propio historial de git, no hace falta
-> repetirlo en el plan) y se deja solo lo que sigue vigente + lo nuevo de esta revisión.
-
-### Resuelto desde la última auditoría (ya no requiere acción — solo para que quede constancia)
-
-Confirmado hoy, con lectura completa de cada archivo, no solo con `mypy`/`pytest` en verde:
-
-- Los 5 repositorios usan `sqlite3.Connection` crudo, de forma uniforme (patrón de conexión ya
-  unificado).
-- `SqliteCompetenciaRepositorio`: los 3 bugs (`guardar_inscripcion` con conteo de `?` mal,
-  `obtener_categorias` con `fetchall` sin invocar, y los 2 métodos sin implementar) están
-  corregidos — las 12 funciones completas y funcionales.
-- `sqlite_partido_repositorio.py` (renombrado desde `sqlite_juego_repositorio.py`): reescrito por
-  completo — tabla/columna correctas, sin el método de conexión inexistente, `INSERT` de boxscore
-  con columnas/valores alineados, `guardar_partido`/`guardar_boxscore` ya reciben la dataclass
-  completa (Liskov resuelto), y sumaron `save_with_boxscore()` — el método atómico multi-tabla que
-  pide la carga atómica de partido (hoy US-108; ese trabajo de repositorio ya está hecho).
-- `sqlite_jugador_repositorio.py`: `buscar_por_club` devuelve `[]` (no `None`); `link_to_club` ya
-  usa `jc.idJugador`/`jc.idClub` (el bug de atributos está resuelto); `guardar()` ya valida DNI
-  duplicado y lanza `DNIDuplicadoError` — regla de negocio implementada, no solo documentada.
-- El patrón sistémico "`None` en vez de `[]`" en los métodos de listado: resuelto en las 5
-  implementaciones.
-- El manejo de errores silencioso: las 5 implementaciones ya loguean (`logger.error`/
-  `logger.critical`) en cada `except`, con el patrón de dos bloques (`sqlite3.Error` → log +
-  `None`; `TypeError` post-commit → log crítico + `raise`) acordado en sesiones anteriores.
-- Las 12 entidades de dominio ya tienen `__post_init__` con validación de tipos, y
-  `dominio/exceptions.py` ya existe (`ErrorDeDominio`, `DNIDuplicadoError`).
-- El typo `SquliteJugadorRepositorio` está corregido (`SqliteJugadorRepositorio`).
-- Cobertura de tests: ya no hay archivos de test vacíos — la suite completa (53 tests) cubre los 5
-  repositorios.
-- **CI evolucionó bastante desde la última auditoría:** ahora corre `pip-audit`, `gitleaks`,
-  `mypy --strict`, `ruff` (lint) y tests en Linux/Windows/Docker con una matriz de Python 3.11 a
-  3.14 (desde el 2026-10-11: 3.12 a 3.14 y solo en Linux; Windows y Docker solo con 3.13; `Dockerfile.test` + `.dockerignore` ya armados y correctos), y Dependabot vigila las
-  dependencias. Ruff y mypy usan en todos lados (CI, pre-commit y local) la versión de
-  `pyproject.toml`. Ver `docs/ideas-aprendizaje.md` sección 8 para el informe detallado de qué
-  falta. Las dependencias ya están fijadas en `pyproject.toml` + `uv.lock` (se eliminó
-  `requerimientos.txt`) y auditadas con `pip-audit`.
-
-### Todavía vigente — vistas SQL
-
-- ❌ **`obtener_lista_por_inscripcion` — ya no es un bug de tipos, pero revisar si sigue el AC de
-  la interfaz.** (Verificar en el próximo repaso de `competencia_repositorio.py` vs. su
-  implementación — el resto de la clase ya está limpio, este punto puntual conviene reconfirmarlo
-  cuando se use desde un caso de uso real en US-103.)
-- ❌ **Bug de diseño en `v_jugador_totales_temporada` (`views.sql`), confirmado hoy releyendo el
-  archivo:** agrupa `GROUP BY j.idJugador, comp.anio` — **por año, no por competencia**. Si un
-  club juega dos competencias distintas en el mismo año (ej. "Liga Provincial" y "Copa de
-  Verano"), esta vista **mezcla ambas en una sola fila**, perdiendo la granularidad "por
-  competencia específica". Cobra más relevancia ahora que se documentaron explícitamente los
-  filtros por competencia en US-202/203/301 (ver más abajo) — hay que corregir esta vista (o
-  reemplazarla por agregación en Pandas, ver nota de US-203) antes de construir esos filtros
-  encima. **Ampliado (2026-11-08):** tampoco separa por **categoría**. Un jugador puede jugar en
-  U17 y U19 en la misma temporada, y cada partido pertenece a una categoría
-  (`partido.idCategoria`, US-108), así que el agrupamiento correcto es por jugador, competencia y
-  categoría del partido (`GROUP BY j.idJugador, p.idCompetencia, p.idCategoria`). El año sale de
-  la competencia. **Decidido (2026-11-08):** se corrige la vista misma (no se crea otra) en la
-  Pista A de la US-203.
-- ❌ **No existe ningún agregado estadístico a nivel club/equipo** — solo existe el de jugador
-  (`v_jugador_totales_temporada`). Ya se documentó el concepto en la sección 3 (Arquitectura de
-  Datos) y se referenció en US-203; falta implementarlo cuando se llegue a esa US.
-- **Campo/tabla que falta para que el propio PRD sea implementable:** no existe ningún campo que
-  guarde el resultado final oficial del partido (ej. `puntosLocalFinal`/`puntosVisitanteFinal`).
-  Importa porque la propia **US-201 AC3** pide verificar que "la suma de puntos individuales
-  coincida con el resultado final del partido cargado", pero hoy no hay dónde guardar ese
-  resultado para comparar. Propuesta ya volcada (marcada como tal, no implementada) en el DER de
-  `docs/diagramas/diagramas.md` y anotada en US-108. **Actualización (2026-10-31):** el AC3 de la
-  US-201 ya no lo necesita, porque valida contra la fila `TOTALES` del archivo; el campo queda como
-  mejora opcional para la carga manual.
-- Tampoco existe todavía la tabla `schema_version` que pide US-204 (Hito 2, no arrancado —
-  esperable).
-
 ### Nuevo — investigación de mercado para las estadísticas multi-dimensionales (2026-08-17)
 
-Antes de sumar las ideas de estadísticas de jugador/equipo con distintos recortes (partido,
-competencia, año, global, comparativas) a US-202/203/301/303, se investigaron apps reales de
-analítica de básquet para no proponer a ciegas — confirma que estos ejes son estándar en la
-categoría, no sobrealcance: filtros por partido/temporada/período personalizado, comparativas
-jugador vs. jugador y equipo vs. equipo con distintos operadores (promedio, mediana, total), y
-"performance trends" (evolución de una métrica en el tiempo, vía media móvil). Fuentes:
-[Hudl Assist — Basketball](https://www.hudl.com/products/assist/basketball),
-[Hoopsalytics](https://hoopsalytics.com/), [Viziball](https://viziball.app/nba/en),
-[Basketball Stats Assistant](https://basketballstatsassistant.com/en/). El detalle de qué se
-agregó a cada US está en las propias US-202, US-203, US-301 y US-303 (Hito 2 y 3).
-
-### Hallazgos de organización de código
-
-- **Entidades agrupadas en un mismo archivo:** el PRD prevé un archivo por entidad; el código real
-  agrupa varias entidades relacionadas en un mismo archivo (ej. `competencia.py` contiene 5
-  dataclasses). Razonable para el tamaño actual — conviene un acuerdo explícito del equipo sobre
-  si se mantiene así.
-- ✅ **Capa de aplicación implementada** (`src/aplicacion/`): los 17 casos de uso de la US-103 y sus DTOs,
-  con la CLI correspondiente (retirada en la US-105). Ver `docs/info_modulo/03-casos-de-uso.md` y
-  `docs/context_ia/2026-08-17-us103-explicada-en-profundidad.md` para el detalle.
-- ✅ **Huecos de alcance detectados y cerrados (2026-09-20):** el PRD prometía "categorías y listas de buena fe" en el pilar 2, pero ninguna US planificaba crear/listar categorías, listar competencias
-  ni administrar la lista de buena fe, aunque las tablas y los métodos del repositorio existían. Se incorporaron a la US-103 (ver el recuadro "Alcance ampliado" de esa US).
-  ✅ **Auditoría de cierre de la US-103 (2026-09-20):** se cerró también el ciclo de vida del vínculo jugador-club (`jugador unlink`, regla de no superposición), **quitar un jugador de la lista** (`lista remove`),
-  las validaciones de valor de las entidades (`DatoInvalidoError`) y `partido list` con nombres (vista `v_partidos_resumen`).
-  **Decisiones que siguen abiertas:** (1) **cómo valida la US-108 la lista cuando el partido no guarda la categoría** (ver la regla agregada en la US-108); (2) si la regla "el jugador debe tener vínculo vigente
-  con el club" para habilitarlo admite excepciones (préstamos); (3) **editar o borrar** clubes, competencias y jugadores no está en ninguna US (el PRD solo pide crear, listar y vincular), por lo que un dato
-  mal cargado hoy solo se corrige en la base; (4) **`jugador historial`** (ver todos los clubes por los que pasó un jugador): el repositorio ya expone `historial_vinculos`, falta el caso de uso y la pantalla si se los necesita.
-
-### Hallazgos de documentación (inconsistencias entre las fuentes del PRD — no cambian con el código)
-
-- **El submódulo (`.md`) tenía Hito 3 y 4 incompletos.** Le faltaba la Épica H3-E3 (US-303,
-  Scouting de Rival) completa, y las épicas H4-E2, H4-E3, H4-E4 (US-402 Backup, US-403 Seguridad,
-  US-404 Empaquetado) completas. Solo estaban en el LaTeX. Ya se completó en este documento
-  usando esa fuente.
-- **Tres versiones distintas de la Definición de "Hecho" (DoD).** Una en el LaTeX (la más
-  completa) y **dos** dentro del mismo archivo del submódulo. Se consolidaron en la sección 13.
-- **El `.md` del submódulo no tenía sección de Requisitos No Funcionales (NFR)** — solo estaba en
-  el LaTeX. Se agregó en la sección 7.
-- **El `.md` del submódulo no tenía el Proceso de Liberación de Versiones** — solo estaba en el
-  LaTeX. Se agregó en la sección 15.
-- **ADR-002 y ADR-008 tenían bloqueo de hito contradictorio entre fuentes** (texto narrativo dice
-  un hito, la tabla de ADRs dice otro). **Ambos ya se resolvieron (2026-10-03):** ADR-002 bloquea
-  el Hito 4 (`docs/adr/ADR-002-framework-ui.md` — el Hito 2 no tiene ninguna tarea de GUI);
-  ADR-008 también bloquea el Hito 4 (`docs/adr/ADR-008-estrategia-backup.md` — todo el contenido
-  de backup, US-402, vive en la Épica H4-E2, nada en el Hito 3).
-- **El estándar de análisis estático documentado no coincidía con el real** (`flake8`/`pylint` vs.
-  `ruff` real) — ya corregido en la transcripción.
-- **La tabla "Estructura de Repositorios"** (sección 17) le faltaba la fila de Competencia en
-  ambas fuentes originales — corregida acá.
-- **US-103, US-104 y US-106 se contradecían sobre `src/infraestructura/ui/cli/`**: US-103 listaba
-  archivos de comando por verbo (`player_add.py`, `club_add.py`...) mientras US-106 usaba
-  convención por entidad (`player_commands.py`, `club_commands.py`...) para la misma carpeta, y
-  las tres historias daban a entender que creaban `main_cli.py` desde cero pese a que US-106
-  depende de que US-103 y US-104 ya estén terminadas. Corregido: `main_cli.py`, `commands/` y
-  `formatters/table_formatter.py` nacen en US-103 (que ya necesita `argparse`/`tabulate` para su
-  propio AC4), con convención por entidad en las tres historias; US-104 y US-106 quedan
-  documentadas como extensión sobre lo existente, no como creación nueva.
-  **Decisión posterior (2026-09-20):** finalmente se adoptó **un archivo por acción** (`club_add.py`,
-  `jugador_link.py`…), tal como se construyó el 29/08, y el composition root de la CLI es `src/main.py`
-  (no existe `main_cli.py`). Las tres historias ya reflejan esa convención.
-  **Nota de numeración (2026-10-03):** este hallazgo se escribió cuando la US-104 era una sola
-  historia ("Autenticación y Sesión Local") y la US-106 era "CLI con Command Pattern". Desde la
-  revisión de esa fecha, la autenticación/sesión quedó dividida en US-104 (Autenticación) y US-105
-  (Sesión y Club Activo), y la vieja "CLI con Command Pattern" pasó a ser **US-107**. El hallazgo
-  en sí sigue siendo válido tal como está contado (es historia), solo cambió la numeración vigente.
-  **Segunda renumeración (2026-10-31):** con el retiro de la CLI, la sesión pasó a US-106, la US-107
-  pasó a ser "Pantallas de Gestión", la carga de partido pasó a US-108 y el monitoreo a US-110 (ver
-  la tabla al inicio del documento). Toda la carpeta `ui/cli/` de este hallazgo se borra en la
-  US-105.
-
-### Lo que ya está sólido
-
-- ✅ `SQLiteManager` (`database_manager.py`): conexión, `PRAGMA foreign_keys`, `row_factory`,
-  inicialización de schema/vistas/seed/limpieza, con manejo de errores y logging.
-- ✅ Las 4 vistas SQL (`views.sql`) funcionan y están probadas, incluyendo protección contra
-  división por cero (salvo el bug de agrupación de `v_jugador_totales_temporada` ya anotado).
-- ✅ Los 5 repositorios SQLite funcionales y testeados, con manejo de errores logueado
-  consistentemente.
-- ✅ `mypy --strict` y la suite completa en verde (lo verifica el CI en cada PR).
-- ✅ Pipeline CI real: `pip-audit`, `gitleaks`, `ruff` (lint), `mypy --strict` y tests en
-  Linux/Windows/Docker (matriz de Python 3.12–3.14 solo en Linux; Windows y Docker con 3.13; cobertura ≥ 85 % en
-  Linux) y job agregador `ci-ok`. Falta marcar `ci-ok` como _required status check_ en GitHub (ver US-109).
-- ✅ Suite de tests dividida por repositorio (`test_repositorios_*.py`), más fácil de mantener que el archivo único anterior.
+Antes de sumar las ideas de estadísticas de jugador/equipo con distintos recortes (partido, competencia, año, global, comparativas) a US-202/203/301/303, se investigaron apps reales de analítica de básquet para no proponer a ciegas — confirma que estos ejes son estándar en la categoría, no sobrealcance: filtros por partido/temporada/período personalizado, comparativas jugador vs. jugador y equipo vs. equipo con distintos operadores (promedio, mediana, total), y "performance trends" (evolución de una métrica en el tiempo, vía media móvil). Fuentes: [Hudl Assist — Basketball](https://www.hudl.com/products/assist/basketball), [Hoopsalytics](https://hoopsalytics.com/), [Viziball](https://viziball.app/nba/en), [Basketball Stats Assistant](https://basketballstatsassistant.com/en/). El detalle de qué se agregó a cada US está en las propias US-202, US-203, US-301 y US-303 (Hito 2 y 3).
