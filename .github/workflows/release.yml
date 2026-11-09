@@ -177,11 +177,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # pattern: sin filtro baja TODOS los artifacts de la corrida, incluido el reporte HTML de cobertura de
+      # tests-linux, y cada archivo terminaria como asset del Release (paso en el v0.1.0-rc.1).
       - name: Bajar los archivos de los builds
         uses: actions/download-artifact@v8
         with:
+          pattern: release-*
           path: dist
           merge-multiple: true
+
+      # Red de seguridad: el Release lleva exactamente el instalador, el .zip y el .deb
+      - name: Verificar los archivos a publicar
+        run: |
+          ls -la dist
+          test "$(find dist -type f | wc -l)" -eq 3 || { echo "::error::Se esperaban 3 archivos en dist/"; exit 1; }
 
       # Notas: la seccion "## [X.Y.Z]" de CHANGELOG.md (un pre-release usa la de su version final, si ya esta).
       - name: Armar las notas desde CHANGELOG.md
