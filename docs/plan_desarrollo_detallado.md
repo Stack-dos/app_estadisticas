@@ -348,7 +348,7 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 
 - **Diseño precede a la implementación:** no se escribe código sin un diseño previo aprobado (ADR).
 - **Atomicidad:** commits pequeños y lógicos. Formato: `tipo(alcance): descripción`.
-- **Gestión de ramas:** `feature/nombre-tarea`, `hotfix/descripción`, `release/vX.Y`.
+- **Gestión de ramas:** `feature/usXXX` → `feature/epicaN` → `feature/hitoN` → `develop` → `main` (tag `vX.Y.Z`), y `hotfix/descripción`; detalle y estrategia de merge en la sección 15.
 - **Higiene del repositorio:** prohibido subir binarios, bases SQLite con datos reales, o archivos temporales.
 
 ### Calidad de código y pruebas
@@ -939,7 +939,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Narrativa:** Como entrenador, quiero cargar y consultar mis jugadores, competencias, inscripciones y listas de buena fe desde pantallas con formularios y tablas, sin tener que conocer IDs.
 
-**Nota de reuso (no se pisa con otras US):** las pantallas envuelven casos de uso que **ya existen** desde la US-103 — no se agrega lógica de negocio. Las piezas nuevas de aplicación son chicas y de lectura: el boxscore de un partido (antes previsto como comando `partido boxscore` de esta misma US), y la búsqueda de jugadores por nombre. La US-205 le agrega métricas avanzadas a esa misma pantalla de detalle; no crea otra.
+**Nota de reuso:** las pantallas envuelven casos de uso que **ya existen** desde la US-103 — no se agrega lógica de negocio. Las piezas nuevas de aplicación son chicas y de lectura: el boxscore de un partido (antes previsto como comando `partido boxscore` de esta misma US), y la búsqueda de jugadores por nombre. La US-205 le agrega métricas avanzadas a esa misma pantalla de detalle; no crea otra.
 
 **Capa de Aplicación:**
 
@@ -1014,16 +1014,9 @@ tests/integration/test_boxscore_vista.py
 
 > **Decisiones tomadas el 2026-10-31** (cierran las dos decisiones pendientes que tenía esta historia):
 >
-> 1. **Cualquier partido de la competencia.** Se puede cargar un partido aunque el club activo no
->    juegue; el club activo (US-106) solo viene **preseleccionado** como local y el usuario puede
->    cambiar los dos equipos. Motivo: si solo se cargan los partidos propios, el club activo tiene
->    N partidos y cada rival 0 o 1, y el promedio de un rival con un solo partido no dice nada.
-> 2. **El partido guarda la categoría.** Un partido es de una categoría que juega una competencia.
->    Las categorías se repiten (U13 juega el Asociativo 2026, el Asociativo 2027 y el Provincial 2026) y cada combinación tiene su inscripción y su lista de buena fe por club; sin la
->    categoría no se sabe contra qué lista validar.
-> 3. **Clubes rivales o de terceros.** `ClubRepositorio.listar_todos` para elegir cualquier club, y
->    `CrearClubUseCase` con `idUsuario` opcional: sin usuario, el club se crea **sin** vínculo en
->    `usuarioClub`.
+> 1. **Cualquier partido de la competencia.** Se puede cargar un partido aunque el club activo no juegue; el club activo (US-106) solo viene **preseleccionado** como local y el usuario puede cambiar los dos equipos. Motivo: si solo se cargan los partidos propios, el club activo tiene N partidos y cada rival 0 o 1, y el promedio de un rival con un solo partido no dice nada.
+> 2. **El partido guarda la categoría.** Un partido es de una categoría que juega una competencia. Las categorías se repiten (U13 juega el Asociativo 2026, el Asociativo 2027 y el Provincial 2026) y cada combinación tiene su inscripción y su lista de buena fe por club; sin la categoría no se sabe contra qué lista validar.
+> 3. **Clubes rivales o de terceros.** `ClubRepositorio.listar_todos` para elegir cualquier club, y `CrearClubUseCase` con `idUsuario` opcional: sin usuario, el club se crea **sin** vínculo en `usuarioClub`.
 
 - **Capa de Dominio:** `Partido` suma `idCategoria: int` (obligatorio). `JugadorPartido` no cambia.
 - **Capa de Aplicación:**
@@ -1126,50 +1119,49 @@ tests/unit/
   - **AC1.** Niveles DEBUG/INFO/WARNING/ERROR en formato JSON estructurado.
   - **AC2.** `correlation_id` UUIDv4 generado al inicio de cada acción del usuario y propagado hasta repositorios.
   - **AC3.** Secretos (passwords, tokens, hashes sensibles) redactados en todos los niveles de log.
-  - **AC4.** Selección de sink (local-file o Seq) por configuración, sin cambiar código de negocio.
-  - **AC5.** En modo Seq, eventos filtrables por `correlation_id`, `accion` (pantalla + acción) y nivel.
+  - **AC4.** Selección de sink (local-file) por configuración, sin cambiar código de negocio.
 - **Testing Mínimo:**
   - _Unitario:_ creación y propagación de `execution_context`; redacción de secretos en campos conocidos.
   - _Integración:_ una acción completa (por ejemplo, crear un club con sesión iniciada) → verificar que todos sus eventos tienen el mismo `correlation_id` y que otra acción tiene uno distinto.
 
-> **Estado real:** el proyecto ya tiene un logger funcional (`src/infraestructura/logger.py`,
-> rotación 10MB/5 backups, formato `asctime - name - levelname - message`) — es más simple que lo
-> que pide esta US (sin JSON estructurado, sin `correlation_id`, sin redacción de secretos, sin
-> Seq). Es un buen punto de partida, no un reemplazo completo de la US-110. Ver
-> `docs/info_modulo/01-logger.md`.
-
 ### Épica H1-E3: Entorno de Calidad y Pipeline CI/CD
-
-> **Regla de alcance para US-104 a US-110 (agregada el 2026-10-03; ampliada a la US-110 al renumerar el 2026-10-31):** si al implementar cualquiera
-> de estas historias hace falta tocar algo que no está declarado en su propia sección — en
-> particular, cualquier cambio de CI/CD o de Docker, que es responsabilidad de la US-109 — se
-> anota explícitamente en la sección de esa US como **"trabajo adelantado de US-109"**, en vez de
-> mezclarse en el mismo PR sin dejar rastro. Es la corrección directa a lo que ya pasó una vez: ver
-> la nota de "Estado real" de la US-109 más abajo.
 
 #### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
-- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Dependencias:** —
-- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto.
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI)
+- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto; y que **publicar una versión** (desde la v0.1) sea un proceso automático y repetible: tag → tests → binarios → GitHub Release con changelog.
+
+> **Ampliada (2026-11-08):** se le suma todo el **release** de escritorio (Windows y Linux), que antes era de la US-404, para que la
+> v0.1 ya salga con binarios descargables; más el chequeo del título de los PR, actionlint y SAST (Bandit vía ruff y CodeQL).
+> La US-404 conserva Android, macOS, la versión visible en la app y la guía de instalación. Decisiones tomadas:
+>
+> - **Tag a mano en `main` + git-cliff**, no Release Please: se publica una vez por hito, y Release Please suma dos PR por release
+>   (su "Release PR" y el de `main` de vuelta a `develop`). Si los releases se vuelven frecuentes, se migra.
+> - **El tag va en `main`**, después de mergear `develop`: marca exactamente el código publicado (un tag en `develop` apunta a otro commit).
+> - **Estrategia de merge mixta** (ver la sección 15): _squash_ en los PR de trabajo y _merge commit_ en los de promoción. Con
+>   _squash_ en todos los niveles, a `main` llegaría un solo commit por hito y el changelog tendría una línea.
+> - **Matriz de runners** (`windows-latest` para el `.exe`, `ubuntu-latest` para el `.deb`): PyInstaller y `flet build` no compilan
+>   para otro sistema operativo (no hay compilación cruzada, tampoco con Wine).
+> - **Sin `.zip` del código:** GitHub ya agrega "Source code (zip/tar.gz)" a cada release.
+>
+> **Decisión a tomar al arrancar:** `flet build windows|linux` (basado en Flutter) o `flet pack` (PyInstaller configurado para Flet).
+> PyInstaller "a secas" no incluye el cliente de escritorio de Flet: el binario compila pero no abre ninguna ventana.
+
 - **Archivos a crear/existentes:**
 
 ```text
-.github/workflows/MainAction.yml  ✅ existe (jobs: check_dep [pip-audit], gitleaks, lint [ruff], static [mypy],
-                                     tests-linux, tests-windows, tests-docker, ci-ok [agregador];
-                                     matriz de Python 3.12–3.14 solo en tests-linux (Windows y Docker: una corrida con 3.13;
-                                     mypy: una corrida contra 3.12); se dispara en PR, push a main/develop y manual;
-                                     con concurrency, permissions y timeout-minutes)
-.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen (versión de ruff/mypy = la de pyproject.toml/uv.lock;
-                                     ruff corre `ruff check .` + `ruff format --check .` con las reglas de pyproject.toml)
-.github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen (todas reciben `python-version`;
-                                     la de Linux exige cobertura ≥ 85 % y guarda el reporte HTML)
+.github/workflows/MainAction.yml  ✅ existe
+.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen
+.github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen
 .github/dependabot.yml          ✅ existe (uv, github-actions y docker; semanal)
-pytest.ini / .coveragerc        ➡️ migrados a pyproject.toml ([tool.pytest.ini_options] y [tool.coverage.*], 2026-10-17;
-                                     de paso se corrigió branch=True, que estaba mal ubicado y no medía ramas)
-.pre-commit-config.yaml         ✅ existe (check-yaml, end-of-file-fixer, trailing-whitespace y ruff check/format
-                                     ejecutados con `uv run`: misma versión de ruff que el CI)
-pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy/pytest/coverage + comando `statspro`; uv.lock; sin requerimientos.txt)
-Makefile                        ✅ existe (instalar_dependencias [uv sync], run_test, run_linter_ruf, corregir_linter, pre_commit, docker_test, static_check)
+.pre-commit-config.yaml         ✅ existe (+ hook de actionlint)
+pyproject.toml                  ✅ existe (+ reglas "S" de ruff)
+Makefile                        ✅ existe
+
+.github/workflows/release.yml   ← nuevo: se dispara con el tag vX.Y.Z (AC9)
+cliff.toml                      ← nuevo: configuración de git-cliff (AC10)
+CHANGELOG.md                    ← nuevo: Keep a Changelog, generado con git-cliff (AC10)
+RUNBOOK.md                      ← + cómo sacar un release y qué estrategia de merge va en cada PR
 ```
 
 - **Criterios de Aceptación:**
@@ -1177,48 +1169,21 @@ Makefile                        ✅ existe (instalar_dependencias [uv sync], run
   - **AC2.** `make run_linter_ruf` falla ante cualquier infracción de estilo o de formato.
   - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error de linting o de tipos, dependencias con vulnerabilidades conocidas o secretos en el historial.
   - **AC4.** `pre-commit install` configura hooks locales en un único comando (los hooks de ruff se ejecutan con `uv run`: usan la versión fijada en `pyproject.toml`, la misma del CI).
-  - _(La numeración salta de AC4 a AC6; se conserva porque ADR-009 y la sección de estado citan AC6–AC8.)_
   - **AC6 — Job agregador y required status checks (nuevo, antes solo vivía en `ideas-aprendizaje.md` §8.9):** un job final `ci-ok` que depende de todos los demás y falla si alguno falló; registrado como _required status check_ de la rama, para que un PR con el CI en rojo no se pueda mergear.
   - **AC7 — `ruff format --check` (nuevo, antes §8.2):** el job `lint` también falla si algún archivo no está formateado con `ruff format`, no solo si viola reglas de estilo.
   - **AC8 — Smoke test de la app (nuevo, antes §8.14):** un paso que falla si el punto de entrada no se puede importar. Con la CLI era `uv run python src/main.py --help`; desde la US-105 es un paso que importa el composition root de la GUI (`app.py`) sin abrir ninguna ventana.
-- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6).
-- **Reparto en dos pistas** (trabajo suelto, para quien termine antes su parte de una ronda):
-  - **Pista A:** documentación — `docs/catalogo-criticidad.md` (sección 14) y
-    `docs/info_modulo/11-flujo-de-trabajo-git.md`.
-  - **Pista B:** pipeline — fijar las actions de terceros por hash (8.13) y marcar `ci-ok` como
-    _required status check_ en GitHub (AC6). El smoke test nuevo ya lo hace la US-105.
-    > **Estado real:** ver `docs/ideas-aprendizaje.md` sección 8 (informe de CI) para el detalle
-    > técnico de cada punto. Ya aplicado (2026-09-20): `mypy`, `pip-audit`, build de Docker, una sola
-    > versión de ruff/mypy (`pyproject.toml`) en CI y pre-commit, matriz de Python 3.11–3.14 (Windows
-    > solo 3.13), disparo en `push`, `concurrency`/`permissions`/`timeout-minutes`, cobertura mínima de
-    > 85 % con reporte guardado (Linux), Dependabot y `gitleaks`.
-    >
-    > **Importante — esto es exactamente el ejemplo de historias pisándose entre sí que motivó esta
-    > revisión completa del 2026-10-03:** todo lo anterior se hizo **durante el PR de la US-103**
-    > (commits `f5c4386` y `938c93f` de ese branch), no en un PR dedicado a esta US. El trabajo quedó
-    > bien hecho, pero no quedó registrado como tal en su momento — de ahí la "Regla de alcance para
-    > US-104 a US-110" agregada al principio de esta épica.
-    >
-    > **Aplicado el 2026-10-11 (trabajo adelantado de US-109, hecho en la rama de la US-104 antes de
-    > abrir su PR — ver la "Regla de alcance" de arriba):**
-    >
-    > - **AC6:** job agregador `ci-ok` (falla si algún job falló, se canceló o se salteó). **Falta un
-    >   paso manual en GitHub:** marcarlo como _required status check_ en Settings → Branches.
-    > - **AC7:** el job `lint` corre también `ruff format --check .`.
-    > - **AC8:** smoke test `python src/main.py --help` en los jobs de tests de Linux y Windows (lo
-    >   reemplaza la US-105 por el import de `app.py`, como trabajo adelantado de esta US).
-    > - **8.4:** se sacó `submodules: recursive` de `check_dep`, `lint` y `static`.
-    > - **Matriz reducida:** las versiones de Python (3.12, 3.13 y 3.14) se prueban solo en
-    >   `tests-linux`; Docker y Windows corren una vez (3.13) y mypy una vez (contra 3.12). La 3.11
-    >   dejó de probarse en el CI aunque `pyproject.toml` sigue declarando `requires-python >= 3.11`.
-    > - **Ruff más estricto:** las reglas viven solo en `pyproject.toml` (`E`, `W`, `F`, `I`, `B`,
-    >   `UP`, `SIM`, `C4`, `RUF`; antes `E501` + `I`, y el CI pasaba `--select E --select I` por su
-    >   cuenta). CI, pre-commit y Makefile corren `ruff check` sin `--select`. `docs/` queda excluido.
-    >   Al activarlas se corrigió el código existente; entre otras cosas apareció un test duplicado en
-    >   `test_repositorios_competencia.py` (mismo nombre dos veces: el primero nunca se ejecutaba).
-    > - **mypy** ya era `--strict`; no cambió.
-    >
-    > **Sigue pendiente:** fijar las actions de terceros por hash (8.13, prioridad baja).
+  - **AC9 — Release por tag (antes AC3 de la US-404):** `release.yml` se dispara con `push: tags: ["v*.*.*"]` y, en orden:
+    1. corre la suite de tests (si falla, no se publica nada);
+    2. falla si la versión de `pyproject.toml` no coincide con el tag (`v0.1.0` ↔ `version = "0.1.0"`);
+    3. compila en una matriz de runners: `windows-latest` arma el `.exe`, `ubuntu-latest` el `.deb` (`dpkg-deb`; la versión del paquete va sin la `v`);
+    4. crea el GitHub Release con los binarios y, como notas, la sección de esa versión del `CHANGELOG.md`.
+    Un tag con sufijo (`v0.1.0-rc.1`) crea un _pre-release_: sirve para probar el workflow sin publicar una versión de verdad. Permisos: `contents: write` solo en el job que publica.
+  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`uvx git-cliff --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR `develop → main`, junto con el cambio de versión.
+  - **AC11 — Título del PR:** un job falla si el título del PR no sigue Conventional Commits (`amannn/action-semantic-pull-request`). Con _squash_, el título del PR es el mensaje del commit que llega a la rama, y de ahí sale el changelog. El repo se configura para que el _squash_ use siempre el título del PR.
+  - **AC12 — Workflows revisados:** actionlint en pre-commit y en el job `lint` (detecta errores como un input mal escrito en un `with:`).
+  - **AC13 — SAST:** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
+  - **AC14 — Binario probado:** antes de publicar la v0.1, el `.exe` y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia): la app arranca, se registra un usuario y se crea un club.
+- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6); un PR con título `arreglos varios` falla (AC11); un tag `v0.1.0-rc.1` genera un _pre-release_ con los dos binarios y sus notas (AC9); un tag que no coincide con `pyproject.toml` falla sin publicar nada (AC9); el binario abre en una máquina limpia (AC14).
 
 ---
 
@@ -2126,6 +2091,12 @@ tests/unit/test_credential_policy.py
   (Windows, Linux, macOS, Android) sin requerir instalación de Python ni dependencias externas
   por parte del usuario final.
 
+> **Achicada (2026-11-08):** el release de escritorio para Windows y Linux (`release.yml`, binarios
+> por tag) y el `CHANGELOG.md` pasaron a la US-109 (AC9 y AC10), para que la v0.1 ya salga con
+> binarios. Acá quedan Android, macOS, la versión visible en la app, la guía de instalación y las
+> prolijidades del instalador (ícono, firma). Los AC3 y AC5 de abajo pasan a extender lo que ya
+> existe.
+
 > **iOS fuera de alcance (decisión 2026-10-03):** el NFR-1 pedía también iOS 14+, pero esta US
 > nunca tuvo ningún AC para IPA y el propio plan listaba `build_ios.py` sin más contexto.
 > Compilar y firmar una app iOS exige una Mac + Xcode, y distribuirla fuera de un entorno de
@@ -2137,11 +2108,12 @@ tests/unit/test_credential_policy.py
 - **Criterios de Aceptación:**
   - **AC1.** Binario desktop lanza la aplicación sin Python instalado en el sistema del usuario.
   - **AC2.** APK de Android instalable en dispositivos Android 9+ sin dependencias adicionales.
-  - **AC3.** El pipeline de release genera artefactos para las 3 plataformas desktop en cada tag
-    de versión.
+  - **AC3.** El pipeline de release (US-109) suma macOS a la matriz: genera artefactos para las
+    3 plataformas desktop en cada tag de versión.
   - **AC4.** Versión embebida en la aplicación (`AcercaDeScreen`, US-401) coincide con el tag de
     release.
-  - **AC5.** `CHANGELOG.md` actualizado siguiendo formato _Keep a Changelog_ en cada release.
+  - **AC5.** ~~`CHANGELOG.md` actualizado siguiendo formato _Keep a Changelog_ en cada release.~~
+    Cubierto desde la v0.1 por el AC10 de la US-109.
 - **Testing Mínimo:** instalar binario desktop en máquina limpia (sin Python) y ejecutar flujo
   completo; instalar APK en dispositivo/emulador Android y verificar arranque; el pipeline de
   release ejecuta tests completos antes de generar artefactos.
@@ -2149,8 +2121,8 @@ tests/unit/test_credential_policy.py
 **Reparto en dos pistas:**
 
 - **Pista A:** desktop — `build_desktop.py` (AC1), versión embebida (AC4) y la guía de instalación.
-- **Pista B:** Android y release — `build_android.py` (AC2), `release.yml` (AC3) y `CHANGELOG.md`
-  (AC5).
+- **Pista B:** Android y macOS — `build_android.py` (AC2) y la entrada de macOS en `release.yml`
+  (AC3).
 
 **Archivos a crear:**
 
@@ -2159,8 +2131,7 @@ build/
 ├── build_desktop.py   ← flet build (Windows/Linux/macOS) o PyInstaller, a decidir en la US
 └── build_android.py   ← flet build apk
 
-.github/workflows/release.yml   ← se activa con tag v*.*.*
-CHANGELOG.md                    ← formato Keep a Changelog
+.github/workflows/release.yml   ← existe desde la US-109; se le suma macOS (y el APK, si se publica)
 docs/install-guide.md           ← instrucciones de instalación por plataforma
 ```
 
@@ -2245,46 +2216,64 @@ kickoff de hito y en cada planificación de sprint.
 
 ### Estrategia de ramas
 
-| Rama                 | Propósito                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `main`               | Solo commits de merge desde `release/`. Cada commit tiene un tag de versión. Nunca se trabaja directo acá. |
-| `develop`            | Rama de integración; las `feature/` se mergean acá.                                                        |
-| `feature/nombre`     | Una rama por US o tarea, desde `develop`, mergeada por PR. Ej. `feature/us-101-sqlite-schema`.             |
-| `release/vX.Y.Z`     | Se crea desde `develop` cuando el hito está feature-complete. Solo acepta fixes y bump de versión.         |
-| `hotfix/descripcion` | Para bugs críticos en producción; desde `main`, se mergea a `main` y a `develop`.                          |
+> **Actualizado (2026-11-08):** antes esta sección describía ramas `release/vX.Y.Z` que el equipo
+> nunca usó. Ahora describe el flujo real: las ramas de hito y de épica, y el PR `develop → main`
+> que hace de release.
+
+```text
+feature/usXXX ──squash──▶ feature/epicaN ──merge──▶ feature/hitoN ──merge──▶ develop ──merge──▶ main ──tag vX.Y.Z──▶ release.yml
+```
+
+| Rama                 | Propósito                                                                                    | Su PR se mergea con              |
+| -------------------- | -------------------------------------------------------------------------------------------- | -------------------------------- |
+| `main`               | Solo lo publicado. Cada release es un tag `vX.Y.Z` sobre un commit de `main`. Nunca se trabaja directo acá. | —                                |
+| `develop`            | Integración entre hitos.                                                                     | _merge commit_ (hacia `main`)    |
+| `feature/hitoN`      | Integración de las épicas de un hito.                                                        | _merge commit_ (hacia `develop`) |
+| `feature/epicaN`     | Integración de las historias de una épica.                                                   | _merge commit_ (hacia el hito)   |
+| `feature/usXXX`      | Una rama por historia de usuario, donde se trabaja.                                          | **_squash_** (hacia la épica)    |
+| `hotfix/descripcion` | Bug crítico en una versión publicada; sale de `main`.                                        | **_squash_** (hacia `main`)      |
+
+**Por qué dos estrategias.** El PR de una historia trae muchos commits de trabajo ("wip", "fix
+typo"): el _squash_ los junta en uno solo, con el título del PR como mensaje (por eso el título
+tiene que seguir Conventional Commits, AC11 de la US-109). Los PR de **promoción** (épica → hito →
+`develop` → `main`) no traen código nuevo: el _merge commit_ conserva los commits que llevan. Así a
+`main` llega **un commit por historia**, y git-cliff arma el changelog con un renglón por historia.
+Con _squash_ en todos los niveles, a `main` llegaría un solo commit por hito.
 
 ### Proceso de release paso a paso
 
-1. **Preparar la rama:** `git checkout -b release/v0.1.0 develop`; actualizar `version` en
-   `pyproject.toml`; mover `[Unreleased]` a `[0.1.0] - YYYY-MM-DD` en `CHANGELOG.md`; correr
-   `make test` (debe pasar); solo corregir bugs críticos, sin features nuevas.
-2. **Mergear a `main` y taggear:** merge `--no-ff`; el tag describe el contenido del hito, no
-   solo el número; `git push origin main --tags`.
-3. **Mergear de vuelta a `develop`:** para que los fixes del release lleguen a desarrollo; borrar
-   la rama de release.
-4. **Crear el GitHub Release:** con `gh release create v0.1.0 --title "..." --notes-file
-CHANGELOG.md`; adjuntar binarios con `gh release upload`; o automatizado por
-   `.github/workflows/release.yml` (US-404) al detectar el tag.
-5. **Verificar el release:** confirmar tag/notas/artefactos en GitHub; instalar el binario en
-   máquina limpia y correr el smoke-test de instalación.
+1. **PR `develop → main`:** en ese mismo PR, subir `version` en `pyproject.toml` (ej. `0.1.0`) y
+   regenerar el changelog con `uvx git-cliff --tag v0.1.0 -o CHANGELOG.md`; revisar a mano el
+   texto generado. El CI tiene que pasar entero. Se mergea con _merge commit_.
+2. **(Recomendado) Probar el release:** `git tag v0.1.0-rc.1` sobre `main` y `git push origin
+   v0.1.0-rc.1`: `release.yml` arma un _pre-release_ con los binarios. Probarlos en una máquina sin
+   Python (AC14 de la US-109). Si algo falla, se corrige con un PR y se repite con `-rc.2`.
+3. **Taggear la versión:** `git checkout main && git pull`, `git tag v0.1.0`, `git push origin
+   v0.1.0`. El tag va en `main`, no en `develop`: marca exactamente el código publicado.
+4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con
+   `pyproject.toml` → compila el `.exe` (Windows) y el `.deb` (Linux) → crea el GitHub Release con
+   los binarios y la sección del changelog como notas.
+5. **Verificar el release:** confirmar en GitHub el tag, las notas y los binarios.
+6. **Volver a sincronizar `develop`:** el commit de versión y changelog entró por el PR
+   `develop → main`, así que `develop` ya lo tiene; solo hace falta mergear `main → develop` si hubo
+   un hotfix.
 
 ### Formato del `CHANGELOG.md`
 
-Estándar **Keep a Changelog** (keepachangelog.com): sección `[Unreleased]` al tope para cambios en
-desarrollo; una sección `[vX.Y.Z] - YYYY-MM-DD` por release con subsecciones `Added`, `Changed`,
-`Fixed`, `Removed`, `Security`.
-
-> **Buena práctica:** actualizar `[Unreleased]` en cada PR mergeado, no solo al momento del
-> release.
+Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release
+con subsecciones (`Added`, `Changed`, `Fixed`, `Removed`, `Security`). Lo genera git-cliff a partir
+de los commits (`feat:` → Added, `fix:` → Fixed, etc., configurado en `cliff.toml`): no se edita a
+mano en cada PR, solo se revisa el texto generado antes del release.
 
 ### Hotfix — corregir un bug en producción
 
 1. `git checkout -b hotfix/descripcion-breve main`.
 2. Aplicar la corrección mínima; un test de regresión que falla sin el fix.
-3. Actualizar `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y `CHANGELOG.md`.
-4. Merge `--no-ff` a `main`; tag `v0.1.1`.
-5. Mergear también a `develop` para no perder el fix.
-6. Crear GitHub Release con la nota del bug corregido.
+3. En el mismo PR, subir `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y regenerar el
+   changelog con `uvx git-cliff --tag v0.1.1 -o CHANGELOG.md`.
+4. PR a `main` con _squash_ (título en Conventional Commits, ej. `fix: ...`); después,
+   `git tag v0.1.1` sobre `main` y `git push origin v0.1.1`: `release.yml` publica el release.
+5. Mergear `main → develop` para no perder el fix.
 
 ---
 
