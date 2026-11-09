@@ -473,12 +473,13 @@ de contraseñas comprometidas, ambas para la parte de v1.0).
 
 **Objetivo del hito:** construir una base técnica funcional con persistencia robusta, autenticación local, casos de uso operativos, validaciones de integridad, una interfaz gráfica de escritorio (Flet) que cubra la gestión completa y la carga de partidos, y un entorno de calidad que garantice reproducibilidad desde el primer commit.
 
-**Épicas:** 3 · **Historias:** 10 (US-101 a US-110; la US-104 original se dividió en Autenticación
-y Sesión el 2026-10-03, y el 2026-10-31 se agregó la US-105 de GUI base y se renumeraron las
-siguientes — ver la tabla al inicio del documento) · **Esfuerzo total estimado:** ~60 días·persona
+**Épicas:** 3 · **Historias:** 11 (US-101 a US-111; la US-104 original se dividió en Autenticación
+y Sesión el 2026-10-03, el 2026-10-31 se agregó la US-105 de GUI base y se renumeraron las
+siguientes — ver la tabla al inicio del documento —, y el 2026-11-08 se agregó la US-111 de base
+visual, que va antes de la US-107 aunque tenga número más alto) · **Esfuerzo total estimado:** ~60 días·persona
 
 **Orden de ejecución:** US-101 → US-102 → US-103 → US-104 (todas ✅) → ajuste previo (quitar el
-DNI, en paralelo con el arranque de la US-105) → US-105 → US-106 → US-107 → US-108 → US-110. La US-109 (CI/CD) es transversal: no depende de ninguna y se va completando a lo
+DNI, en paralelo con el arranque de la US-105) → US-105 → US-106 → US-111 → US-107 → US-108 → US-110. La US-109 (CI/CD) es transversal: no depende de ninguna y se va completando a lo
 largo del hito.
 
 ### Plan de trabajo en paralelo (equipo de dos, 2026-10-31)
@@ -503,7 +504,7 @@ integrantes pasen por las dos capas.
 | Ronda | Pista A                                                                                            | Pista B                                                                                                                          |
 | ----- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                                      | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de la US-106 y de la US-107 |
-| 2     | US-106: pantallas de sesión y clubes; US-107: `tabla_datos.py` (**primero**), jugadores y partidos | US-107: pantallas de competencias, inscripciones y listas de buena fe                                                            |
+| 2     | US-106: pantallas de sesión y clubes; US-111: tema y componentes (**primero**, después de los bocetos juntos); US-107: `tabla_datos.py`, jugadores y partidos | US-111: repaso de las pantallas existentes y guía visual; US-107: pantallas de competencias, inscripciones y listas de buena fe |
 | 3     | US-108: `CargaPartidoScreen`                                                                       | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                                             |
 | 4     | US-110: conectar los eventos de log a las acciones de las pantallas                                | US-204 (migraciones), si el ADR-004 ya está decidido                                                                             |
 
@@ -931,9 +932,69 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
   guard `requiere_club_activo`.
 - **Juntos, antes de la ronda 2:** si la sesión se guarda a través de un puerto (**decidido:** sí, ver las decisiones).
 
+#### US-111 — Base Visual de la GUI (tema, página y formularios)
+
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08
+
+**Objetivo Funcional:** definir **una sola vez** cómo se ven las pantallas (colores, tipografía, espaciados, ancho del contenido, cómo se arma un formulario) en un tema y unos pocos componentes compartidos, y aplicarlo a las pantallas que ya existen, para que todas las que vienen (US-107, US-108, US-205, US-301...) nazcan acomodadas y parejas.
+
+**Narrativa:** Como entrenador, quiero que todas las pantallas se vean ordenadas y se usen igual (dónde están los campos, dónde los botones, dónde aparecen los errores), para no tener que aprender cada una de nuevo.
+
+**Por qué ahora (decisión 2026-11-08):** hasta la US-106 las pantallas se armaron para que funcionen, apilando controles sin un criterio común. El único repaso visual previsto era el de la US-401 (v1.0); para entonces habría unas 15 pantallas para rehacer, y las versiones v0.1 a v0.3 saldrían con pantallas sin acomodar. Es el mismo patrón que ya usan `crear_barra_superior` y `crear_etiqueta_error`, llevado a todo lo visual.
+
+**Fuera de alcance (US-401):** modo oscuro, adaptación a celular (responsive), pantallas finales. Ícono y logo: US-404. Esta US deja todo en el tema para que esos cambios sean de un solo lugar.
+
+**Decisiones a tomar juntos al arrancar:**
+
+- **Color base:** un color semilla con Material 3 (`ft.Theme(color_scheme_seed=...)`, Flet calcula la paleta) o una paleta armada a mano. Recomendado: la semilla, porque el modo oscuro de la US-401 sale casi gratis.
+- **Bocetos:** un boceto (_wireframe_, dibujo de cajas, a mano o en Excalidraw/Figma) por **tipo** de pantalla, no por pantalla: acceso (login, registro), listado con alta (clubes, jugadores, competencias) y detalle (boxscore). Se dibujan antes de escribir código.
+
+**Capa de Infraestructura (UI):**
+
+- **Tema:** `ui/flet/estilo.py` — colores, tamaños de letra, espaciados (por ejemplo `ESPACIO_CHICO`, `ESPACIO`, `ESPACIO_GRANDE`), ancho máximo del contenido y ancho de los formularios, y el `ft.Theme` que `ejecutar()` asigna a `page.theme`. Tamaño inicial y mínimo de la ventana.
+- **Componentes** (`ui/flet/components/`):
+  - `pagina.py` — `crear_pagina(...)`: el contenedor de cada pantalla. Título, márgenes, contenido centrado con ancho máximo, y desplazamiento vertical (_scroll_) cuando no entra.
+  - `formulario.py` — `crear_formulario(...)`: campos en columna con el ancho del tema, la etiqueta de error de `errores.py` debajo, el botón principal destacado (`ft.FilledButton`) y los secundarios como texto, siempre en el mismo lugar.
+- **Repaso:** `login_screen.py`, `registro_screen.py`, `inicio_screen.py` y `clubes_screen.py` pasan a usar el tema y los componentes, sin cambiar su comportamiento.
+
+**Criterios de Aceptación:**
+
+- **AC1 — Tema en un solo lugar:** colores, tamaños de letra y espaciados salen de `estilo.py`; ninguna pantalla escribe un color ni un número de espaciado propio.
+- **AC2 — Página común:** todas las pantallas usan `crear_pagina`; en una ventana de 1366×768 y en una maximizada, el contenido no se corta ni se estira de borde a borde.
+- **AC3 — Formularios iguales:** login, registro y alta de club usan `crear_formulario`: mismo ancho, error debajo de los campos, botón principal en el mismo lugar, y **Enter** envía el formulario.
+- **AC4 — Sin cambios de comportamiento:** los tests de las pantallas existentes siguen pasando sin tocar lo que verifican (buscan controles por su texto, no por su posición).
+- **AC5 — Guía visual:** las reglas (qué componente usar, dónde va cada cosa) y los bocetos quedan en la guía `docs/info_modulo/13-gui-flet-y-eventos.md`, junto con los conceptos de Flet nuevos (`ft.Theme`, `ft.Container`, alineación y _scroll_).
+
+**Testing Mínimo:**
+
+- _Unitarias:_ `crear_pagina` incluye el título y respeta el ancho máximo; `crear_formulario` ubica la etiqueta de error y el botón principal; Enter en el último campo dispara la acción.
+- _Las existentes:_ toda la suite de pantallas sigue en verde (AC4).
+- _Manual guiado:_ recorrer login → registro → inicio → clubes en 1366×768 y maximizada, y comparar con los bocetos.
+
+**Reparto en dos pistas:**
+
+- **Juntos, primero:** los bocetos y la decisión del color; son el contrato entre las dos pistas.
+- **Pista A:** `estilo.py`, `crear_pagina` y `crear_formulario`, con sus tests.
+- **Pista B:** el repaso de las cuatro pantallas, en cuanto los componentes estén mergeados; la guía visual (AC5).
+
+**Archivos:**
+
+```text
+src/infraestructura/ui/flet/
+├── estilo.py                 ← nuevo: tema, espaciados, anchos, ventana
+├── app.py                    ← page.theme y tamaño de la ventana en ejecutar()
+├── components/
+│   ├── pagina.py             ← nuevo
+│   └── formulario.py         ← nuevo
+└── screens/                  ← login, registro, inicio y clubes usan los componentes
+
+tests/unit/test_componentes_base.py
+docs/info_modulo/13-gui-flet-y-eventos.md   ← + guía visual y bocetos
+```
+
 #### US-107 — Pantallas de Gestión Administrativa
 
-**Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106
+**Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-111
 
 **Objetivo Funcional:** gestionar desde la GUI todo lo que la US-103 dejó resuelto en casos de uso (jugadores, competencias, categorías, inscripciones, listas de buena fe y partidos), siempre en el contexto del club activo.
 
@@ -949,7 +1010,8 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Capa de Infraestructura (UI):**
 
-- **Componente compartido:** `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados. Reemplaza a `formatters/table_formatter.py` de la CLI.
+- **Componente compartido:** `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados. Reemplaza a `formatters/table_formatter.py` de la CLI. Toma colores y espaciados de `estilo.py` (US-111).
+- **Base visual:** todas las pantallas usan `crear_pagina` y sus formularios `crear_formulario` (US-111), siguiendo la guía visual de la guía 13.
 - **Pantallas** (`screens/`):
   - `JugadoresScreen` — alta (`RegistrarJugadorUseCase`; antes de guardar muestra los jugadores con el mismo nombre, para vincular uno existente en vez de duplicarlo), listado del club activo (`ListarJugadoresClubUseCase`), buscar por nombre un jugador que todavía no está en el club (`BuscarJugadoresPorNombreUseCase`) para vincularlo al club activo (`VincularJugadorAClubUseCase`), y dar de baja (`DesvincularJugadorDeClubUseCase`).
   - `CompetenciasScreen` — alta y listado de competencias y de categorías (`CrearCompetenciaUseCase`, `ListarCompetenciasUseCase`, `CrearCategoriaUseCase`, `ListarCategoriasUseCase`).
@@ -1950,7 +2012,9 @@ la US-105, así que este hito ya no "migra" a Flet: completa lo que falta.
   - **Pantallas nuevas:** `PlayerProfileScreen` (trayectoria y evolución de un jugador),
     `AcercaDeScreen` (versión de la app, ver AC4 de la US-404).
   - **Transversal:** tema claro/oscuro y diseño adaptable (responsive) en todas las pantallas
-    existentes.
+    existentes. Se construye sobre el tema y los componentes de la US-111 (2026-11-08): el modo
+    oscuro y la adaptación a celular se resuelven en `estilo.py`, `crear_pagina` y
+    `crear_formulario`, no pantalla por pantalla.
 - **Criterios de Aceptación:**
   - **AC1 — Performance:** tiempo de arranque **< 3 segundos** también en mobile (en desktop ya
     lo exige la US-105).
@@ -2165,7 +2229,8 @@ Una Historia de Usuario se considera **Hecha** cuando cumple TODOS los siguiente
 8. **Docstring mínimo:** todos los métodos públicos tienen docstring de una línea; los métodos
    complejos documentan sus parámetros.
 9. **Si incluye UI:** validada manualmente en desktop (Windows, y Linux si hay entorno gráfico);
-   desde la US-401 (Hito 4), también en mobile.
+   desde la US-401 (Hito 4), también en mobile. Desde la US-111, la pantalla usa `crear_pagina`,
+   sus formularios usan `crear_formulario` y no define colores ni espaciados propios.
 10. **Trazabilidad:** eventos de log relevantes implementados con `correlation_id` (desde la
     US-110; las historias anteriores usan el logger actual).
 11. **Pipeline CI en verde:** lint + tests + cobertura.
