@@ -16,6 +16,7 @@ aplicación, la base de datos, los tests y las herramientas de calidad. Para ent
 8. [Manejo de dependencias](#8-manejo-de-dependencias)
 9. [Problemas frecuentes](#9-problemas-frecuentes)
 10. [Qué todavía no se puede hacer](#10-qué-todavía-no-se-puede-hacer)
+11. [Sacar una versión](#11-sacar-una-versión)
 
 ---
 
@@ -79,8 +80,9 @@ statspro                         # abre la aplicación
 uv tool uninstall statspro-basketball   # para quitarlo
 ```
 
-Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run` (`~/.statspro/estadisticas.db`). Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos. El empaquetado
-real (un instalable para otra máquina) es la US-404.
+Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run` (`~/.statspro/estadisticas.db`). Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos.
+
+**Sin Python ni el repo:** cada versión publicada trae un instalador de Windows, un `.zip` portable y un `.deb` de Linux (sección 11).
 
 ---
 
@@ -270,3 +272,68 @@ El estado del proyecto por historia de usuario está en el [PRD](docs/plan_desar
 - **La sesión recordada no vence** (v0.1): con "Recordarme", cualquiera que use tu cuenta del sistema operativo abre la app sin contraseña. La expiración llega con la US-403.
 - **No se pueden cargar partidos ni estadísticas** (US-108).
 - **No se puede editar ni borrar** clubes, competencias ni jugadores (el PRD solo pide crear, listar y vincular): un dato mal cargado hoy solo se corrige en la base.
+
+---
+
+## 11. Sacar una versión
+
+Una versión se publica **con un tag** `vX.Y.Z` sobre `main`: el workflow [`release.yml`](.github/workflows/release.yml) hace el resto solo
+(US-109). Por qué el proceso es así (ramas, versionado, hotfix) está en la sección 15 del [PRD](docs/plan_desarrollo_detallado.md).
+
+### Qué publica cada versión
+
+En la pestaña _Releases_ de GitHub, tres archivos (más el código fuente, que agrega GitHub):
+
+| Archivo | Para qué |
+| --- | --- |
+| `StatsPro-X.Y.Z-windows-x64-instalador.exe` | Instalador de Windows (Inno Setup): menú Inicio, acceso directo opcional, desinstalador |
+| `StatsPro-X.Y.Z-windows-x64-portable.zip` | La misma app sin instalar: se descomprime y se abre `StatsPro\StatsPro.exe` |
+| `statspro_X.Y.Z_amd64.deb` | Paquete de Linux (Ubuntu/Debian): se instala en `/opt/statspro` y queda el comando `statspro` |
+
+Ninguno necesita Python. Los tres guardan los datos en `~/.statspro/` (sección 5), y desinstalar **no** los borra.
+
+- **Windows:** el instalador no está firmado (la firma es de la US-404), así que la primera vez Windows muestra "Windows protegió su PC":
+  _Más información → Ejecutar de todas formas_. Una versión nueva se instala encima de la anterior. Se desinstala desde
+  _Configuración → Aplicaciones_.
+- **Linux:** `sudo apt install ./statspro_X.Y.Z_amd64.deb` (con `./`, para que `apt` resuelva las dependencias). Se abre con `statspro` o
+  desde el menú. Se desinstala con `sudo apt remove statspro`.
+
+### Qué estrategia de merge va en cada PR
+
+| PR | Cómo se mergea | Por qué |
+| --- | --- | --- |
+| `feature/usXXX` → su épica o `develop` | **Squash** | Junta los commits de trabajo en uno; el título del PR es el mensaje, y de ahí sale una línea del changelog |
+| Promoción (épica → hito → `develop` → `main`) | **Merge commit** | Conserva un commit por historia: con squash, a `main` llegaría un solo commit por hito |
+| `hotfix/...` → `main` | **Squash** | Una corrección, un commit |
+
+El título del PR tiene que seguir Conventional Commits (lo controla `titulo-pr`, sección 6). _Rebase_ está desactivado.
+
+### Paso a paso
+
+1. **PR `develop → main`** con dos cambios más:
+   - `version = "X.Y.Z"` en `pyproject.toml`;
+   - el changelog regenerado: `make changelog VERSION=X.Y.Z` (sin `make`: `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`).
+
+   Leé la sección nueva del `CHANGELOG.md`. El archivo **no se edita a mano**: se regenera entero en cada versión y se perdería el
+   cambio. Si una línea sobra (por ejemplo, un commit con el tipo equivocado), se saca agregando el hash del commit a un archivo
+   `.cliffignore` en la raíz y se vuelve a generar. El CI tiene que pasar entero; se mergea con **merge commit**.
+2. **Probar con un pre-release:** sobre `main` actualizado, `git tag vX.Y.Z-rc.1 && git push origin vX.Y.Z-rc.1`. En unos 30 minutos
+   aparece en _Releases_ un _pre-release_ con los tres archivos. Probarlos en una máquina sin Python (por ejemplo Windows Sandbox): la
+   app abre, se registra un usuario y se crea un club. Si algo falla, se corrige con un PR y se prueba con `-rc.2`.
+3. **Publicar:** `git checkout main && git pull`, `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. **Verificar** en _Releases_: la versión, sus notas (la sección del changelog) y los tres archivos.
+5. **Limpiar los pre-release:** borrarlos en _Releases_ (ícono de basura) y borrar sus tags:
+   `git push --delete origin vX.Y.Z-rc.1 && git tag -d vX.Y.Z-rc.1`.
+
+### Si el workflow falla
+
+`release.yml` corre en orden y **no publica nada** hasta el último job (`publicar`): si falla antes, no hay nada que deshacer.
+
+| Falla en | Causa típica | Qué hacer |
+| --- | --- | --- |
+| `version` | El tag no coincide con `version` de `pyproject.toml` | Borrar el tag (`git push --delete origin vX.Y.Z && git tag -d vX.Y.Z`), corregir con un PR y volver a taggear |
+| `tests-linux` / `tests-windows` | Un test que falla con Python 3.14 (el que va adentro del paquete) | Corregir con un PR; nuevo `-rc` |
+| `build-windows` / `build-linux` | `flet build`, Inno Setup o el `.deb` | Leer el log del paso que falló; corregir con un PR; nuevo `-rc` |
+| `publicar` | Falta la sección `## [X.Y.Z]` en `CHANGELOG.md` | No se corrió `make changelog`: PR con el changelog, borrar el tag y volver a taggear |
+
+Un tag que **ya publicó** una versión no se reusa: si hay que corregirla, sale la siguiente (`vX.Y.Z+1`, ver "Hotfix" en el PRD).

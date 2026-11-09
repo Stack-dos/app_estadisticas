@@ -52,6 +52,7 @@
   - [14. Errores comunes](#14-errores-comunes)
   - [15. Checklist: agregar una pantalla nueva](#15-checklist-agregar-una-pantalla-nueva)
   - [16. Base visual: tema, página y formulario (US-111)](#16-base-visual-tema-página-y-formulario-us-111)
+  - [17. Empaquetar la app: `flet build` (US-109)](#17-empaquetar-la-app-flet-build-us-109)
 
 ---
 
@@ -1107,7 +1108,7 @@ flowchart LR
 logo es un archivo. Flet los sirve desde una carpeta, la de **assets**.
 
 - `ft.run(main, assets_dir=r.ASSETS_DIR)` dice cuál es esa carpeta: `src/assets/` (la misma que
-  busca `flet build` en la US-404). Va **absoluta** (`config/rutas.py`): relativa, Flet la buscaría
+  busca `flet build`, sección 17). Va **absoluta** (`config/rutas.py`): relativa, Flet la buscaría
   desde la carpeta en la que se lanzó la app.
 - Adentro, las rutas son **relativas a esa carpeta**:
   - `page.fonts = {"IBM Plex Sans": "fuentes/IBMPlexSans.ttf"}` registra la letra con un nombre, y
@@ -1237,3 +1238,65 @@ menu = ft.NavigationRail(
   aplica el tema y el tamaño de la ventana) agregan `page.window = MagicMock()`.
 - **Lo que los tests no ven** sigue siendo el aspecto: se revisa a mano con la app abierta, en
   1366×768 y maximizada, en claro y en oscuro.
+
+---
+
+## 17. Empaquetar la app: `flet build` (US-109)
+
+### Qué problema resuelve
+
+Con `uv run python src/main.py`, la app necesita el repo, `uv` y Python instalados. Un entrenador no tiene nada de eso: necesita un
+instalador. **`flet build`** convierte la app en un programa nativo de cada sistema operativo (un `.exe` con sus bibliotecas en
+Windows, un ejecutable en Linux, un `.apk` en Android) que trae **su propio Python** adentro.
+
+### Cómo funciona
+
+Flet ya usa Flutter para dibujar la ventana. `flet build` arma un proyecto de Flutter que, al arrancar, levanta un Python embebido y
+corre nuestro `main.py`:
+
+```mermaid
+flowchart LR
+  A["src/ (main.py, paquetes,<br/>.sql, assets/)"] --> B["flet build"]
+  P["pyproject.toml<br/>[project] + [tool.flet]"] --> B
+  B --> C["1. compila src/ a .pyc"]
+  B --> D["2. baja un Python 3.14 e<br/>instala las dependencias"]
+  B --> E["3. íconos desde<br/>assets/icon.svg"]
+  C & D & E --> F["4. flutter build"]
+  F --> G["build/windows/ o build/linux/<br/>(StatsPro.exe + bibliotecas)"]
+```
+
+- **De dónde saca cada cosa:** `[project]` da la versión, la descripción y las dependencias; `[tool.flet]`, el nombre visible y el del
+  ejecutable; `[tool.flet.app] path = "src"`, dónde está `main.py`.
+- **La carpeta de assets** (`src/assets/`) entra entera al paquete: la letra, el logo y el ícono viajan con la app. Por eso `assets_dir`
+  apunta ahí (sección 16).
+- **El ícono:** `flet build` busca `assets/icon.*` (o `icon_windows.*`, `icon_linux.*`). Acepta SVG: lo rasteriza y genera el `.ico` de
+  Windows y los `.png` de Linux y Android. Sin ese archivo, pone el ícono de Flet.
+- **El resultado es una carpeta, no un archivo.** El instalador (Inno Setup), el `.zip` y el `.deb` se arman después, a partir de esa
+  carpeta (`empaquetado/` y `release.yml`).
+
+### Ejemplo: lo que hay adentro del build de Linux
+
+```text
+build/linux/
+├── StatsPro          ← el ejecutable (Flutter)
+├── lib/  data/       ← bibliotecas y recursos de Flutter
+├── python3.14/       ← el Python embebido
+├── site-packages/    ← flet, pandas... compilados
+└── app/              ← nuestro src/: main.pyc, aplicacion/, dominio/, infraestructura/, config/, assets/
+```
+
+### Lo que cambia en una app empaquetada
+
+- **La carpeta de la app es de solo lectura** (`Program Files`, `/opt`): la base, los logs y la sesión van en `~/.statspro/`
+  (`config/rutas.py`). Una app que escribe al lado de su código funciona en desarrollo y se rompe instalada.
+- **No hay `.py`, solo `.pyc`:** un traceback del log muestra líneas pero no el código.
+- **El Python es otro:** el del paquete (3.14), no el de tu máquina. Por eso `release.yml` prueba la suite con 3.14.
+
+### Errores comunes
+
+- **Compilar en el sistema equivocado:** `flet build windows` solo corre en Windows (y necesita Visual Studio con C++), `flet build linux`
+  solo en Linux. No hay compilación cruzada: por eso el release usa un runner de cada uno.
+- **El ícono de Flet en el ejecutable:** falta `src/assets/icon.svg` (o tiene otro nombre).
+- **`UnicodeEncodeError` al final del build en Windows:** la consola de Python está en cp1252 y flet-cli no puede escribir el `√` con el
+  que Flutter avisa que terminó. Se corre con `PYTHONUTF8=1`.
+- **Escribir rutas relativas al directorio actual:** instalada, la app arranca desde cualquier carpeta. Las rutas salen de `config/rutas.py`.

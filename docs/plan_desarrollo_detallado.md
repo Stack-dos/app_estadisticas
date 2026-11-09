@@ -1330,7 +1330,7 @@ tests/unit/
 
 #### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI) · **Estado:** 🔧 En curso (2026-11-09)
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI) · **Estado:** 🔧 Implementada (2026-11-09), probada con el pre-release `v0.1.0-rc.2`; falta la prueba en máquina limpia (AC14) y el PR
 - **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto; y que **publicar una versión** (desde la v0.1) sea un proceso automático y repetible: tag → tests → binarios → GitHub Release con changelog.
 
 > **Ampliada (2026-11-08):** se le suma todo el **release** de escritorio (Windows y Linux), que antes era de la US-404, para que la
@@ -1383,7 +1383,7 @@ Makefile                        ✅ existe
 .github/workflows/MainAction.yml  ← actionlint en el job lint ✅ y sin el comentario de gitleaks ✅ (2026-11-09)
 .github/workflows/titulo-pr.yml  ✅ nuevo (2026-11-09): título del PR en Conventional Commits (AC11)
 src/config/rutas.py             ✅ base y logs en ~/.statspro/ (AC15) + tests/unit/test_rutas.py
-.github/workflows/release.yml   ✅ nuevo (2026-11-09): se dispara con el tag vX.Y.Z (AC9); falta probarlo con un tag -rc
+.github/workflows/release.yml   ✅ nuevo (2026-11-09): se dispara con el tag vX.Y.Z (AC9); probado con v0.1.0-rc.2
 empaquetado/windows/statspro.iss  ✅ nuevo: script de Inno Setup que arma el instalador .exe (AC9)
 empaquetado/linux/armar_deb.sh    ✅ nuevo: arma el .deb (/opt/statspro, /usr/bin/statspro, acceso directo e ícono) (AC9)
 empaquetado/linux/statspro.desktop ✅ nuevo: acceso directo del menú de Linux
@@ -1391,7 +1391,9 @@ empaquetado/linux/statspro.desktop ✅ nuevo: acceso directo del menú de Linux
 cliff.toml                      ✅ nuevo (2026-11-09): configuración de git-cliff, secciones en castellano (AC10)
 CHANGELOG.md                    ✅ nuevo (2026-11-09): Keep a Changelog, generado con git-cliff (AC10)
 Makefile                        ← + make changelog VERSION=X.Y.Z ✅
-RUNBOOK.md                      ← + cómo sacar un release, qué estrategia de merge va en cada PR y cómo mover la base a ~/.statspro/
+RUNBOOK.md                      ✅ sección 11 "Sacar una versión" (instalar, merge por PR, paso a paso, si falla) y migración de la base
+README.md                       ✅ sección "Descargar" y el título del PR en Conventional Commits
+docs/info_modulo/13-gui-flet-y-eventos.md  ✅ sección 17: empaquetar con flet build
 ```
 
 - **Criterios de Aceptación:**
@@ -2558,7 +2560,7 @@ feature/usXXX ──squash──▶ feature/epicaN ──merge──▶ feature/
 
 ### Proceso de release paso a paso
 
-1. **PR `develop → main`:** en ese mismo PR, subir `version` en `pyproject.toml` (ej. `0.1.0`) y regenerar el changelog con `uvx git-cliff --tag v0.1.0 -o CHANGELOG.md`; revisar a mano el texto generado. El CI tiene que pasar entero. Se mergea con _merge commit_.
+1. **PR `develop → main`:** en ese mismo PR, subir `version` en `pyproject.toml` (ej. `0.1.0`) y regenerar el changelog con `make changelog VERSION=0.1.0`; revisar el texto generado (no se edita a mano: un commit que sobra se saca con `.cliffignore`, ver la sección 11 del RUNBOOK). El CI tiene que pasar entero. Se mergea con _merge commit_.
 2. **(Recomendado) Probar el release:** `git tag v0.1.0-rc.1` sobre `main` y `git push origin v0.1.0-rc.1`: `release.yml` arma un _pre-release_ con los binarios. Probarlos en una máquina sin Python (AC14 de la US-109). Si algo falla, se corrige con un PR y se repite con `-rc.2`.
 3. **Taggear la versión:** `git checkout main && git pull`, `git tag v0.1.0`, `git push origin v0.1.0`. El tag va en `main`, no en `develop`: marca exactamente el código publicado.
 4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con `pyproject.toml` → compila con `flet build` el instalador `.exe` y el `.zip` portable (Windows) y el `.deb` (Linux) → crea el GitHub Release con los binarios y la sección del changelog como notas.
@@ -2567,13 +2569,13 @@ feature/usXXX ──squash──▶ feature/epicaN ──merge──▶ feature/
 
 ### Formato del `CHANGELOG.md`
 
-Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release con subsecciones (`Added`, `Changed`, `Fixed`, `Removed`, `Security`). Lo genera git-cliff a partir de los commits (`feat:` → Added, `fix:` → Fixed, etc., configurado en `cliff.toml`): no se edita a mano en cada PR, solo se revisa el texto generado antes del release.
+Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release con subsecciones en castellano (Agregado, Cambiado, Corregido, Seguridad). Lo genera git-cliff a partir de los commits (`feat:` → Agregado, `fix:` → Corregido, etc., configurado en `cliff.toml`): no se edita a mano, se regenera entero en cada versión y solo se revisa el texto antes del release.
 
 ### Hotfix — corregir un bug en producción
 
 1. `git checkout -b hotfix/descripcion-breve main`.
 2. Aplicar la corrección mínima; un test de regresión que falla sin el fix.
-3. En el mismo PR, subir `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y regenerar el changelog con `uvx git-cliff --tag v0.1.1 -o CHANGELOG.md`.
+3. En el mismo PR, subir `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y regenerar el changelog con `make changelog VERSION=0.1.1`.
 4. PR a `main` con _squash_ (título en Conventional Commits, ej. `fix: ...`); después, `git tag v0.1.1` sobre `main` y `git push origin v0.1.1`: `release.yml` publica el release.
 5. Mergear `main → develop` para no perder el fix.
 

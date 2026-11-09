@@ -7,6 +7,11 @@ Está pensada para el básquet de Córdoba: clubes, competencias, categorías, l
 
 La aplicación es de **escritorio, con ventanas** (Flet). Desde la US-105 se puede registrar un entrenador, iniciar sesión y cerrarla. La carga de clubes, jugadores, competencias, listas de buena fe y partidos ya está implementada en los casos de uso y llega a la interfaz con las pantallas de gestión (US-106 a US-108). La línea de comandos (CLI) que tenía el proyecto hasta la US-104 se retiró. El plan completo está en el [PRD](docs/plan_desarrollo_detallado.md).
 
+## Descargar
+
+Cada versión publicada está en [Releases](https://github.com/nicopinera/app_estadisticas/releases): instalador `.exe` y `.zip`
+portable para Windows, y `.deb` para Linux. No hace falta Python. Cómo instalarlos: sección 11 del [RUNBOOK](RUNBOOK.md).
+
 ## Inicio rápido
 
 Necesitás [uv](https://docs.astral.sh/uv/) (instala Python y las dependencias; no hace falta `pip`).
@@ -59,5 +64,6 @@ docs/                   Documentación técnica, plan de desarrollo (PRD) e info
 
 ## Contribuir
 
-- Los commits siguen el formato `TIPO: descripción corta` (ver [docs/info_modulo/02-reglas.md](docs/info_modulo/02-reglas.md)).
+- Los commits siguen el formato `TIPO: descripción corta` (ver [docs/info_modulo/02-reglas.md](docs/info_modulo/02-reglas.md)). El **título
+  del PR** también: al mergear con _squash_ es el commit que queda, y de ahí sale el [CHANGELOG](CHANGELOG.md).
 - Antes de abrir un Pull Request: `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .` y `uv run mypy src/ --strict --explicit-package-bases` deben pasar. El CI los corre por vos en cada PR.
