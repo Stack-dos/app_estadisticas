@@ -24,7 +24,20 @@ dev = [
     "ruff==0.16.8",
     "mypy==2.3.1",
     "pre-commit>=4.6.2",
+    "actionlint-py==1.7.12.25",
 ]
+
+# Empaquetado con "flet build windows|linux" (US-109). La version del paquete sale de [project].version
+# y la descripcion de [project].description.
+[tool.flet]
+product = "StatsPro"             # nombre visible (ventana, menu Inicio)
+artifact = "StatsPro"            # nombre del ejecutable: StatsPro.exe
+org = "ar.statspro"              # prefijo del identificador del paquete (ar.statspro.statspro-basketball)
+company = "StatsPro"
+copyright = "Copyright (C) 2026: Nicolas Piñera - Marcos Battigane"
+
+[tool.flet.app]
+path = "src"                     # donde esta main.py; flet build toma tambien src/assets/
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -42,7 +55,12 @@ extend-exclude = ["docs"]
 # Unica fuente de reglas: el CI, pre-commit y el Makefile corren "ruff check" sin --select.
 # E/W: estilo (pycodestyle) · F: errores reales (pyflakes) · I: orden de imports · B: bugs comunes (bugbear)
 # UP: sintaxis moderna de Python · SIM: simplificaciones · C4: comprensiones · RUF: reglas propias de ruff
-select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
+# S: seguridad (las reglas de Bandit, SAST; US-109 AC13)
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# En los tests, assert es la herramienta (S101) y las contraseñas son datos de prueba (S105/S106)
+"tests/**" = ["S101", "S105", "S106"]
 
 [tool.ruff.format]
 docstring-code-format = true
