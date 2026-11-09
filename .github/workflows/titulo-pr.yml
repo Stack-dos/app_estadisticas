@@ -1,0 +1,33 @@
+name: TituloPR
+
+# US-109 AC11: el titulo del PR tiene que seguir Conventional Commits ("feat: ...", "fix(gui): ...").
+# Con squash, ese titulo es el mensaje del commit que llega a la rama, y de ahi sale el CHANGELOG (git-cliff).
+#
+# Va en un workflow aparte de MainAction porque necesita el evento "edited" (corregir el titulo vuelve a
+# correr el chequeo): en MainAction, editar el titulo relanzaria todos los tests. Por eso tambien es un
+# required status check aparte de "ci-ok".
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  titulo-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Tipos aceptados: los de Conventional Commits (feat, fix, docs, style, refactor, perf, test, build,
+      # ci, chore, revert). El alcance entre parentesis es opcional.
+      - name: Verificar que el titulo siga Conventional Commits
+        uses: amannn/action-semantic-pull-request@v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Un PR de un solo commit: GitHub propone el mensaje del commit en vez del titulo al hacer squash
+          validateSingleCommit: true
