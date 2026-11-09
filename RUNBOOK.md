@@ -67,7 +67,7 @@ uv run python src/main.py
 
 Se abre la ventana en la pantalla de inicio de sesión. El programa queda corriendo hasta que se cierra la ventana.
 
-- **Primera vez:** Flet descarga su cliente de escritorio (la ventana) y tarda unos segundos más. La base de datos (`estadisticas.db`, en la raíz del repositorio) también se crea sola, con
+- **Primera vez:** Flet descarga su cliente de escritorio (la ventana) y tarda unos segundos más. La base de datos (`~/.statspro/estadisticas.db`, en la carpeta de tu usuario; ver la sección 5) también se crea sola, con
   todas sus tablas. No hay nada que preparar antes.
 - **Desde WSL:** hace falta WSLg (el soporte gráfico de WSL en Windows 11). Si la ventana no aparece, abrí la app desde Windows, con su propio entorno (ver la sección 9).
 
@@ -79,7 +79,7 @@ statspro                         # abre la aplicación
 uv tool uninstall statspro-basketball   # para quitarlo
 ```
 
-Al ser editable, usa el código de esta carpeta y la **misma** `estadisticas.db` de la raíz del repo. Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos. El empaquetado
+Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run` (`~/.statspro/estadisticas.db`). Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos. El empaquetado
 real (un instalable para otra máquina) es la US-404.
 
 ---
@@ -115,11 +115,26 @@ La aplicación no se cierra por un error: después de cualquiera de estos mensaj
 
 | Qué | Dónde |
 | --- | --- |
-| Base de datos (SQLite) | `estadisticas.db`, en la raíz del repositorio (no se sube a git) |
-| Logs | `logs/app.log` (rota a los 10 MB, conserva 5 archivos) |
+| Base de datos (SQLite) | `~/.statspro/estadisticas.db`, en la carpeta de tu usuario del sistema operativo (en Windows, `C:\Users\<usuario>\.statspro\`) |
+| Logs | `~/.statspro/logs/app.log` (rota a los 10 MB, conserva 5 archivos) |
 | Sesión recordada ("Recordarme") | `~/.statspro/session.json`, en la carpeta de tu usuario del sistema operativo (en Windows, `C:\Users\<usuario>\.statspro\`). Guarda id de usuario, email y club activo; nunca la contraseña |
 | Rutas y scripts SQL | `src/config/rutas.py` y `src/infraestructura/persistencia/sql/` |
 
+Todo lo que la app escribe vive en `~/.statspro/`, también cuando se trabaja desde el repo (US-109): instalada, la app no puede escribir en su
+propia carpeta, y así una reinstalación no pisa los datos. Windows y WSL tienen carpetas de usuario distintas: cada uno tiene **su propia** base.
+
+- **Si tenías una base de antes (en la raíz del repo, hasta la US-109):** con la app cerrada, movela una sola vez a la carpeta nueva. Si no, la
+  app arranca con una base vacía (la vieja sigue ahí, no se borra nada).
+
+  ```bash
+  mkdir -p ~/.statspro && mv estadisticas.db ~/.statspro/      # bash (Linux, WSL o Git Bash)
+  ```
+
+  ```powershell
+  New-Item -ItemType Directory -Force "$HOME\.statspro" | Out-Null; Move-Item estadisticas.db "$HOME\.statspro\"   # PowerShell
+  ```
+
+  La carpeta `logs/` de la raíz ya no se usa: se puede borrar.
 - **Cada arranque es seguro para los datos:** la app ejecuta el esquema cada vez que se abre, pero `schema.sql` solo crea lo que falta (`CREATE TABLE IF NOT EXISTS`), nunca borra.
 - **Hacer un backup:** copiar el archivo `estadisticas.db` con la aplicación cerrada.
 - **Empezar de cero:** borrar `estadisticas.db`. Se vuelve a crear vacía la próxima vez que se abre la app. **Se pierden todos los datos.**
@@ -150,19 +165,33 @@ uv run pytest -v --cov=src --cov-report=html    # con cobertura; abrir reportes_
 uv run ruff check .                             # estilo, imports y errores comunes (reglas: pyproject.toml) (make run_linter_ruf)
 uv run ruff format --check .                    # avisa si algún archivo no está formateado, sin tocarlo     (make run_linter_ruf)
 uv run ruff format .                            # formatea el código                                         (make corregir_linter)
+uv run actionlint                               # revisa los workflows de .github/workflows/                 (make run_linter_ruf)
 uv run mypy src/ --strict --explicit-package-bases   # revisión de tipos                                     (make static_check)
 
 # Vulnerabilidades conocidas en las dependencias: ver el comando de la sección 8
 ```
 
 Estos mismos chequeos se ejecutan automáticamente en GitHub (`.github/workflows/MainAction.yml`) en cada Pull Request y en cada `push` a `main` o `develop`: lint, tipos, tests en Linux, Windows y Docker,
-auditoría de dependencias (`pip-audit`) y detección de secretos (`gitleaks`). Los tests de Linux se repiten con **Python 3.12, 3.13 y 3.14**; Windows y Docker corren una sola vez (3.13) y mypy una sola vez (contra la 3.12). El lint incluye `ruff format --check`, y los jobs de tests prueban antes que la app importe sin errores (`python -c "import main"`, sin abrir ninguna ventana).
+auditoría de dependencias (`pip-audit`) y revisión de los propios workflows (`actionlint`). Los tests de Linux se repiten con **Python 3.12, 3.13 y 3.14**; Windows y Docker corren una sola vez (3.13) y mypy una sola vez (contra la 3.12). El lint incluye `ruff format --check`, y los jobs de tests prueban antes que la app importe sin errores (`python -c "import main"`, sin abrir ninguna ventana).
 Un job final, `ci-ok`, queda en rojo si cualquiera de los anteriores falló: es el que se marca como obligatorio en GitHub para que un PR con el CI en rojo no se pueda mergear.
+Aparte, `.github/workflows/titulo-pr.yml` exige que el **título del PR** siga Conventional Commits (`feat: ...`, `fix(gui): ...`,
+`docs: ...`): al hacer _squash_, ese título es el commit que llega a la rama y de ahí sale el changelog. Si falla, se corrige el
+título del PR (el chequeo se vuelve a correr solo); no hace falta otro push.
 En Linux la cobertura mínima es **85 %** y el reporte HTML queda para descargar (pestaña _Actions_ → la corrida → sección _Artifacts_). Además, [Dependabot](.github/dependabot.yml) abre PR cuando hay versiones nuevas de las dependencias.
+
+### Reglas del repositorio en GitHub
+
+Configuradas a mano en GitHub (Settings), no en un archivo del repo (US-109):
+
+- **Ruleset `main y develop`:** no se puede hacer push directo ni force push, ni borrar las ramas; todo entra por PR. Para mergear,
+  `ci-ok` y `titulo-pr` tienen que estar en verde. Métodos de merge: _squash_ (PR de trabajo, el mensaje es el título del PR) y
+  _merge commit_ (PR de promoción `develop → main`); _rebase_ está desactivado.
+- **CodeQL** (_default setup_, Python y GitHub Actions): analiza cada PR, cada push a `main` y una vez por semana. Los hallazgos están
+  en _Security → Code scanning_.
 
 ### Hooks de pre-commit (opcional)
 
-Con [pre-commit](https://pre-commit.com/), ruff revisa y formatea los archivos **al hacer `git commit`**. Los hooks de ruff se ejecutan con `uv run`, o sea que usan la **misma versión que fija `pyproject.toml`** (y que usa el CI): hace falta tener `uv` instalado (sección 1).
+Con [pre-commit](https://pre-commit.com/), ruff revisa y formatea los archivos **al hacer `git commit`**. Los hooks de ruff y de actionlint (este último revisa los workflows de GitHub Actions) se ejecutan con `uv run`, o sea que usan la **misma versión que fija `pyproject.toml`** (y que usa el CI): hace falta tener `uv` instalado (sección 1).
 
 ```bash
 uv tool install pre-commit     # una sola vez
@@ -228,7 +257,7 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 | `Ocurrió un error inesperado` en un formulario | Un bug: el detalle está en `logs/app.log` | Reportarlo con el log |
 | Los acentos o la `ñ` se ven raros en los logs de la consola de Windows | Codificación de la consola | Ejecutar con `PYTHONUTF8=1` (o `chcp 65001` en cmd) |
 | Al abrir la app entra directo con otro usuario o sin pedir login | Quedó una sesión recordada ("Recordarme") | "Cerrar sesión", o borrar `~/.statspro/session.json` |
-| Al abrir la app pide login aunque marqué "Recordarme" | El archivo de sesión se borró, se dañó o su usuario ya no está en la base (por ejemplo, se borró `estadisticas.db`) | Volver a iniciar sesión; el detalle queda como warning en `logs/app.log` |
+| Al abrir la app pide login aunque marqué "Recordarme" | El archivo de sesión se borró, se dañó o su usuario ya no está en la base (por ejemplo, se borró `estadisticas.db`) | Volver a iniciar sesión; el detalle queda como warning en `~/.statspro/logs/app.log` |
 | `database is locked` | Otro programa (ej. un visor de SQLite) tiene la base abierta para escribir | Cerrar el otro programa y reintentar |
 
 ---
