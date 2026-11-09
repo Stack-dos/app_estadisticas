@@ -70,6 +70,7 @@ def page():
     page = MagicMock(spec=ft.Page)
     page.route = "/"
     page.views = []
+    page.window = MagicMock()  # aplicar_tema (US-111) fija el tamaño; spec=ft.Page no trae `window`
     return page
 
 

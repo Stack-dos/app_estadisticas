@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import flet as ft
 import pytest
-from ayudantes_flet import boton, campo, etiqueta_error
+from ayudantes_flet import boton, campo, etiqueta_error, por_clave
 
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
@@ -15,7 +15,7 @@ from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.exceptions import ClubNoEncontradoError, ClubYaExisteError, DatoInvalidoError
 from infraestructura.ui.flet.errores import MENSAJE_ERROR_INESPERADO
-from infraestructura.ui.flet.screens.clubes_screen import EN_USO, SIN_CLUBES, crear_clubes_view
+from infraestructura.ui.flet.screens.clubes_screen import EN_USO, LISTA_CLUBES, SIN_CLUBES, crear_clubes_view
 
 ATENAS = ClubDTO(idClub=7, nombre="Atenas")
 INSTITUTO = ClubDTO(idClub=8, nombre="Instituto")
@@ -60,7 +60,8 @@ def armar(page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, sesion):
 
 
 def renglones(vista: ft.View) -> list[ft.Control]:
-    lista = next(c for c in vista.controls if isinstance(c, ft.Column))
+    lista = por_clave(vista, LISTA_CLUBES)
+    assert isinstance(lista, ft.Column)
     return list(lista.controls)
 
 
