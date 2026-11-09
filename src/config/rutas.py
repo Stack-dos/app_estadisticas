@@ -16,3 +16,5 @@ RUTA_RAIZ = os.path.dirname(RUTA_SRC)
 DB_FILE = os.path.join(RUTA_RAIZ, "estadisticas.db")
 LOG_DIR = os.path.join(RUTA_RAIZ, "logs")
 APP_LOG_FILE = os.path.join(LOG_DIR, "app.log")
+# Sesion recordada ("Recordarme", US-106): fuera del proyecto, en la carpeta del usuario del sistema operativo
+SESSION_FILE = os.path.join(os.path.expanduser("~"), ".statspro", "session.json")

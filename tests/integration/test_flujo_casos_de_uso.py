@@ -15,12 +15,14 @@ import pytest
 
 import config.rutas as r
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
+from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
 from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeClubUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
+from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
@@ -41,14 +43,24 @@ from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCo
 from infraestructura.repositorios.sqlite_jugador_repositorio import SqliteJugadorRepositorio
 from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartidoRepositorio
 
+ID_DT = 1  # el entrenador que crea los clubes (CrearClubUseCase lo vincula en usuarioClub)
+
 
 def _casos_de_uso(conexion: sqlite3.Connection) -> SimpleNamespace:
     """Arma los casos de uso sobre una conexion, igual que lo hara el composition root de la GUI."""
+    # OR IGNORE: cada abrir() de un mismo archivo pasa por aca, y el usuario ya puede existir
+    conexion.execute(
+        "INSERT OR IGNORE INTO usuario (idUsuario, nombre, email, contrasenia) VALUES (?, 'DT', 'dt@test.com', 'x')",
+        (ID_DT,),
+    )
+    conexion.commit()
     club = SqliteClubRepositorio(conexion)
     jugador = SqliteJugadorRepositorio(conexion)
     competencia = SqliteCompetenciaRepositorio(conexion)
     return SimpleNamespace(
         crear_club=CrearClubUseCase(club),
+        listar_clubes=ListarClubesUsuarioUseCase(club),
+        cambiar_club_activo=CambiarClubActivoUseCase(club),
         registrar_jugador=RegistrarJugadorUseCase(jugador),
         vincular=VincularJugadorAClubUseCase(jugador, club),
         desvincular=DesvincularJugadorDeClubUseCase(jugador),
@@ -91,7 +103,7 @@ def uc(abrir):
 
 
 def _inscribir_club_1(uc: SimpleNamespace) -> None:
-    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"))
+    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT)
     uc.registrar_jugador.ejecutar(CrearJugadorDTO(nombre="A", apellido="B", anioNacimiento=1990))
     uc.crear_competencia.ejecutar(CrearCompetenciaDTO(nombre="Liga", anio=2026))
     uc.crear_categoria.ejecutar(CrearCategoriaDTO(nombre="U21"))
@@ -100,15 +112,23 @@ def _inscribir_club_1(uc: SimpleNamespace) -> None:
 
 def test_los_datos_persisten_entre_arranques(abrir):
     """Regresion: schema.sql empezaba con DROP TABLE y cada arranque borraba todos los datos."""
-    assert abrir().crear_club.ejecutar(CrearClubDTO(nombre="Atenas")).idClub == 1
+    assert abrir().crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT).idClub == 1
 
-    club = abrir().crear_club.ejecutar(CrearClubDTO(nombre="Instituto"))
+    club = abrir().crear_club.ejecutar(CrearClubDTO(nombre="Instituto"), ID_DT)
 
     assert club.idClub == 2  # si la base se hubiera borrado, el id volveria a ser 1
 
 
+def test_un_club_creado_aparece_en_mis_clubes_y_se_puede_activar(uc):
+    """Regresion (fix US-106): CrearClubUseCase no vinculaba al usuario y el club nunca aparecia en su lista."""
+    club = uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT)
+
+    assert uc.listar_clubes.ejecutar(ID_DT) == [club]
+    assert uc.cambiar_club_activo.ejecutar(ID_DT, club.idClub) == club
+
+
 def test_flujo_completo_de_punta_a_punta(uc):
-    assert uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas")).idClub == 1
+    assert uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT).idClub == 1
     jugador = uc.registrar_jugador.ejecutar(CrearJugadorDTO(nombre="Manu", apellido="Ginobili", anioNacimiento=1977))
     assert (jugador.id, jugador.nombre_completo) == (1, "Manu Ginobili")
 
@@ -142,8 +162,8 @@ def test_flujo_completo_de_punta_a_punta(uc):
 
 
 def test_un_jugador_puede_cambiar_de_club_sin_pisar_el_periodo_anterior(uc):
-    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"))
-    uc.crear_club.ejecutar(CrearClubDTO(nombre="Instituto"))
+    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT)
+    uc.crear_club.ejecutar(CrearClubDTO(nombre="Instituto"), ID_DT)
     uc.registrar_jugador.ejecutar(CrearJugadorDTO(nombre="Manu", apellido="Ginobili", anioNacimiento=1977))
     uc.vincular.ejecutar(VincularJugadorClubDTO(idJugador=1, idClub=1, fechaDesde="2026-01-01"))
 
@@ -163,8 +183,8 @@ def test_un_jugador_puede_cambiar_de_club_sin_pisar_el_periodo_anterior(uc):
 
 def test_listar_partidos_trae_los_nombres_de_los_clubes_y_de_la_competencia(abrir):
     uc = abrir()
-    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"))
-    uc.crear_club.ejecutar(CrearClubDTO(nombre="Instituto"))
+    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT)
+    uc.crear_club.ejecutar(CrearClubDTO(nombre="Instituto"), ID_DT)
     uc.crear_competencia.ejecutar(CrearCompetenciaDTO(nombre="Liga Provincial", anio=2026))
     # todavia no hay un caso de uso para cargar partidos (US-108): se inserta directo en la base
     conexion = sqlite3.connect(abrir.db_path)
@@ -183,8 +203,8 @@ def test_listar_partidos_trae_los_nombres_de_los_clubes_y_de_la_competencia(abri
 
 
 def _club_atenas_e_instituto_con_jugador_en_atenas(uc: SimpleNamespace) -> None:
-    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"))
-    uc.crear_club.ejecutar(CrearClubDTO(nombre="Instituto"))
+    uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT)
+    uc.crear_club.ejecutar(CrearClubDTO(nombre="Instituto"), ID_DT)
     uc.registrar_jugador.ejecutar(CrearJugadorDTO(nombre="A", apellido="B", anioNacimiento=1990))
     uc.vincular.ejecutar(VincularJugadorClubDTO(idJugador=1, idClub=1, fechaDesde="2026-01-01"))
 
@@ -234,9 +254,15 @@ def _sin_preparacion(uc: SimpleNamespace) -> None:
         ),
         pytest.param(
             _sin_preparacion,
-            lambda uc: uc.crear_club.ejecutar(CrearClubDTO(nombre="")),
+            lambda uc: uc.crear_club.ejecutar(CrearClubDTO(nombre=""), ID_DT),
             "El nombre del club no puede estar vacio",
             id="club sin nombre",
+        ),
+        pytest.param(
+            lambda uc: uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT),
+            lambda uc: uc.crear_club.ejecutar(CrearClubDTO(nombre="atenas"), ID_DT),
+            "Ya existe un club llamado 'atenas'",
+            id="club con nombre repetido",
         ),
         pytest.param(
             _sin_preparacion,

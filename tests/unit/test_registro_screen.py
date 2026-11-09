@@ -12,6 +12,7 @@ from ayudantes_flet import boton, campo, etiqueta_error
 
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
 from aplicacion.dtos.auth_dto import RegistrarDTO, UsuarioDTO
+from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.exceptions import DatoInvalidoError, EmailYaRegistradoError
 from infraestructura.ui.flet.errores import MENSAJE_ERROR_INESPERADO
@@ -34,7 +35,7 @@ def registrar_uc():
 
 @pytest.fixture
 def sesion():
-    return SessionManager()
+    return SessionManager(MagicMock(spec=SesionAlmacen))
 
 
 @pytest.fixture

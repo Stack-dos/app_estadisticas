@@ -40,7 +40,7 @@ uv run pytest -v --cov=src --cov-report=html   # con reporte de cobertura (tambi
 | Carpeta / archivo | Qué contiene |
 | --- | --- |
 | `tests/unit/` | Tests que **no tocan SQLite**: entidades, excepciones, casos de uso (con repositorios falsos), `SessionManager`, pantallas y router de la GUI (sin ventana), helpers. `ayudantes_flet.py` no es un test: son funciones para buscar controles dentro de una pantalla |
-| `tests/integration/` | Tests con **SQLite real** en memoria (repositorios, esquema y vistas SQL), el flujo registro → login → sesión y el recorrido completo de los casos de uso contra una base temporal |
+| `tests/integration/` | Tests con **SQLite real** en memoria (repositorios, esquema y vistas SQL), el flujo registro → login → sesión, la sesión recordada y el club activo al reabrir la app (`test_sesion_club_activo_flujo.py`, con el archivo de sesión en `tmp_path`), el archivo JSON de la sesión y el recorrido completo de los casos de uso contra una base temporal |
 | `tests/conftest.py` | Fixtures compartidas: `prohibir_abrir_la_ventana` (automática, ver 9.4), bases de datos en memoria (`db_conexion`, `db_conexion_sin_seed`, `db_conexion_sandbox`) y **fábricas de datos** (`crear_jugador`, `crear_partido`, `crear_boxscore`) |
 | `pyproject.toml` → `[tool.pytest.ini_options]` | `pythonpath = src` (los tests importan `dominio`, `aplicacion`… directo) y `testpaths = tests` |
 | `pyproject.toml` → `[tool.coverage.*]` | Qué medir (con cobertura de ramas, `branch = true`) y el mínimo de cobertura (`fail_under`) |

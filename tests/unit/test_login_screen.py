@@ -1,13 +1,14 @@
-"""Tests de la pantalla de login (US-105, AC2 y AC4) sin ventana, con `page` y caso de uso mockeados."""
+"""Tests de la pantalla de login (US-105, AC2 y AC4; "Recordarme" de la US-106) sin ventana, con mocks."""
 
 from unittest.mock import MagicMock
 
 import flet as ft
 import pytest
-from ayudantes_flet import boton, campo, etiqueta_error
+from ayudantes_flet import boton, campo, casilla, etiqueta_error
 
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.dtos.auth_dto import LoginDTO, UsuarioDTO
+from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.exceptions import CredencialesInvalidasError
 from infraestructura.ui.flet.errores import MENSAJE_ERROR_INESPERADO
@@ -29,8 +30,13 @@ def login_uc():
 
 
 @pytest.fixture
-def sesion():
-    return SessionManager()
+def almacen():
+    return MagicMock(spec=SesionAlmacen)
+
+
+@pytest.fixture
+def sesion(almacen):
+    return SessionManager(almacen)
 
 
 @pytest.fixture
@@ -84,3 +90,26 @@ def test_crear_cuenta_navega_al_registro(vista, page):
     boton(vista, "Crear cuenta").on_click()
 
     page.navigate.assert_called_once_with("/registro")
+
+
+# ----------------------------------------------------------------------------- "Recordarme" (US-106)
+
+
+def test_recordarme_arranca_sin_marcar(vista):
+    assert casilla(vista, "Recordarme").value is False
+
+
+def test_con_recordarme_la_sesion_se_guarda(vista, almacen):
+    casilla(vista, "Recordarme").value = True
+
+    boton(vista, "Ingresar").on_click()
+
+    almacen.guardar.assert_called_once()
+    almacen.borrar.assert_not_called()
+
+
+def test_sin_recordarme_se_borra_la_sesion_recordada_de_antes(vista, almacen):
+    boton(vista, "Ingresar").on_click()
+
+    almacen.borrar.assert_called_once_with()
+    almacen.guardar.assert_not_called()

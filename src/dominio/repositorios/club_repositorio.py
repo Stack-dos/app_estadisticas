@@ -27,6 +27,11 @@ class ClubRepositorio(ABC):
         pass
 
     @abstractmethod
+    def guardar_con_entrenador(self, club: Club, id_usuario: int, rol: str) -> Club | None:
+        "Guarda un Club y vincula al usuario como entrenador, todo o nada. Si es None, hay un error"
+        pass
+
+    @abstractmethod
     def link_user_to_club(self, us_club: UsuarioClub) -> UsuarioClub | None:
         "Linkea un usuario a un club especifico"
         pass

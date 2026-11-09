@@ -37,13 +37,20 @@
     - [Login: un solo mensaje para los dos errores](#login-un-solo-mensaje-para-los-dos-errores)
     - [Inicio: la barra superior (`ft.AppBar`)](#inicio-la-barra-superior-ftappbar)
     - [Cerrar sesión](#cerrar-sesión)
-  - [12. Cómo se testea](#12-cómo-se-testea)
+  - [12. Sesión recordada, club activo y pantallas que cambian (US-106)](#12-sesión-recordada-club-activo-y-pantallas-que-cambian-us-106)
+    - [Qué pasa al abrir la app](#qué-pasa-al-abrir-la-app)
+    - [Casilla "Recordarme": `ft.Checkbox`](#casilla-recordarme-ftcheckbox)
+    - [Una barra superior para todas las pantallas](#una-barra-superior-para-todas-las-pantallas)
+    - [Una pantalla que cambia sin navegar](#una-pantalla-que-cambia-sin-navegar)
+    - [Renglones de una lista: `ft.ListTile`](#renglones-de-una-lista-ftlisttile)
+    - [Lambdas dentro de un bucle](#lambdas-dentro-de-un-bucle)
+  - [13. Cómo se testea](#13-cómo-se-testea)
     - [Testear una pantalla sin abrir la ventana](#testear-una-pantalla-sin-abrir-la-ventana)
     - [Testear el router con una `page` falsa](#testear-el-router-con-una-page-falsa)
     - [Ningún test abre la ventana](#ningún-test-abre-la-ventana)
     - [El smoke test del CI: `import main`](#el-smoke-test-del-ci-import-main)
-  - [13. Errores comunes](#13-errores-comunes)
-  - [14. Checklist: agregar una pantalla nueva](#14-checklist-agregar-una-pantalla-nueva)
+  - [14. Errores comunes](#14-errores-comunes)
+  - [15. Checklist: agregar una pantalla nueva](#15-checklist-agregar-una-pantalla-nueva)
 
 ---
 
@@ -577,6 +584,10 @@ contraseña incorrectos")`.
 
 ### Inicio: la barra superior (`ft.AppBar`)
 
+> **Desde la US-106** la barra no se arma en cada pantalla: la arma `crear_barra_superior` (ver la
+> [sección 12](#una-barra-superior-para-todas-las-pantallas)) y el handler de cerrar sesión vive ahí.
+> El código de abajo es la versión de la US-105, que sirve para entender `ft.AppBar`.
+
 ```python
 def crear_inicio_view(page, sesion) -> ft.View:
     usuario = sesion.usuario_actual()
@@ -602,8 +613,8 @@ def crear_inicio_view(page, sesion) -> ft.View:
   cambia mientras la pantalla está abierta. Si no hay sesión lanza `RuntimeError`, pero eso no puede
   pasar porque la ruta protegida nunca construye `/inicio` sin sesión. Si pasara, es un bug y conviene
   que explote.
-- **No tiene menú todavía:** no hay secciones a las que ir. El menú llega con las pantallas de
-  gestión (US-106 y US-107).
+- **No tiene menú todavía:** no hay secciones a las que ir. Desde la US-106 la barra tiene "Inicio"
+  y "Clubes"; las pantallas de gestión llegan con la US-107.
 
 ### Cerrar sesión
 
@@ -620,7 +631,158 @@ siempre reemplaza la pantalla.
 
 ---
 
-## 12. Cómo se testea
+## 12. Sesión recordada, club activo y pantallas que cambian (US-106)
+
+### Qué pasa al abrir la app
+
+Con "Recordarme", la sesión se guarda en `~/.statspro/session.json`. Al abrir la app, **antes** de
+abrir la ventana, `construir_dependencias` la restaura con `RestaurarSesionUseCase`:
+
+```mermaid
+sequenceDiagram
+    participant E as ejecutar()
+    participant C as construir_dependencias
+    participant R as RestaurarSesionUseCase
+    participant A as JsonSesionAlmacen
+    participant U as repo de usuarios
+    participant S as SessionManager
+    participant F as Flet (router)
+
+    E->>C: conexión, hasher, almacén
+    C->>R: ejecutar()
+    R->>A: cargar()
+    A-->>R: SessionDTO(usuario_id=1, email, club_activo_id=7) o None
+    R->>U: encontrar_por_id(1)
+    U-->>R: Usuario (o None)
+    Note over R: ¿existe y coincide el email? Si no: borrar() y fin
+    R->>S: iniciar_sesion(usuario, recordar=True)
+    R->>S: set_active_club(club revalidado)
+    C-->>E: Dependencias (con la sesión ya abierta)
+    E->>F: ft.run(...)
+    F->>F: resolver_ruta("/", autenticado=True) → "/inicio"
+```
+
+- **El router no cambió.** Si la sesión ya está abierta al arrancar, la ruta protegida manda sola a
+  `/inicio`; si no, al login. La sesión recordada se "enchufa" antes de la ventana, no adentro.
+- **El archivo no es de confianza:** cualquiera lo puede editar. Por eso se vuelve a buscar el
+  usuario en la base, se exige que coincida el email (si la base se recreó, el id 1 puede ser de otra
+  persona) y el club se revalida con `CambiarClubActivoUseCase`.
+- **La pantalla nunca ve el archivo.** El login solo le dice al `SessionManager` `recordar=True`; quién
+  y cómo escribe el JSON es asunto del puerto `SesionAlmacen` y su adaptador.
+
+### Casilla "Recordarme": `ft.Checkbox`
+
+```python
+recordar = ft.Checkbox(label="Recordarme", value=False)
+...
+sesion.iniciar_sesion(usuario, recordar=bool(recordar.value))
+```
+
+- **`value` es `bool | None`**, no `bool`: un `Checkbox` de Flet admite un tercer estado,
+  "indeterminado" (`tristate=True`), que se representa con `None`. Acá no se usa, pero el tipo lo
+  permite: `bool(...)` lo convierte y deja contento a mypy.
+- **Se lee adentro del handler**, igual que un `TextField`: al construir la pantalla vale `False`.
+- **No necesita `on_change`**: nadie tiene que reaccionar al tildarla; importa su valor al hacer clic
+  en "Ingresar".
+
+### Una barra superior para todas las pantallas
+
+Todas las pantallas internas muestran el club activo y la misma navegación. En vez de copiar la
+`AppBar` en cada una, una función la arma (`ui/flet/barra_superior.py`):
+
+```python
+def crear_barra_superior(page, sesion) -> ft.AppBar:
+    club = sesion.club_activo()
+
+    def cerrar_sesion() -> None:
+        sesion.cerrar_sesion()
+        page.navigate("/login")
+
+    return ft.AppBar(
+        title=ft.Text(f"StatsPro · {club.nombre if club is not None else SIN_CLUB}"),
+        actions=[
+            ft.TextButton("Inicio", on_click=lambda: page.navigate("/inicio")),
+            ft.TextButton("Clubes", on_click=lambda: page.navigate("/clubes")),
+            ft.TextButton("Cerrar sesión", on_click=cerrar_sesion),
+        ],
+    )
+```
+
+Cada pantalla interna hace `ft.View(..., appbar=crear_barra_superior(page, sesion), ...)`.
+
+- **No hay que "avisarle" a la barra que cambió el club.** El router construye la `View` de nuevo en
+  cada cambio de ruta, y con ella la barra, que lee `sesion.club_activo()` en ese momento. Por eso
+  "Usar este club" termina con `page.navigate("/inicio")`: al navegar, la barra se redibuja con el
+  club nuevo.
+- **Una función y no un control propio** (una clase que herede de `ft.AppBar`): no tiene estado que
+  guardar entre dibujos, así que una función que la arma alcanza.
+
+### Una pantalla que cambia sin navegar
+
+Hasta ahora, cada cambio de pantalla pasaba por el router. La pantalla de clubes es la primera que
+**cambia en el lugar**: al crear un club, la lista tiene que mostrar el nuevo sin salir de `/clubes`.
+
+```python
+lista = ft.Column()
+
+
+def refrescar() -> None:
+    clubes = listar_clubes_uc.ejecutar(usuario.idUsuario)
+    lista.controls = [renglon(c) for c in clubes] or [ft.Text(SIN_CLUBES)]
+
+
+def crear() -> None:
+    def accion() -> None:
+        crear_club_uc.ejecutar(CrearClubDTO(nombre=nombre.value), usuario.idUsuario)
+        nombre.value = ""
+        refrescar()
+
+    ejecutar_mostrando_errores(accion, error)
+    page.update()  # recién acá Flet manda los cambios a la ventana
+
+
+refrescar()  # al construir: la pantalla todavía no se dibujó, no hace falta update()
+```
+
+- **`ft.Column`** apila controles verticalmente; su `.controls` es una lista común que se puede
+  reemplazar. Cambiarla no muestra nada hasta el próximo `page.update()`.
+- **¿Por qué no `page.navigate("/clubes")` para refrescar?** Porque ya estás en `/clubes`: la ruta no
+  cambia, Flet no dispara `on_route_change` y nada se reconstruye.
+- **El campo se vacía solo si salió bien.** Ante un error (nombre repetido), el usuario corrige lo que
+  escribió en vez de tipearlo de nuevo.
+
+### Renglones de una lista: `ft.ListTile`
+
+```python
+ft.ListTile(
+    title=ft.Text(club.nombre),
+    trailing=ft.Text("✓ En uso") if en_uso else ft.TextButton("Usar este club", on_click=lambda: usar(club)),
+)
+```
+
+`ListTile` es el renglón estándar de una lista: `title` (y opcionalmente `subtitle`) a la izquierda,
+`leading` antes del título (un ícono, por ejemplo) y `trailing` a la derecha (un botón, un estado).
+Ahorra armar a mano una `ft.Row` con espaciado.
+
+### Lambdas dentro de un bucle
+
+Un error clásico de Python que en una GUI aparece enseguida:
+
+```python
+# MAL: todos los botones usan el ÚLTIMO club
+for club in clubes:
+    renglones.append(ft.TextButton("Usar", on_click=lambda: usar(club)))
+```
+
+La lambda no guarda el **valor** de `club` cuando se crea: guarda la **variable**, y la lee recién
+cuando se hace clic. Para ese momento el `for` ya terminó y `club` es el último de la lista
+(_late binding_). En el proyecto se evita armando cada renglón en una función aparte,
+`renglon(club)`: cada llamada tiene su propio `club`, y la lambda recuerda ese. Hay un test de
+regresión (`test_cada_boton_usa_su_propio_club`).
+
+---
+
+## 13. Cómo se testea
 
 Flet no trae una herramienta madura para testear la ventana. La estrategia del proyecto es tener
 **pantallas finas** (sin lógica de negocio) y testear todo lo que no depende de la ventana:
@@ -633,8 +795,12 @@ Flet no trae una herramienta madura para testear la ventana. La estrategia del p
 | Pantalla de registro (sin ventana)   | `tests/unit/test_registro_screen.py`     | Unitario    |
 | Pantalla de login (sin ventana)      | `tests/unit/test_login_screen.py`        | Unitario    |
 | Pantalla de inicio (sin ventana)     | `tests/unit/test_inicio_screen.py`       | Unitario    |
+| Pantalla de clubes (sin ventana)     | `tests/unit/test_clubes_screen.py`       | Unitario    |
+| Barra superior compartida            | `tests/unit/test_barra_superior.py`      | Unitario    |
+| Restaurar la sesión al abrir         | `tests/unit/test_uc_restaurar_sesion.py` | Unitario    |
+| Archivo de la sesión (JSON)          | `tests/integration/test_json_sesion_almacen.py` | Integración |
 | Router (`_main`) con `page` falsa    | `tests/unit/test_navegacion.py`          | Unitario    |
-| Cableado de `construir_dependencias` | `tests/integration/test_sesion_flujo.py` | Integración |
+| Cableado de `construir_dependencias` y reabrir la app | `tests/integration/test_sesion_flujo.py` | Integración |
 | Todos los casos de uso juntos        | `tests/integration/test_flujo_casos_de_uso.py` | Integración |
 | Cómo se ven las pantallas            | Prueba manual guiada                     | Manual      |
 
@@ -690,6 +856,11 @@ def boton(vista: ft.View, texto: str) -> ft.Button | ft.TextButton:
   `controls`.
 - **El texto de un botón está en `content`**: `ft.Button("Ingresar")` guarda `"Ingresar"` en
   `boton.content`.
+- También están `casilla(vista, "Recordarme")` (un `ft.Checkbox` por su `label`) y `textos(vista)`
+  (los textos sueltos de la pantalla).
+- **Probar el orden de dos llamadas.** Para comprobar que "Cerrar sesión" cierra **antes** de navegar,
+  `test_barra_superior.py` le pone a `page.navigate` un `side_effect` que anota si la sesión seguía
+  abierta en ese momento: `page.navigate.side_effect = lambda _r: anotado.append(sesion.is_authenticated())`.
 - Los tests lo importan con `from ayudantes_flet import campo, boton`: pytest agrega la carpeta del
   test al `sys.path`, así que funciona sin `__init__.py`.
 
@@ -771,7 +942,7 @@ falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ej
 
 ---
 
-## 13. Errores comunes
+## 14. Errores comunes
 
 - **`on_click=funcion()` con paréntesis.** Ejecuta la función en ese momento y le entrega a Flet lo
   que devuelve (`None`). Va sin paréntesis, o con una lambda: `on_click=lambda: page.navigate("/x")`.
@@ -804,12 +975,20 @@ falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ej
   sesión abierta y vuelve a `/inicio`.
 - **Poner la `AppBar` en `controls`.** Va en el parámetro `appbar=` del `View`.
 - **Buscar botones con `isinstance(c, ft.Button)`.** No encuentra los `ft.TextButton`.
+- **Una lambda adentro de un `for`** que usa la variable del bucle: todos los botones terminan usando
+  el último elemento. Ver la [sección 12](#lambdas-dentro-de-un-bucle).
+- **Navegar a la ruta en la que ya estás para "refrescar".** No pasa nada: la ruta no cambió. Se
+  reemplaza `.controls` y se llama a `page.update()`.
+- **Pasar `checkbox.value` directo como `bool`.** Es `bool | None`.
+- **Copiar la `AppBar` en cada pantalla interna.** Va `crear_barra_superior(page, sesion)`.
+- **Guardar el club activo en una variable de la pantalla.** Se lee siempre de la sesión: así la
+  barra, el inicio y la pantalla de clubes muestran lo mismo.
 - **Llamar a `main.main()` o a `ejecutar()` en un test.** Abre la ventana real (la fixture
   `prohibir_abrir_la_ventana` lo corta con un error).
 
 ---
 
-## 14. Checklist: agregar una pantalla nueva
+## 15. Checklist: agregar una pantalla nueva
 
 1. Crear `screens/<nombre>_screen.py` con `crear_<nombre>_view(page, <solo lo que usa>) -> ft.View`,
    con `route=` igual a su ruta.
@@ -817,11 +996,12 @@ falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ej
    `Dependencias`.
 3. En `app.py`: agregar la constante de la ruta, sumarla a `RUTAS_PUBLICAS` o `RUTAS_INTERNAS`, y
    agregar su entrada en la tabla de rutas.
-4. Cada handler que llame a un caso de uso lo hace a través de `ejecutar_mostrando_errores`, con una
+4. Si es interna, usa la barra compartida: `appbar=crear_barra_superior(page, sesion)`.
+5. Cada handler que llame a un caso de uso lo hace a través de `ejecutar_mostrando_errores`, con una
    etiqueta de `crear_etiqueta_error()` debajo del formulario.
-5. Agregar los casos de la ruta nueva a `tests/unit/test_navegacion.py`.
-6. Si tiene formulario: `tests/unit/test_<nombre>_screen.py` con mocks (camino feliz, un error de
-   dominio y un error inesperado; ver la [sección 12](#testear-una-pantalla-sin-abrir-la-ventana)),
+6. Agregar los casos de la ruta nueva a `tests/unit/test_navegacion.py`.
+7. Si tiene formulario: `tests/unit/test_<nombre>_screen.py` con mocks (camino feliz, un error de
+   dominio y un error inesperado; ver la [sección 13](#testear-una-pantalla-sin-abrir-la-ventana)),
    usando `campo`, `boton` y `etiqueta_error` de `tests/unit/ayudantes_flet.py`.
-7. Probarla a mano: entrar, salir, provocar cada error del formulario y, si es interna, comprobar
+8. Probarla a mano: entrar, salir, provocar cada error del formulario y, si es interna, comprobar
    que sin sesión redirige al login.

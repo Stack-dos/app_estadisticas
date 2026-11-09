@@ -113,6 +113,12 @@ class EmailYaRegistradoError(ErrorDeDominio):
     pass
 
 
+class ClubYaExisteError(ErrorDeDominio):
+    """Se lanza cuando se intenta crear un club con un nombre que ya existe (sin distinguir mayusculas)."""
+
+    pass
+
+
 class VinculoActivoExistenteError(ErrorDeDominio):
     """Se lanza cuando se intenta registrar un jugador en un club nuevo cuando todavia tiene un club."""
 

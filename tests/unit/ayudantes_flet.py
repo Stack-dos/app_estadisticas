@@ -19,5 +19,14 @@ def boton(vista: ft.View, texto: str) -> ft.Button | ft.TextButton:
     )
 
 
+def casilla(vista: ft.View, label: str) -> ft.Checkbox:
+    return next(c for c in vista.controls if isinstance(c, ft.Checkbox) and c.label == label)
+
+
+def textos(vista: ft.View) -> list[str]:
+    """Todos los textos sueltos de la pantalla (no los de botones ni campos)."""
+    return [c.value for c in vista.controls if isinstance(c, ft.Text) and isinstance(c.value, str)]
+
+
 def etiqueta_error(vista: ft.View) -> ft.Text:
     return next(c for c in vista.controls if isinstance(c, ft.Text) and c.color == ft.Colors.ERROR)

@@ -1,4 +1,4 @@
-"""Punto de entrada de la GUI de escritorio (Flet). Composition root de la interfaz (US-105).
+"""Punto de entrada de la GUI de escritorio (Flet). Composition root de la interfaz (US-105 y US-106).
 
 Es el unico lugar que conoce las clases concretas (SQLite, PBKDF2): arma los casos de uso y se los
 pasa a las pantallas, que solo dependen de casos de uso y DTOs.
@@ -7,18 +7,27 @@ pasa a las pantallas, que solo dependen de casos de uso y DTOs.
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 import flet as ft
 
 import config.rutas as r
+from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
+from aplicacion.casos_uso.crear_club import CrearClubUseCase
+from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
+from aplicacion.casos_uso.restaurar_sesion import RestaurarSesionUseCase
+from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.servicios.password_hasher import PasswordHasher
 from infraestructura.logger import get_logger
 from infraestructura.persistencia.database_manager import SQLiteManager
+from infraestructura.persistencia.json_sesion_almacen import JsonSesionAlmacen
+from infraestructura.repositorios.sqlite_club_repositorio import SqliteClubRepositorio
 from infraestructura.repositorios.sqlite_usuario_repositorio import SqliteUsuarioRepositorio
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
+from infraestructura.ui.flet.screens.clubes_screen import crear_clubes_view
 from infraestructura.ui.flet.screens.inicio_screen import crear_inicio_view
 from infraestructura.ui.flet.screens.login_screen import crear_login_view
 from infraestructura.ui.flet.screens.registro_screen import crear_registro_view
@@ -28,8 +37,9 @@ logger = get_logger(__name__)
 RUTA_LOGIN = "/login"
 RUTA_REGISTRO = "/registro"
 RUTA_INICIO = "/inicio"
+RUTA_CLUBES = "/clubes"
 RUTAS_PUBLICAS = {RUTA_LOGIN, RUTA_REGISTRO}
-RUTAS_INTERNAS = {RUTA_INICIO}
+RUTAS_INTERNAS = {RUTA_INICIO, RUTA_CLUBES}
 
 
 @dataclass
@@ -42,26 +52,43 @@ class Dependencias:
     sesion: SessionManager
     registrar_uc: RegistrarEntrenadorUseCase
     login_uc: LoginLocalUseCase
+    crear_club_uc: CrearClubUseCase
+    listar_clubes_uc: ListarClubesUsuarioUseCase
+    cambiar_club_uc: CambiarClubActivoUseCase
 
 
-def construir_dependencias(conexion: sqlite3.Connection, hasher: PasswordHasher) -> Dependencias:
+def construir_dependencias(
+    conexion: sqlite3.Connection, hasher: PasswordHasher, almacen: SesionAlmacen
+) -> Dependencias:
     """
-    Arma repositorios y casos de uso sobre una conexion ya abierta.
+    Arma repositorios y casos de uso sobre una conexion ya abierta, y restaura la sesion recordada.
 
-    Esta separado de `ejecutar()` para poder testear el cableado con una DB `:memory:`, sin ventana.
+    Devuelve la app "tal como arranca": si habia una sesion recordada y sigue siendo valida, ya viene
+    abierta (y el router manda directo a "/inicio"). Esta separado de `ejecutar()` para poder testear
+    el cableado con una DB `:memory:`, sin ventana; llamarla dos veces con la misma base y el mismo
+    archivo simula cerrar y reabrir la app.
 
     Args:
         conexion (sqlite3.Connection): Conexion abierta y con el esquema inicializado.
         hasher (PasswordHasher): Hasher de contraseñas (en los tests, uno con pocas iteraciones).
+        almacen (SesionAlmacen): Donde se guarda la sesion recordada (en los tests, un archivo temporal).
 
     Returns:
-        Dependencias: La sesion (vacia) y los casos de uso listos para usar.
+        Dependencias: La sesion (restaurada o vacia) y los casos de uso listos para usar.
     """
     repo_usuario = SqliteUsuarioRepositorio(conexion)
+    repo_club = SqliteClubRepositorio(conexion)
+    sesion = SessionManager(almacen)
+    cambiar_club_uc = CambiarClubActivoUseCase(repo_club)
+    # RestaurarSesionUseCase no va en Dependencias: lo usa el arranque, no una pantalla.
+    RestaurarSesionUseCase(almacen, repo_usuario, cambiar_club_uc, sesion).ejecutar()
     return Dependencias(
-        sesion=SessionManager(),
+        sesion=sesion,
         registrar_uc=RegistrarEntrenadorUseCase(repo_usuario, hasher),
         login_uc=LoginLocalUseCase(repo_usuario, hasher),
+        crear_club_uc=CrearClubUseCase(repo_club),
+        listar_clubes_uc=ListarClubesUsuarioUseCase(repo_club),
+        cambiar_club_uc=cambiar_club_uc,
     )
 
 
@@ -100,6 +127,9 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
         RUTA_LOGIN: lambda: crear_login_view(page, deps.login_uc, deps.sesion),
         RUTA_REGISTRO: lambda: crear_registro_view(page, deps.registrar_uc, deps.sesion),
         RUTA_INICIO: lambda: crear_inicio_view(page, deps.sesion),
+        RUTA_CLUBES: lambda: crear_clubes_view(
+            page, deps.crear_club_uc, deps.listar_clubes_uc, deps.cambiar_club_uc, deps.sesion
+        ),
     }
 
     def al_cambiar_ruta() -> None:
@@ -126,7 +156,7 @@ def ejecutar() -> None:
     conexion = db.connect()
     try:
         db.inicializar_schema()
-        deps = construir_dependencias(conexion, Pbkdf2PasswordHasher())
+        deps = construir_dependencias(conexion, Pbkdf2PasswordHasher(), JsonSesionAlmacen(Path(r.SESSION_FILE)))
         ft.run(lambda page: _main(page, deps))
     finally:
         db.close_connection()

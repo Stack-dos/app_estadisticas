@@ -1,6 +1,6 @@
 # Casos de uso (capa de aplicación)
 
-Esta guía describe los **17 casos de uso** que existen hoy en `src/aplicacion/casos_uso/`: qué DTO
+Esta guía describe los **18 casos de uso** de gestión y sesión que existen hoy en `src/aplicacion/casos_uso/` (los de autenticación, registro y login, están en la sección 7): qué DTO
 recibe cada uno, qué DTO devuelve, qué excepciones puede lanzar y, sobre todo, **qué hace paso a
 paso** dentro de `ejecutar()`.
 
@@ -46,7 +46,7 @@ flowchart LR
 | #   | Caso de uso                         | Archivo                         | Entra                           | Sale                            | Repositorios                                |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------- | ------------------------------- | ------------------------------------------- |
 | 1   | `RegistrarJugadorUseCase`           | `registrar_jugador.py`          | `CrearJugadorDTO`               | `JugadorDTO \| None`            | `JugadorRepositorio`                        |
-| 2   | `CrearClubUseCase`                  | `crear_club.py`                 | `CrearClubDTO`                  | `ClubDTO \| None`               | `ClubRepositorio`                           |
+| 2   | `CrearClubUseCase`                  | `crear_club.py`                 | `CrearClubDTO`, `idUsuario: int` | `ClubDTO \| None`              | `ClubRepositorio`                           |
 | 3   | `VincularJugadorAClubUseCase`       | `vincular_jugador_club.py`      | `VincularJugadorClubDTO`        | `VinculoDTO \| None`            | `JugadorRepositorio`, `ClubRepositorio`     |
 | 4   | `CrearCompetenciaUseCase`           | `crear_competencia.py`          | `CrearCompetenciaDTO`           | `CompetenciaDTO \| None`        | `CompetenciaRepositorio`                    |
 | 5   | `InscribirClubEnCompetenciaUseCase` | `inscribir_club_competencia.py` | `InscribirClubDTO`              | `InscripcionDTO \| None`        | `CompetenciaRepositorio`, `ClubRepositorio` |
@@ -62,6 +62,7 @@ flowchart LR
 | 15  | `ListarListaBuenaFeUseCase`          | `listar_lista_buena_fe.py`      | `idInscripcion: int`            | `list[JugadorDTO]`            | `CompetenciaRepositorio`, `JugadorRepositorio` |
 | 16  | `DesvincularJugadorDeClubUseCase`    | `desvincular_jugador_club.py`   | `DesvincularJugadorDTO`         | `VinculoDTO \| None`          | `JugadorRepositorio`                        |
 | 17  | `QuitarJugadorDeListaBuenaFeUseCase` | `quitar_jugador_lista.py`       | `QuitarJugadorListaDTO`         | `JugadorEnListaDTO \| None`   | `CompetenciaRepositorio`                    |
+| 18  | `RestaurarSesionUseCase`             | `restaurar_sesion.py`           | _(nada: lee el archivo de sesión)_ | `None` (abre o no la sesión) | `UsuarioRepositorio` (+ `SesionAlmacen`, `CambiarClubActivoUseCase`, `SessionManager`) |
 
 Los listados con un solo dato (6, 7, 8, 13 y 15) reciben un `int` suelto y no un DTO: armar una dataclass de
 un campo sería sobre-ingeniería. Los listados 11 y 12 no reciben nada (devuelven todo lo que hay).
@@ -94,25 +95,30 @@ Registra un jugador nuevo.
 
 ### 3.2 `CrearClubUseCase`
 
-Crea un club nuevo.
+Crea un club nuevo y vincula como entrenador al usuario que lo crea.
 
 - **Constructor:** `CrearClubUseCase(repo: ClubRepositorio)`
-- **Entra:** `CrearClubDTO(nombre)`
+- **Entra:** `CrearClubDTO(nombre)` y `idUsuario: int` (el usuario de la sesión, no un dato del formulario)
 - **Sale:** `ClubDTO(idClub, nombre)`, o `None` si no se pudo guardar
-- **Lanza:** `DatoInvalidoError` / `TypeError` (desde la entidad)
+- **Lanza:** `DatoInvalidoError` / `TypeError` (desde la entidad), `ClubYaExisteError`
 
 **Paso a paso:**
 
 1. **Arma la entidad** `Club(nombre=dto.nombre)`. Si el nombre está vacío (o solo espacios) → `DatoInvalidoError`.
-2. **Le pide al repositorio que la guarde** (`repo.guardar`), que hace el `INSERT` y devuelve el `Club`
-   con su `idClub`.
-3. **Si el repositorio devolvió `None`**, devuelve `None`.
-4. **Arma el `ClubDTO`** con `idClub` y `nombre` del club guardado.
+2. **Busca si el nombre ya existe** (`repo.buscar_por_nombre`). Esa búsqueda es parcial (`LIKE '%x%'`),
+   así que filtra por igualdad, sin distinguir mayúsculas: "atenas" choca con "Atenas", pero "Atenas
+   del Sur" no. Si ya existe → `ClubYaExisteError`.
+3. **Le pide al repositorio que lo guarde y lo vincule** (`repo.guardar_con_entrenador(club, id_usuario,
+   rol=ROL_CREADOR)`, con `ROL_CREADOR = "principal"`). El repositorio hace los dos `INSERT` (`club` y
+   `usuarioClub`) en **una sola transacción**: si el vínculo falla, el club tampoco queda guardado.
+4. **Si el repositorio devolvió `None`**, devuelve `None`.
+5. **Arma el `ClubDTO`** con `idClub` y `nombre` del club guardado.
 
-!!! warning "Lo que todavía NO hace"
-No vincula el club con el usuario que lo creó (`ClubRepositorio.link_user_to_club`), así que un club
-recién creado no aparece en `ListarClubesUsuarioUseCase`. Ese vínculo necesita el usuario de la
-sesión, que llega con la US-104. Tampoco valida nombres duplicados.
+!!! note "Fix de la US-106"
+Hasta la US-106 este caso de uso no vinculaba el club al usuario, así que un club recién creado nunca
+aparecía en `ListarClubesUsuarioUseCase` ni se podía elegir como activo. `club.nombre` es único en
+toda la base (no por usuario). Los clubes rivales, sin vínculo, los crea la US-108 por otro camino
+(`repo.guardar`).
 
 ---
 
@@ -314,7 +320,8 @@ Valida que un usuario pueda pasar a trabajar con un club (el "club activo" de la
 
 !!! note "Solo valida, no guarda la sesión"
 Este caso de uso solo aplica la regla de negocio. Guardar el club elegido en la sesión es trabajo del
-`SessionManager` de la US-104, que usará el `ClubDTO` que devuelve `ejecutar`.
+`SessionManager` (`set_active_club`), con el `ClubDTO` que devuelve `ejecutar`. Lo usan la pantalla de
+clubes ("Usar este club") y `RestaurarSesionUseCase`, que revalida el club recordado al abrir la app.
 
 ---
 
@@ -461,6 +468,32 @@ Solo se deshace la habilitación en esa lista: el jugador sigue existiendo y sig
 
 ---
 
+### 3.18 `RestaurarSesionUseCase`
+
+Al abrir la app, convierte la sesión recordada ("Recordarme", US-106) en una sesión viva. Lo llama
+`construir_dependencias` antes de abrir la ventana; ninguna pantalla lo usa.
+
+- **Constructor:** `RestaurarSesionUseCase(almacen: SesionAlmacen, repo_usuario: UsuarioRepositorio,
+  cambiar_club_uc: CambiarClubActivoUseCase, sesion: SessionManager)`
+- **Entra:** nada (lee el archivo de sesión a través del puerto `SesionAlmacen`)
+- **Sale:** `None`; el resultado es el estado del `SessionManager` (con sesión o sin ella)
+- **Lanza:** nada: en el peor caso no abre la sesión y la app arranca en el login (AC4)
+
+**Paso a paso:**
+
+1. **Lee la sesión guardada** (`almacen.cargar()`). Si no hay (o el archivo está dañado), termina.
+2. **Vuelve a buscar el usuario en la base** (`repo_usuario.encontrar_por_id`). Si no existe, **o su
+   email no coincide** con el guardado, borra el archivo y termina. El email importa: si la base se
+   recreó, ese id puede ser de otra persona.
+3. **Abre la sesión** con `recordar=True` (así el archivo se reescribe, todavía sin club).
+4. **Si había club guardado, lo revalida** con `CambiarClubActivoUseCase`: si sigue siendo del usuario,
+   lo deja activo (`set_active_club`); si lanza `ClubNoEncontradoError`, la sesión sigue sin club.
+
+El archivo no es de confianza (cualquiera lo puede editar): por eso todo lo que viene de él se vuelve a
+validar contra la base, y la regla "solo clubes vinculados" se reusa en vez de repetirla.
+
+---
+
 ## 4. DTOs
 
 Todos son `@dataclass` simples, sin lógica, en `src/aplicacion/dtos/`.
@@ -506,7 +539,8 @@ capturarlas juntas con un solo `except ErrorDeDominio` (en `infraestructura/ui/f
 | `InscripcionDuplicadaError`                              | `InscribirClubEnCompetenciaUseCase`                                                            | El club ya está inscripto en esa competencia y categoría                    |
 | `CredencialesInvalidasError`                             | `LoginLocalUseCase`                                                                            | El email no existe o la contraseña no coincide (mismo mensaje en los dos casos) |
 | `EmailYaRegistradoError`                                 | `RegistrarEntrenadorUseCase`                                                                   | Ya hay un usuario con ese email                                             |
-| `UsuarioNoEncontradoError`                               | _(todavía nadie)_                                                                              | Reservada para la sesión persistente (US-106)                               |
+| `ClubYaExisteError`                                      | `CrearClubUseCase`                                                                             | Ya hay un club con ese nombre (sin distinguir mayúsculas)                   |
+| `UsuarioNoEncontradoError`                               | _(todavía nadie)_                                                                              | Reservada; `RestaurarSesionUseCase` no la usa (un usuario inexistente no es un error: la app pide login) |
 | `CategoriaDuplicadaError` | `CrearCategoriaUseCase` | Ya existe una categoría con ese nombre (sin distinguir mayúsculas ni espacios de los extremos) |
 | `InscripcionNoEncontradaError` | `AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase` | La inscripción no existe |
 | `ListaBuenaFeNoEncontradaError` | `AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`, `ListarInscripcionesClubUseCase` | La inscripción no tiene lista de buena fe (no debería pasar: es 1:1 y se crean juntas) |
@@ -552,14 +586,15 @@ siguientes ya están implementados y testeados; la columna "Pantalla" indica qu�
 | `RegistrarEntrenadorUseCase`         | `RegistroScreen` (US-105)      | ✅ En la GUI (US-105)                                                                          |
 | `LoginLocalUseCase`                  | `LoginScreen` (US-105)         | ✅ En la GUI (US-105)                                                                          |
 | `RegistrarJugadorUseCase`            | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
-| `CrearClubUseCase`                   | `ClubesScreen` (US-106)        | ✅ Implementado; pantalla pendiente                                                            |
+| `CrearClubUseCase`                   | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106)                                                                          |
 | `VincularJugadorAClubUseCase`        | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
 | `CrearCompetenciaUseCase`            | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
 | `InscribirClubEnCompetenciaUseCase`  | `InscripcionesScreen` (US-107) | ✅ Implementado; pantalla pendiente                                                            |
-| `ListarClubesUsuarioUseCase`         | `ClubesScreen` (US-106)        | ✅ Implementado (el usuario sale de la sesión desde la US-106); pantalla pendiente             |
+| `ListarClubesUsuarioUseCase`         | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106; el usuario sale de la sesión)                                            |
 | `ListarJugadoresClubUseCase`         | `JugadoresScreen` (US-107)     | ✅ Implementado; pantalla pendiente                                                            |
 | `ListarPartidosPorClubUseCase`       | `PartidosScreen` (US-107)      | ✅ Implementado; pantalla pendiente                                                            |
-| `CambiarClubActivoUseCase`           | `ClubesScreen` (US-106)        | ✅ Implementado (validación); guardar el club en la sesión es de la US-106; pantalla pendiente |
+| `CambiarClubActivoUseCase`           | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106): "Usar este club" + `SessionManager.set_active_club`                    |
+| `RestaurarSesionUseCase`             | _(ninguna: al abrir la app)_   | ✅ US-106, lo llama `construir_dependencias`                                                   |
 | `CrearCategoriaUseCase`              | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
 | `ListarCategoriasUseCase`            | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
 | `ListarCompetenciasUseCase`          | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
