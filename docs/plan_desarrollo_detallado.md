@@ -1359,6 +1359,15 @@ tests/unit/
 >   `config/rutas.py` los pone junto al código, y una app instalada en `Program Files` o `/opt` no puede escribir ahí. La
 >   `estadisticas.db` actual se mueve a mano una sola vez (el RUNBOOK dice cómo).
 > - **Sin gitleaks, a propósito:** se sacó del CI y no vuelve. El AC3 ya no pide detectar secretos en el historial.
+>
+> **Spike de `flet build` (2026-11-09, workflow temporal `spike-build.yml`, ya borrado: lo reemplazó `release.yml`):** compila en
+> `windows-latest` y `ubuntu-latest` sin instalar nada a mano (Flet baja Flutter solo con `--yes`; Linux necesita `clang cmake
+> ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` probado en Windows abre, crea `~/.statspro/` con la base y
+> funciona. Hallazgos para `release.yml`: (1) `PYTHONUTF8=1` en el paso del build, si no flet-cli se cae en Windows al reenviar el `√`
+> de Flutter (`UnicodeEncodeError` con cp1252) y no copia el resultado; (2) el paquete lleva **su propio Python 3.14**, no el del runner
+> (ya probado por la matriz de `tests-linux`); (3) va todo compilado a `.pyc`, con `src/assets/` y los `.sql` adentro; (4) se excluye
+> `statspro_basketball.egg-info` (`[tool.flet.app] exclude`); (5) nada de `| head` en los pasos de bash (con `pipefail`, el
+> "Broken pipe" hace fallar el paso).
 
 - **Archivos a crear/existentes:**
 
@@ -1374,10 +1383,14 @@ Makefile                        ✅ existe
 .github/workflows/MainAction.yml  ← actionlint en el job lint ✅ y sin el comentario de gitleaks ✅ (2026-11-09)
 .github/workflows/titulo-pr.yml  ✅ nuevo (2026-11-09): título del PR en Conventional Commits (AC11)
 src/config/rutas.py             ✅ base y logs en ~/.statspro/ (AC15) + tests/unit/test_rutas.py
-.github/workflows/release.yml   ← nuevo: se dispara con el tag vX.Y.Z (AC9)
-build/windows/statspro.iss      ← nuevo: script de Inno Setup que arma el instalador .exe (AC9)
-cliff.toml                      ← nuevo: configuración de git-cliff (AC10)
-CHANGELOG.md                    ← nuevo: Keep a Changelog, generado con git-cliff (AC10)
+.github/workflows/release.yml   ✅ nuevo (2026-11-09): se dispara con el tag vX.Y.Z (AC9); falta probarlo con un tag -rc
+empaquetado/windows/statspro.iss  ✅ nuevo: script de Inno Setup que arma el instalador .exe (AC9)
+empaquetado/linux/armar_deb.sh    ✅ nuevo: arma el .deb (/opt/statspro, /usr/bin/statspro, acceso directo e ícono) (AC9)
+empaquetado/linux/statspro.desktop ✅ nuevo: acceso directo del menú de Linux
+.gitattributes                  ✅ nuevo: *.sh y *.desktop siempre en LF (con CRLF, bash falla)
+cliff.toml                      ✅ nuevo (2026-11-09): configuración de git-cliff, secciones en castellano (AC10)
+CHANGELOG.md                    ✅ nuevo (2026-11-09): Keep a Changelog, generado con git-cliff (AC10)
+Makefile                        ← + make changelog VERSION=X.Y.Z ✅
 RUNBOOK.md                      ← + cómo sacar un release, qué estrategia de merge va en cada PR y cómo mover la base a ~/.statspro/
 ```
 
@@ -1395,7 +1408,8 @@ RUNBOOK.md                      ← + cómo sacar un release, qué estrategia de
     3. compila con `flet build` en una matriz de runners: `windows-latest` arma el instalador `.exe` (Inno Setup) y el `.zip` portable, `ubuntu-latest` el `.deb` (`dpkg-deb`; la versión del paquete va sin la `v`). Ningún artefacto lleva `data/` ni una base: la app arranca con la base vacía;
     4. crea el GitHub Release con los binarios y, como notas, la sección de esa versión del `CHANGELOG.md`.
        Un tag con sufijo (`v0.1.0-rc.1`) crea un _pre-release_: sirve para probar el workflow sin publicar una versión de verdad. Permisos: `contents: write` solo en el job que publica.
-  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`uvx git-cliff --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR `develop → main`, junto con el cambio de versión.
+       ✅ Implementado (2026-11-09): los tests corren en Linux y en Windows con **Python 3.14**, el que `flet build` mete en el paquete. En un pre-release se compara la versión sin el sufijo (`v0.1.0-rc.1` ↔ `0.1.0`). Las notas salen de la sección `## [X.Y.Z]` del `CHANGELOG.md` (un pre-release usa la de su versión final si ya está; si no, un texto de prueba); una versión final sin su sección falla sin publicar. Nombres: `StatsPro-X.Y.Z-windows-x64-instalador.exe`, `StatsPro-X.Y.Z-windows-x64-portable.zip` y `statspro_X.Y.Z_amd64.deb` (en Debian el `-rc.1` pasa a `~rc.1`, para que la versión final quede por encima). Desinstalar no borra `~/.statspro/`.
+  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`make changelog VERSION=X.Y.Z`, que corre `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR `develop → main`, junto con el cambio de versión. ✅ (2026-11-09) Secciones en castellano: `feat` → Agregado; `refactor`, `perf` y `revert` → Cambiado; `fix` → Corregido; `fix(seguridad)` → Seguridad. Quedan afuera `docs`, `test`, `ci`, `build` (incluye Dependabot), `chore`, `style` y los commits que no siguen Conventional Commits. Los _pre-release_ (`-rc.N`) no abren sección propia: sus commits quedan en la versión final. El archivo se regenera entero: no se edita a mano.
   - **AC11 — Título del PR:** un job falla si el título del PR no sigue Conventional Commits (`amannn/action-semantic-pull-request`). Con _squash_, el título del PR es el mensaje del commit que llega a la rama, y de ahí sale el changelog. El repo se configura para que el _squash_ use siempre el título del PR. Va en un workflow aparte (`titulo-pr.yml`) porque necesita el evento `edited`: corregir el título vuelve a correr el chequeo sin relanzar los tests; por eso es un _required status check_ propio, además de `ci-ok`. También valida el mensaje del commit en los PR de un solo commit (`validateSingleCommit`), porque ahí GitHub propone ese mensaje en vez del título.
   - **AC12 — Workflows revisados:** actionlint en pre-commit, en `make run_linter_ruf` y en el job `lint` (detecta, por ejemplo, una expresión mal escrita como `${{ github.evnt_name }}`, y con shellcheck, que viene en `ubuntu-latest`, errores en los scripts de los `run:`). Su versión sale de `uv.lock` (paquete `actionlint-py` del grupo `dev`), igual que ruff. Los inputs de un `with:` los valida solo para las acciones que conoce: con versiones más nuevas que su catálogo (por ejemplo `actions/checkout@v7`) no los revisa.
   - **AC13 — SAST ✅ (2026-11-09):** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
@@ -2482,8 +2496,9 @@ tests/unit/test_credential_policy.py
 **Archivos a crear:**
 
 ```text
-build/
+empaquetado/   (no build/: es la carpeta de salida de flet build y está en .gitignore)
 ├── windows/statspro.iss  ← existe desde la US-109 (instalador .exe); se le suma el ícono (AC6)
+├── linux/armar_deb.sh    ← existe desde la US-109 (.deb)
 ├── build_android.py   ← flet build apk
 └── generar_iconos.py  ← .ico y .png desde src/assets/logo/statspro-icono-app.svg (AC6)
 
