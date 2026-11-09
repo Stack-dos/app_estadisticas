@@ -5,7 +5,7 @@ inputs:
   python-version:
     description: "Version de Python de la imagen base (ej. 3.12)"
     required: false
-    default: "3.11"
+    default: "3.12"
 
 runs:
   using: "composite"

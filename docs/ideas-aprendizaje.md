@@ -152,7 +152,7 @@ secundarios) son lo más fácil de testear que existe en programación — ideal
 
 ## 6. Un comando CLI mínimo, antes de construir toda la US-106
 
-> **Obsoleta (2026-10-31):** la CLI ya se construyó en la US-103 y se retira en la US-105. Queda como registro de la idea.
+> **Obsoleta:** la CLI se construyó en la US-103 y se retiró en la US-105. Queda como registro de la idea.
 
 **Qué es:** antes de armar toda la infraestructura de Command Pattern que pide la US-106, un
 experimento chico: un único archivo con `argparse` que soporte `stats club list` y lea
@@ -334,6 +334,9 @@ Hoy hay archivos sin formatear en el repo (por ejemplo `src/infraestructura/repo
 ---
 
 ### 8.3 Versiones de Python: probar con más de una (_ya hecho_)
+
+> **Cambio en la US-105:** la versión mínima pasó a **3.12** (los _stubs_ de tipos de numpy usan la sentencia `type` de 3.12 y mypy fallaba al chequear contra 3.11).
+> La matriz hoy es 3.12 a 3.14 y el _default_ de las actions es `"3.12"`; lo que sigue cuenta cómo se armó con 3.11.
 
 **Qué es.** Un programa puede funcionar en Python 3.13 y romperse en 3.11 (o al revés), porque el lenguaje cambia entre versiones. Una **matriz** (_matrix strategy_) hace que GitHub repita el mismo job con distintos valores.
 
@@ -702,21 +705,22 @@ Prioridad baja: hacerlo solo para las actions de terceros es un buen punto medio
 
 ---
 
-### 8.14 Probar que la CLI "prende" (_smoke test_)
+### 8.14 Probar que la app "prende" (_smoke test_)
 
-> **Aplicada el 2026-10-11; cambia en la US-105:** con la CLI retirada, el paso deja de ser `main.py --help` y pasa a importar el composition root de la GUI (`app.py`) sin abrir ninguna ventana. La idea (probar que el programa arranca fuera de pytest) es la misma.
+> **Aplicada el 2026-10-11 con la CLI (`main.py --help`); cambiada en la US-105:** con la GUI, ejecutar `main.py` abriría una ventana que nadie cierra en el CI.
+> El paso ahora **importa** `main` (y con él toda la app: pantallas, casos de uso, repositorios) sin abrir ninguna ventana.
 
 **Qué es.** Un _smoke test_ ("prueba de humo") verifica solo lo mínimo: que el programa arranca. Viene de la electrónica: enchufás el aparato y mirás si sale humo.
 
-**Por qué importa.** Los tests de `pytest` ya cubren la CLI (incluido un recorrido completo de punta a punta), pero corren dentro de pytest. Este paso ejecuta el programa **como lo ejecutaría una persona**, tal cual, y detecta problemas de instalación
+**Por qué importa.** Los tests de `pytest` ya cubren la app (incluido un recorrido completo de punta a punta), pero corren dentro de pytest. Este paso ejecuta el programa **como lo ejecutaría una persona**, tal cual, y detecta problemas de instalación
 (un import que falla, un archivo que no se empaquetó).
 
 **Qué hacer.** Agregar un paso al final de la action de tests de Linux:
 
 ```yaml
-- name: Smoke test de la CLI
+- name: Probar que la app importa
   shell: bash
-  run: uv run python src/main.py --help
+  run: uv run --locked python -c "import main"
 ```
 
 **Cómo comprobar.** Romper a propósito un `import` en `src/main.py`: el paso tiene que fallar.
@@ -743,7 +747,7 @@ Prioridad baja: hacerlo solo para las actions de terceros es un buen punto medio
 | 8.9  | Job agregador + _required status checks_ (incluye sumar `gitleaks`)        | **Alto**: el CI pasa de "avisar" a "proteger" | Bajo (un job y unos clics) | **1º**                     |
 | 8.2  | `ruff format --check`                                                      | Medio                                         | Bajo                       | **2º**                     |
 | 8.4  | Sacar `submodules: recursive` de `check_dep`, `lint` y `static`            | Bajo (velocidad)                              | Muy bajo                   | 3º                         |
-| 8.14 | Smoke test de la CLI                                                       | Bajo                                          | Muy bajo                   | 4º                         |
+| 8.14 | Smoke test de la app                                                       | Bajo                                          | Muy bajo                   | 4º                         |
 | 8.13 | Fijar actions por hash (Dependabot ya está y lo facilita)                  | Bajo–medio                                    | Medio                      | 5º                         |
 | 8.15 | CD / empaquetado                                                           | —                                             | Alto                       | Con la US-404              |
 

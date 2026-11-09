@@ -1,5 +1,5 @@
 BEGIN TRANSACTION;
--- Este script se ejecuta en cada arranque de la app (ver main.inicializar_db): NO debe borrar tablas.
+-- Este script se ejecuta en cada arranque de la app (ver ejecutar() en infraestructura/ui/flet/app.py): NO debe borrar tablas.
 -- Todas las tablas se crean con IF NOT EXISTS, asi el script es idempotente y conserva los datos.
 -- Creacion de esquema de base de datos
 -- create schema if not exists appbasquet;

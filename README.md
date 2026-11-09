@@ -5,29 +5,7 @@ Está pensada para el básquet de Córdoba: clubes, competencias, categorías, l
 
 ## Estado actual
 
-Hoy la aplicación se usa desde la **línea de comandos (CLI)**. **La CLI se retira en la US-105**, que la reemplaza por una aplicación de escritorio con ventanas (Flet); hasta entonces, los comandos de abajo siguen funcionando. El plan completo está en el [PRD](docs/plan_desarrollo_detallado.md).
-
-## Qué se puede hacer hoy
-
-```text
-stats club add --nombre "Atenas"
-stats jugador add --nombre Manu --apellido Ginobili --anio 1977
-stats jugador link --id-jugador 1 --id-club 1 --fecha-desde 2026-01-05
-stats jugador unlink --id-jugador 1 --fecha-hasta 2026-06-30   # da de baja del club (para poder cambiarlo)
-stats jugador list --id-club 1
-stats competencia add --nombre "Liga Provincial" --anio 2026 --tipo PROVINCIAL
-stats competencia list
-stats categoria add --nombre U21
-stats categoria list
-stats competencia inscribir --id-club 1 --id-categoria 1 --id-competencia 1 --fecha-presentacion 2026-03-01
-stats inscripcion list --id-club 1
-stats lista add --id-inscripcion 1 --id-jugador 1        # habilita al jugador en la lista de buena fe
-stats lista remove --id-inscripcion 1 --id-jugador 1     # deshace la habilitación
-stats lista list --id-inscripcion 1
-stats partido list --id-club 1
-```
-
-La guía completa de cada comando, con ejemplos y errores posibles, está en el **[RUNBOOK](RUNBOOK.md)**.
+La aplicación es de **escritorio, con ventanas** (Flet). Desde la US-105 se puede registrar un entrenador, iniciar sesión y cerrarla. La carga de clubes, jugadores, competencias, listas de buena fe y partidos ya está implementada en los casos de uso y llega a la interfaz con las pantallas de gestión (US-106 a US-108). La línea de comandos (CLI) que tenía el proyecto hasta la US-104 se retiró. El plan completo está en el [PRD](docs/plan_desarrollo_detallado.md).
 
 ## Inicio rápido
 
@@ -36,16 +14,18 @@ Necesitás [uv](https://docs.astral.sh/uv/) (instala Python y las dependencias; 
 ```bash
 git clone https://github.com/nicopinera/app_estadisticas.git
 cd app_estadisticas
-uv sync                                                       # instala todo
-uv run python src/main.py club add --nombre "Atenas"          # primer comando (crea la base de datos sola)
-uv run pytest                                                 # corre los tests
+uv sync                          # instala todo
+uv run python src/main.py        # abre la aplicación (crea la base de datos sola)
+uv run pytest                    # corre los tests
 ```
+
+La primera vez que se abre, Flet descarga su cliente de escritorio y tarda un poco más. Cómo operar el proyecto (base de datos, logs, tests, Docker, dependencias) está en el **[RUNBOOK](RUNBOOK.md)**.
 
 ## Tecnologías
 
-- **Python ≥ 3.11**, con dependencias y entorno manejados por **uv** (`pyproject.toml` + `uv.lock`, versiones fijas).
+- **Python ≥ 3.12**, con dependencias y entorno manejados por **uv** (`pyproject.toml` + `uv.lock`, versiones fijas).
+- **Flet** para la interfaz gráfica de escritorio.
 - **SQLite** para la persistencia local.
-- **argparse** (CLI) y **tabulate** (tablas en consola).
 - Calidad: **pytest** (+ cobertura), **ruff** (estilo), **mypy** (tipos), **pip-audit** (seguridad de dependencias), **Docker** y **GitHub Actions** (CI).
 
 ## Cómo está organizado el código
@@ -54,14 +34,14 @@ Sigue una **Arquitectura Limpia / Hexagonal**: la lógica de negocio no depende 
 
 ```text
 src/
-├── main.py             Punto de entrada de la CLI
+├── main.py             Punto de entrada: abre la GUI
 ├── utils.py            Helpers puros compartidos
 ├── dominio/            Entidades, contratos de repositorios y excepciones de negocio
-├── aplicacion/         Casos de uso y DTOs
-└── infraestructura/    SQLite, logger y CLI (comandos y tablas)
+├── aplicacion/         Casos de uso, DTOs y la sesión en memoria
+└── infraestructura/    SQLite, logger, seguridad y la GUI (ui/flet: composition root y pantallas)
 tests/
-├── unit/               Tests sin base de datos (rápidos)
-└── integration/        Tests con SQLite real y la CLI de punta a punta
+├── unit/               Tests sin base de datos (rápidos), incluidas las pantallas sin ventana
+└── integration/        Tests con SQLite real y los casos de uso de punta a punta
 docs/                   Documentación técnica, plan de desarrollo (PRD) e informes de trabajo
 ```
 
@@ -69,10 +49,11 @@ docs/                   Documentación técnica, plan de desarrollo (PRD) e info
 
 | Qué buscás                                            | Dónde                                                                      |
 | ----------------------------------------------------- | -------------------------------------------------------------------------- |
-| Cómo usar la CLI y operar el proyecto                 | [RUNBOOK.md](RUNBOOK.md)                                                   |
+| Cómo operar el proyecto (base, logs, tests, Docker)   | [RUNBOOK.md](RUNBOOK.md)                                                   |
 | Plan de desarrollo, historias de usuario y decisiones | [docs/plan_desarrollo_detallado.md](docs/plan_desarrollo_detallado.md)     |
 | Qué hace cada caso de uso, paso a paso                | [docs/info_modulo/03-casos-de-uso.md](docs/info_modulo/03-casos-de-uso.md) |
 | Arquitectura, patrones, testing, Docker               | [docs/info_modulo/](docs/info_modulo/) (guías numeradas)                   |
+| La GUI: Flet, eventos, rutas y pantallas              | [13-gui-flet-y-eventos.md](docs/info_modulo/13-gui-flet-y-eventos.md)      |
 | Informes de trabajo y decisiones tomadas              | [docs/context_ia/](docs/context_ia/)                                       |
 | Ideas de mejora y revisión del CI                     | [docs/ideas-aprendizaje.md](docs/ideas-aprendizaje.md)                     |
 

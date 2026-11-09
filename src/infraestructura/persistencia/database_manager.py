@@ -1,21 +1,8 @@
 import sqlite3
 
-import config.rutas as r
 from infraestructura.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-def abrir_conexion() -> sqlite3.Connection:
-    """Abre la conexión a la base de datos real de la aplicación (``estadisticas.db``).
-
-    Es el atajo que usan los comandos de la CLI para armar sus repositorios: evita repetir en cada
-    comando la construcción de :class:`SQLiteManager` con las rutas del proyecto.
-
-    Returns:
-        sqlite3.Connection: conexión activa, con claves foráneas y ``row_factory`` ya configurados.
-    """
-    return SQLiteManager(r.DB_FILE, r.SCHEMA_SQL, r.VISTA_SQL).connect()
 
 
 class SQLiteManager:

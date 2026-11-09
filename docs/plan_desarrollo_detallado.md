@@ -67,7 +67,7 @@ El análisis estadístico en el básquet formativo sufre una brecha crítica ent
 | 2   | Ceguera estadística      | Decisiones por intuición, sin métricas avanzadas (PPP, EFF)     | 0% automatizado            |
 | 3   | Fragmentación de datos   | Imposibilidad de seguimiento histórico o comparativo de rivales | Papel / Excel              |
 | 4   | Inestabilidad de red     | Apps web fallan en estadios sin conectividad                    | 100% online (competidores) |
-| 5   | Rigidez de plataformas   | El DT no puede integrar datos de Gesdeportiva fácilmente       | Ingesta manual             |
+| 5   | Rigidez de plataformas   | El DT no puede integrar datos de Gesdeportiva fácilmente        | Ingesta manual             |
 
 Desglose adicional (basado en encuestas reales a DTs):
 
@@ -122,9 +122,9 @@ Pilares del producto:
 
 ## 2. Perfiles de Usuario
 
-| Perfil                   | Rol y Contexto                                               | Objetivo Principal                             | Problema Actual                                          |
-| ------------------------ | ------------------------------------------------------------ | ---------------------------------------------- | -------------------------------------------------------- |
-| **Director Técnico**     | Líder táctico, desde categorías formativas hasta profesional | Optimizar rendimiento mediante datos objetivos | El cálculo manual de EFF/PPP es tedioso                  |
+| Perfil                   | Rol y Contexto                                               | Objetivo Principal                             | Problema Actual                                         |
+| ------------------------ | ------------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------- |
+| **Director Técnico**     | Líder táctico, desde categorías formativas hasta profesional | Optimizar rendimiento mediante datos objetivos | El cálculo manual de EFF/PPP es tedioso                 |
 | **Analista / Asistente** | Responsable de carga y procesamiento de datos                | Proveer informes rápidos y precisos al DT      | Carga redundante de datos ya existentes en Gesdeportiva |
 
 ### Perfil ampliado del usuario principal (Entrenador / Analista Estadístico)
@@ -209,8 +209,8 @@ config:
 ---
 treeView-beta
   src/
-    main.py :::highlight icon(logos:python) ## punto de entrada: abre la GUI (hasta la US-105, parser de la CLI)
-    utils.py ## helpers puros compartidos (id_persistido; abortar y fecha_iso se revisan en la US-105)
+    main.py :::highlight icon(logos:python) ## punto de entrada: solo llama a ejecutar() de ui/flet/app.py
+    utils.py ## helpers puros compartidos (id_persistido)
     config/
       rutas.py ## rutas de la base, scripts SQL y logs
     dominio/
@@ -226,7 +226,7 @@ treeView-beta
       logger.py ## ✅ configuración central del logging
       repositorios/ ## implementaciones SQLite de las interfaces de dominio
       persistencia/
-        database_manager.py ## SQLiteManager y abrir_conexion()
+        database_manager.py ## SQLiteManager
         sql/
           schema.sql
           views.sql
@@ -239,6 +239,7 @@ treeView-beta
       ui/
         flet/ ## GUI (desde la US-105)
           app.py ## composition root de la GUI: arma repositorios, casos de uso y navegación
+          errores.py ## manejador común de errores de los handlers
           screens/ ## una pantalla por archivo (login_screen.py, clubes_screen.py, ...)
           components/ ## piezas reutilizables (tabla_datos.py, chart_component.py)
 tests/
@@ -447,17 +448,17 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 
 ## 8. Registro de Decisiones Arquitectónicas (ADR)
 
-| ID      | Título                     | Estado                                                                                    | Decisión                                                                                                                                           | Bloquea         |
-| ------- | -------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| ADR-001 | Arquitectura Local-First   | Aprobado (`docs/adr/ADR-001-arquitectura-local-first.md`)                                 | SQLite + offline-first                                                                                                                             | Hito 1          |
-| ADR-002 | Framework UI               | Aprobado (`docs/adr/ADR-002-framework-ui.md`)                                             | Flet (Python puro); se descarta Compose Multiplatform. Desde 2026-10-31 es la única interfaz (la CLI se retira)                                    | US-105          |
-| ADR-003 | Protocolo de Ingesta       | Pendiente — propuesta con archivos reales (`docs/adr/ADR-003-protocolo-ingesta-excel.md`) | Mapeo fijo en código, buscando encabezados por texto; falta elegir la librería de PDF                                                              | US-201, US-206  |
-| ADR-004 | Versionado de DB           | Pendiente — pregunta abierta (`docs/adr/ADR-004-versionado-db.md`)                        | Migraciones manuales vs. Alembic — falta decidir si vale agregar SQLAlchemy solo por el runner                                                     | Hito 2          |
-| ADR-005 | Reportes PDF               | Aprobado (`docs/adr/ADR-005-reportes-pdf.md`)                                             | `reportlab`; se descarta `weasyprint`                                                                                                              | US-302          |
-| ADR-006 | Seguridad y Cifrado        | Aprobado v0.1 / Pendiente v1.0 (`docs/adr/ADR-006-seguridad-cifrado.md`)                  | Hash de passwords con `pbkdf2_hmac` y salt dinámico; cifrado DB (SQLCipher) y migración a bcrypt/argon2 quedan para Hito 4, con preguntas abiertas | US-104 / Hito 4 |
-| ADR-007 | Motor de Visualización     | Aprobado (`docs/adr/ADR-007-motor-visualizacion.md`)                                      | `matplotlib`; se descarta `plotly` para este motor                                                                                                 | US-301          |
-| ADR-008 | Estrategia de Backup       | Aprobado (`docs/adr/ADR-008-estrategia-backup.md`)                                        | Exportación/restauración manual con `VACUUM INTO`/backup online de SQLite                                                                          | Hito 4          |
-| ADR-009 | Pipeline CI/CD             | Aprobado, ya implementado (`docs/adr/ADR-009-pipeline-cicd.md`)                           | GitHub Actions (hosted) para lint, tests y cobertura automáticos                                                                                   | US-109          |
+| ID      | Título                   | Estado                                                                                    | Decisión                                                                                                                                           | Bloquea         |
+| ------- | ------------------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| ADR-001 | Arquitectura Local-First | Aprobado (`docs/adr/ADR-001-arquitectura-local-first.md`)                                 | SQLite + offline-first                                                                                                                             | Hito 1          |
+| ADR-002 | Framework UI             | Aprobado (`docs/adr/ADR-002-framework-ui.md`)                                             | Flet (Python puro); se descarta Compose Multiplatform. Desde 2026-10-31 es la única interfaz (la CLI se retira)                                    | US-105          |
+| ADR-003 | Protocolo de Ingesta     | Pendiente — propuesta con archivos reales (`docs/adr/ADR-003-protocolo-ingesta-excel.md`) | Mapeo fijo en código, buscando encabezados por texto; falta elegir la librería de PDF                                                              | US-201, US-206  |
+| ADR-004 | Versionado de DB         | Pendiente — pregunta abierta (`docs/adr/ADR-004-versionado-db.md`)                        | Migraciones manuales vs. Alembic — falta decidir si vale agregar SQLAlchemy solo por el runner                                                     | Hito 2          |
+| ADR-005 | Reportes PDF             | Aprobado (`docs/adr/ADR-005-reportes-pdf.md`)                                             | `reportlab`; se descarta `weasyprint`                                                                                                              | US-302          |
+| ADR-006 | Seguridad y Cifrado      | Aprobado v0.1 / Pendiente v1.0 (`docs/adr/ADR-006-seguridad-cifrado.md`)                  | Hash de passwords con `pbkdf2_hmac` y salt dinámico; cifrado DB (SQLCipher) y migración a bcrypt/argon2 quedan para Hito 4, con preguntas abiertas | US-104 / Hito 4 |
+| ADR-007 | Motor de Visualización   | Aprobado (`docs/adr/ADR-007-motor-visualizacion.md`)                                      | `matplotlib`; se descarta `plotly` para este motor                                                                                                 | US-301          |
+| ADR-008 | Estrategia de Backup     | Aprobado (`docs/adr/ADR-008-estrategia-backup.md`)                                        | Exportación/restauración manual con `VACUUM INTO`/backup online de SQLite                                                                          | Hito 4          |
+| ADR-009 | Pipeline CI/CD           | Aprobado, ya implementado (`docs/adr/ADR-009-pipeline-cicd.md`)                           | GitHub Actions (hosted) para lint, tests y cobertura automáticos                                                                                   | US-109          |
 
 Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Alternativas Consideradas → Decisión Tomada → Ventajas y Desventajas. Los ADR escritos viven en `docs/adr/` (no en el submódulo de documentación, que es de otro repositorio). **Estado (2026-10-03): los 9 ADR ya están redactados en `docs/adr/`.** Aprobados sin preguntas
 pendientes: ADR-001, ADR-002, ADR-005, ADR-007, ADR-008, ADR-009. Con preguntas abiertas a
@@ -498,12 +499,12 @@ solo aporta el `SessionManager` en memoria mientras avanza con el backend de las
 Las pistas se cruzan a propósito en la ronda 2 (B también hace pantallas), para que los dos
 integrantes pasen por las dos capas.
 
-| Ronda | Pista A                                                                          | Pista B                                                                                                   |
-| ----- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                    | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de la US-106 y de la US-107 |
-| 2     | US-106: pantallas de sesión y clubes; US-107: `tabla_datos.py` (**primero**), jugadores y partidos | US-107: pantallas de competencias, inscripciones y listas de buena fe                       |
-| 3     | US-108: `CargaPartidoScreen`                                                     | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                      |
-| 4     | US-110: conectar los eventos de log a las acciones de las pantallas             | US-204 (migraciones), si el ADR-004 ya está decidido                                                      |
+| Ronda | Pista A                                                                                            | Pista B                                                                                                                          |
+| ----- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                                      | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de la US-106 y de la US-107 |
+| 2     | US-106: pantallas de sesión y clubes; US-107: `tabla_datos.py` (**primero**), jugadores y partidos | US-107: pantallas de competencias, inscripciones y listas de buena fe                                                            |
+| 3     | US-108: `CargaPartidoScreen`                                                                       | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                                             |
+| 4     | US-110: conectar los eventos de log a las acciones de las pantallas                                | US-204 (migraciones), si el ADR-004 ya está decidido                                                                             |
 
 Las rondas marcan orden, no duración: una ronda termina cuando las dos pistas mergearon.
 
@@ -528,12 +529,12 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Decisiones que se toman juntos, antes de la ronda que las necesita:**
 
-| Antes de | Decisión                                                                                         |
-| -------- | ------------------------------------------------------------------------------------------------ |
-| Ronda 1  | Versión de Flet y cómo se testean las pantallas (US-105)                                         |
-| Ronda 2  | Si la sesión se guarda a través de un puerto (US-106)                                            |
-| Ronda 3  | Los DTOs de carga (US-108), que son el contrato entre las dos pistas                             |
-| Ronda 4  | ADR-004 (migraciones manuales o Alembic)                                                         |
+| Antes de | Decisión                                                             |
+| -------- | -------------------------------------------------------------------- |
+| Ronda 1  | Versión de Flet y cómo se testean las pantallas (US-105)             |
+| Ronda 2  | Si la sesión se guarda a través de un puerto (US-106)                |
+| Ronda 3  | Los DTOs de carga (US-108), que son el contrato entre las dos pistas |
+| Ronda 4  | ADR-004 (migraciones manuales o Alembic)                             |
 
 **Dónde chocan las dos pistas y cómo evitarlo:**
 
@@ -633,7 +634,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Testing Mínimo:**
 
-- _Integración (`tests/integration/test_repositorios_*.py`, un archivo por repositorio):_ CRUD completo por repositorio usando DB `:memory:`; `buscar_por_dni` retorna `None` si no existe, sin lanzar excepción; el `save()` de un partido y sus estadísticas es atómico; los repositorios de lectura usan las vistas SQL correctamente.
+- _Integración (`tests/integration/test_repositorios_\*.py`, un archivo por repositorio):_ CRUD completo por repositorio usando DB `:memory:`; `buscar_por_dni`retorna`None`si no existe, sin lanzar excepción; el`save()` de un partido y sus estadísticas es atómico; los repositorios de lectura usan las vistas SQL correctamente.
 
 **Archivos a crear (consolidado, nombres en español):**
 
@@ -729,7 +730,7 @@ src/
 - **Comandos CLI** (`src/infraestructura/ui/cli/commands/`): **un archivo por acción** con flags de `argparse` (no prompts interactivos): `jugador_add.py`, `jugador_link.py`, `jugador_unlink.py`, `jugador_list.py`, `club_add.py`, `club_list.py` (con `--id-usuario` provisorio hasta que exista la sesión), `competencia_add.py`, `competencia_inscribir.py`, `competencia_list.py`, `categoria_add.py`, `categoria_list.py`, `inscripcion_list.py`, `lista_add.py`, `lista_remove.py`, `lista_list.py` y `game_list.py` (`stats partido list`). Cada uno expone `ejecutar(args, repo=None)`: en producción arma el repositorio real con `abrir_conexion()`; en los tests se le inyecta uno falso.
 - **Repositorios:** se agregaron `JugadorRepositorio.historial_vinculos` y `cerrar_vinculo`, `CompetenciaRepositorio.quitar_jugador_lista` y `PartidoRepositorio.resumen_por_club` (lee `v_partidos_resumen`, que ahora también expone `id_club_local` e `id_club_visitante` para poder filtrar por club).
 - **`formatters/table_formatter.py`**: wrapper de `tabulate`; todos los listados pasan por acá (AC4).
-- **`persistencia/database_manager.py`:** se agregó `abrir_conexion()`. Además se corrigió `schema.sql`, que empezaba con `DROP TABLE` y borraba todos los datos en cada arranque de la CLI.
+- **`persistencia/database_manager.py`:** se agregó `abrir_conexion()` (se borró en la US-105: solo la usaba la CLI). Además se corrigió `schema.sql`, que empezaba con `DROP TABLE` y borraba todos los datos en cada arranque de la CLI.
 - **Dependencias:** `tabulate` (runtime), declarada en `pyproject.toml` junto con el resto (versiones fijas, `uv.lock`, sin `requerimientos.txt`).
 
 **Criterios de Aceptación:**
@@ -924,7 +925,7 @@ tests/integration/
 
 #### US-105 — Interfaz Gráfica Base (Flet) y Retiro de la CLI
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, ADR-002
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, ADR-002 · **Estado:** 🔧 Implementada, falta la prueba manual guiada y el PR
 
 **Objetivo Funcional:** reemplazar la CLI por una aplicación de escritorio Flet como única interfaz del sistema, con su composition root, su navegación y el acceso de usuarios (registro, inicio y cierre de sesión), y retirar todo el código de la CLI.
 
@@ -945,24 +946,27 @@ tests/integration/
 
 - **`src/infraestructura/ui/flet/app.py`** — composition root de la GUI (ver sección 4): abre la conexión, inicializa el esquema, arma repositorios, `Pbkdf2PasswordHasher`, `SessionManager` y casos de uso, y registra las pantallas en una tabla de rutas.
 - **`src/main.py`** — queda como punto de entrada que solo llama a `app.py`. Se borran `construir_parser()`, `argparse` y el despacho de comandos.
-- **Pantallas** (`screens/`): `LoginScreen` (email + contraseña oculta), `RegistroScreen` (nombre, email, contraseña), `InicioScreen` (pantalla principal con el menú de navegación —todavía sin secciones, las llenan las US-106 y US-107— y el botón "Cerrar sesión").
+- **Pantallas** (`screens/`): `LoginScreen` (email + contraseña oculta), `RegistroScreen` (nombre, email, contraseña), `InicioScreen` (saluda al usuario y tiene el botón "Cerrar sesión" en la barra superior, `ft.AppBar`; el menú de navegación se agrega cuando haya secciones, en las US-106 y US-107).
 - **Navegación protegida:** sin sesión, cualquier ruta interna redirige a `LoginScreen`.
 - **Errores:** un único manejador común muestra cualquier `ErrorDeDominio` junto al formulario que lo causó, sin traceback y sin cerrar la app (reemplaza al `except ErrorDeDominio` de `main()`).
-- **Dependencia:** `flet` con versión exacta en `pyproject.toml` + `uv.lock`.
+- **Dependencia:** `flet[desktop]==1.1.2` en `pyproject.toml` + `uv.lock` (el extra `desktop` fija también el cliente de escritorio; sin él, Flet lo instala solo al arrancar, fuera del lock).
 
 **Retiro de la CLI (limpieza):**
 
 - Se borran `src/infraestructura/ui/cli/` completo (`commands/` y `formatters/`), los tests `tests/unit/test_cli_main.py`, `test_cli_comandos.py`, `test_cli_comandos_listas.py`, `test_cli_auth.py`, `test_table_formatter.py` y `tests/integration/test_cli_e2e.py`, y la carpeta `scripts/` (scripts de bash que cargaban datos usando la CLI; los datos de prueba ya los da `seed.sql`).
 - Se quitan `tabulate` de las dependencias y su override de mypy en `pyproject.toml`; `[project.scripts] statspro` pasa a abrir la GUI.
-- Se revisan `abortar()` y `fecha_iso()` de `src/utils.py`: si solo los usaba la CLI, se borran junto con sus tests (`id_persistido()` lo usan los casos de uso y se queda).
-- Lo que `test_cli_e2e.py` probaba de punta a punta y no esté cubierto por otro test se pasa a tests de integración de casos de uso con repositorios reales (sin interfaz), como ya hace `test_auth_flujo.py`.
-- **Trabajo adelantado de US-109:** el smoke test del CI (`python src/main.py --help`, en las actions de cobertura de Linux y Windows) se reemplaza por un paso que importa `app.py` sin abrir ninguna ventana.
-- **Documentación:** se reescriben las secciones de la CLI de `README.md`, `RUNBOOK.md`, `docs/info_modulo/03-casos-de-uso.md` (§7), `04-arquitectura.md`, `05-guia-arquitectura-app.md`, `06-patron-command.md`, `08-vistas-sql.md` y `09-testing.md` (§9); y se borra `docs/spike/spike_build_cli.md` o se lo deja como histórico, que hasta esta US describen la CLI porque es lo que existe en el código.
+- `abortar()` y `fecha_iso()` de `src/utils.py` solo los usaba la CLI: se borraron junto con sus tests (`id_persistido()` lo usan los casos de uso y se queda). También se borró `abrir_conexion()` de `database_manager.py`, por el mismo motivo.
+- Lo que `test_cli_e2e.py` probaba de punta a punta y no estaba cubierto por otro test pasó a `tests/integration/test_flujo_casos_de_uso.py`: casos de uso con repositorios reales sobre un archivo SQLite temporal, sin interfaz (persistencia entre arranques, flujo completo, cambio de club, nombres en `listar_partidos` y que cada error de negocio llegue como `ErrorDeDominio`). De `test_auth_flujo.py` se borró el test que llamaba a `main.main()` (con la GUI abría la ventana real); su caso de login fallido pasó a `test_sesion_flujo.py`.
+- **Trabajo adelantado de US-109:** el smoke test del CI (`python src/main.py --help`, en las actions de cobertura de Linux y Windows) se reemplazó por `uv run --locked python -c "import main"`, que importa toda la app sin abrir ninguna ventana ni crear la base.
+- **Documentación:** se reescriben las secciones de la CLI de `README.md`, `RUNBOOK.md`, `docs/info_modulo/03-casos-de-uso.md` (§7), `04-arquitectura.md`, `05-guia-arquitectura-app.md`, `06-patron-command.md`, `08-vistas-sql.md`, `09-testing.md` (§9) e `ideas-aprendizaje.md` (§8.14); y `docs/spike/spike_build_cli.md` queda como histórico, que hasta esta US describen la CLI porque es lo que existe en el código. Guía nueva: `docs/info_modulo/13-gui-flet-y-eventos.md` (Flet, programación por eventos, rutas, composition root y cómo agregar una pantalla).
 
 **Decisiones a tomar al arrancar la US (no bloquean el resto del plan):**
 
 1. **Versión de Flet:** la API cambió de forma incompatible entre la serie 0.x y la 1.0. Se elige la última estable al momento de arrancar y se fija exacta; verificar que `uv sync` en el CI y en Docker no descargue el cliente de escritorio (los tests solo importan módulos).
+   **Decidido:** `flet[desktop]==1.1.2`.
 2. **Cómo se testea la GUI:** Flet no trae un harness de tests maduro. Propuesta: pantallas finas (sin lógica de negocio, AC6 de la US-401 adelantado) y tests sobre lo que no depende de la ventana: `SessionManager`, el manejador de errores y las funciones puras que arman filas o validan campos.
+   **Decidido:** eso, y además cada pantalla se testea sin ventana: recibe `page` por parámetro (en el test, `MagicMock(spec=ft.Page)`), el test completa los campos y llama al handler del botón. El router se testea con una `page` falsa y una fixture automática de `conftest.py` impide que un test abra la ventana. Detalle en `docs/info_modulo/09-testing.md` (§9) y `13-gui-flet-y-eventos.md` (§12).
+3. **Python mínimo:** pasó de 3.11 a **3.12** (`requires-python`, mypy, actions, `Dockerfile.test`, `Makefile`): los _stubs_ de numpy que trae la cadena de dependencias usan la sentencia `type` de 3.12 y mypy fallaba al chequear contra 3.11.
 
 **Criterios de Aceptación:**
 
@@ -974,7 +978,7 @@ tests/integration/
 
 **Testing Mínimo:**
 
-- _Unitarias:_ `SessionManager` (iniciar, cerrar dos veces sin error, `usuario_actual()` sin sesión); manejador de errores (un `ErrorDeDominio` produce el mensaje esperado).
+- _Unitarias:_ `SessionManager` (iniciar, cerrar dos veces sin error, `usuario_actual()` sin sesión); manejador de errores (un `ErrorDeDominio` produce el mensaje esperado); ruta protegida y router; cada pantalla sin ventana (camino feliz, error de negocio, error inesperado).
 - _Integración:_ flujo registro → login → `SessionManager.iniciar_sesion` con DB `:memory:` y repositorios reales.
 - _Manual guiado:_ en Windows (y en Linux si hay entorno gráfico), abrir la app, registrarse, iniciar sesión, cerrar sesión y probar cada error del AC2.
 
@@ -1007,8 +1011,22 @@ tests/integration/test_cli_e2e.py            ← se borra (lo no cubierto pasa a
 .github/actions/coverage/{linux,windows}/action.yml ← smoke test nuevo
 pyproject.toml / uv.lock                     ← + flet, − tabulate, script statspro
 
+src/utils.py                                 ← − abortar, fecha_iso
+src/infraestructura/persistencia/database_manager.py ← − abrir_conexion
+
+tests/conftest.py                            ← + fixture que impide abrir la ventana en los tests
 tests/unit/test_session_manager.py
+tests/unit/test_navegacion.py                ← resolver_ruta (ruta protegida) y router con page falsa
+tests/unit/test_errores.py                   ← manejador común de errores
+tests/unit/ayudantes_flet.py                 ← buscar controles por texto en una pantalla
+tests/unit/test_registro_screen.py           ← pantallas con mocks, sin ventana
+tests/unit/test_login_screen.py
+tests/unit/test_inicio_screen.py
+tests/unit/test_utils.py                     ← solo id_persistido
 tests/integration/test_sesion_flujo.py
+tests/integration/test_flujo_casos_de_uso.py ← reemplaza a test_cli_e2e.py
+tests/integration/test_auth_flujo.py         ← − el test que llamaba a main.main()
+docs/info_modulo/13-gui-flet-y-eventos.md    ← guía nueva
 ```
 
 #### US-106 — Sesión Persistente ("Recordarme") y Club Activo
@@ -1193,8 +1211,7 @@ tests/integration/test_boxscore_vista.py
 >    cambiar los dos equipos. Motivo: si solo se cargan los partidos propios, el club activo tiene
 >    N partidos y cada rival 0 o 1, y el promedio de un rival con un solo partido no dice nada.
 > 2. **El partido guarda la categoría.** Un partido es de una categoría que juega una competencia.
->    Las categorías se repiten (U13 juega el Asociativo 2026, el Asociativo 2027 y el Provincial
->    2026) y cada combinación tiene su inscripción y su lista de buena fe por club; sin la
+>    Las categorías se repiten (U13 juega el Asociativo 2026, el Asociativo 2027 y el Provincial 2026) y cada combinación tiene su inscripción y su lista de buena fe por club; sin la
 >    categoría no se sabe contra qué lista validar.
 > 3. **Clubes rivales o de terceros.** `ClubRepositorio.listar_todos` para elegir cualquier club, y
 >    `CrearClubUseCase` con `idUsuario` opcional: sin usuario, el club se crea **sin** vínculo en
@@ -1367,38 +1384,38 @@ docs/catalogo-criticidad.md     ❌ no existe (lo pide la sección 14; se inicia
     `docs/info_modulo/11-flujo-de-trabajo-git.md`.
   - **Pista B:** pipeline — fijar las actions de terceros por hash (8.13) y marcar `ci-ok` como
     _required status check_ en GitHub (AC6). El smoke test nuevo ya lo hace la US-105.
-> **Estado real:** ver `docs/ideas-aprendizaje.md` sección 8 (informe de CI) para el detalle
-> técnico de cada punto. Ya aplicado (2026-09-20): `mypy`, `pip-audit`, build de Docker, una sola
-> versión de ruff/mypy (`pyproject.toml`) en CI y pre-commit, matriz de Python 3.11–3.14 (Windows
-> solo 3.13), disparo en `push`, `concurrency`/`permissions`/`timeout-minutes`, cobertura mínima de
-> 85 % con reporte guardado (Linux), Dependabot y `gitleaks`.
->
-> **Importante — esto es exactamente el ejemplo de historias pisándose entre sí que motivó esta
-> revisión completa del 2026-10-03:** todo lo anterior se hizo **durante el PR de la US-103**
-> (commits `f5c4386` y `938c93f` de ese branch), no en un PR dedicado a esta US. El trabajo quedó
-> bien hecho, pero no quedó registrado como tal en su momento — de ahí la "Regla de alcance para
-> US-104 a US-110" agregada al principio de esta épica.
->
-> **Aplicado el 2026-10-11 (trabajo adelantado de US-109, hecho en la rama de la US-104 antes de
-> abrir su PR — ver la "Regla de alcance" de arriba):**
->
-> - **AC6:** job agregador `ci-ok` (falla si algún job falló, se canceló o se salteó). **Falta un
->   paso manual en GitHub:** marcarlo como _required status check_ en Settings → Branches.
-> - **AC7:** el job `lint` corre también `ruff format --check .`.
-> - **AC8:** smoke test `python src/main.py --help` en los jobs de tests de Linux y Windows (lo
->   reemplaza la US-105 por el import de `app.py`, como trabajo adelantado de esta US).
-> - **8.4:** se sacó `submodules: recursive` de `check_dep`, `lint` y `static`.
-> - **Matriz reducida:** las versiones de Python (3.12, 3.13 y 3.14) se prueban solo en
->   `tests-linux`; Docker y Windows corren una vez (3.13) y mypy una vez (contra 3.12). La 3.11
->   dejó de probarse en el CI aunque `pyproject.toml` sigue declarando `requires-python >= 3.11`.
-> - **Ruff más estricto:** las reglas viven solo en `pyproject.toml` (`E`, `W`, `F`, `I`, `B`,
->   `UP`, `SIM`, `C4`, `RUF`; antes `E501` + `I`, y el CI pasaba `--select E --select I` por su
->   cuenta). CI, pre-commit y Makefile corren `ruff check` sin `--select`. `docs/` queda excluido.
->   Al activarlas se corrigió el código existente; entre otras cosas apareció un test duplicado en
->   `test_repositorios_competencia.py` (mismo nombre dos veces: el primero nunca se ejecutaba).
-> - **mypy** ya era `--strict`; no cambió.
->
-> **Sigue pendiente:** fijar las actions de terceros por hash (8.13, prioridad baja).
+    > **Estado real:** ver `docs/ideas-aprendizaje.md` sección 8 (informe de CI) para el detalle
+    > técnico de cada punto. Ya aplicado (2026-09-20): `mypy`, `pip-audit`, build de Docker, una sola
+    > versión de ruff/mypy (`pyproject.toml`) en CI y pre-commit, matriz de Python 3.11–3.14 (Windows
+    > solo 3.13), disparo en `push`, `concurrency`/`permissions`/`timeout-minutes`, cobertura mínima de
+    > 85 % con reporte guardado (Linux), Dependabot y `gitleaks`.
+    >
+    > **Importante — esto es exactamente el ejemplo de historias pisándose entre sí que motivó esta
+    > revisión completa del 2026-10-03:** todo lo anterior se hizo **durante el PR de la US-103**
+    > (commits `f5c4386` y `938c93f` de ese branch), no en un PR dedicado a esta US. El trabajo quedó
+    > bien hecho, pero no quedó registrado como tal en su momento — de ahí la "Regla de alcance para
+    > US-104 a US-110" agregada al principio de esta épica.
+    >
+    > **Aplicado el 2026-10-11 (trabajo adelantado de US-109, hecho en la rama de la US-104 antes de
+    > abrir su PR — ver la "Regla de alcance" de arriba):**
+    >
+    > - **AC6:** job agregador `ci-ok` (falla si algún job falló, se canceló o se salteó). **Falta un
+    >   paso manual en GitHub:** marcarlo como _required status check_ en Settings → Branches.
+    > - **AC7:** el job `lint` corre también `ruff format --check .`.
+    > - **AC8:** smoke test `python src/main.py --help` en los jobs de tests de Linux y Windows (lo
+    >   reemplaza la US-105 por el import de `app.py`, como trabajo adelantado de esta US).
+    > - **8.4:** se sacó `submodules: recursive` de `check_dep`, `lint` y `static`.
+    > - **Matriz reducida:** las versiones de Python (3.12, 3.13 y 3.14) se prueban solo en
+    >   `tests-linux`; Docker y Windows corren una vez (3.13) y mypy una vez (contra 3.12). La 3.11
+    >   dejó de probarse en el CI aunque `pyproject.toml` sigue declarando `requires-python >= 3.11`.
+    > - **Ruff más estricto:** las reglas viven solo en `pyproject.toml` (`E`, `W`, `F`, `I`, `B`,
+    >   `UP`, `SIM`, `C4`, `RUF`; antes `E501` + `I`, y el CI pasaba `--select E --select I` por su
+    >   cuenta). CI, pre-commit y Makefile corren `ruff check` sin `--select`. `docs/` queda excluido.
+    >   Al activarlas se corrigió el código existente; entre otras cosas apareció un test duplicado en
+    >   `test_repositorios_competencia.py` (mismo nombre dos veces: el primero nunca se ejecutaba).
+    > - **mypy** ya era `--strict`; no cambió.
+    >
+    > **Sigue pendiente:** fijar las actions de terceros por hash (8.13, prioridad baja).
 
 ---
 
@@ -1417,7 +1434,7 @@ sus salidas pasan a ser pantallas._ **Sí hay dos
 decisiones previas reales todavía sin cerrar para este hito:** ADR-003 (protocolo de ingesta,
 bloquea las US-201 y US-206 — ya hay archivos reales en `data/`; falta elegir la librería de PDF) y ADR-004 (versionado de DB,
 bloquea la US-204 — falta decidir si vale agregar SQLAlchemy solo por el runner de Alembic). Ver
-`docs/adr/`._
+`docs/adr/`.\_
 
 ### Épica H2-E1: Integración "Gesdeportiva" y Gobernanza de Esquema
 
@@ -1612,18 +1629,18 @@ el 2026-10-31):
 
 Mapeo a `jugadorPartido`:
 
-| Columna del archivo       | Campo                                                  |
-| ------------------------- | ------------------------------------------------------ |
-| `MIN`                     | `minutosJugados` (`mm:ss` → minutos con decimales)     |
-| `PTS`                     | `puntos`                                               |
-| `TC 2P` `A/I`             | `T2C` / `T2L`                                          |
-| `TC 3P` `A/I`             | `T3C` / `T3L`                                          |
-| `TL` `A/I`                | `T1C` / `T1L`                                          |
-| `DEF`, `OF`               | `rebotesDef`, `rebotesOf` (`Tot.` se ignora)            |
-| `AST`, `REC`, `PER`       | `asistencias`, `recuperos`, `perdidas`                 |
-| `TAP` `TC` / `TR`         | `taponesRealizados` / `taponesRecibidos`               |
-| `FAL` `FC` / `FR`         | `faltasCometidas` / `faltasRecibidas`                  |
-| `Num.`, `VAL`, `+/-`      | no se guardan en v0.2 (ver decisiones)                 |
+| Columna del archivo  | Campo                                              |
+| -------------------- | -------------------------------------------------- |
+| `MIN`                | `minutosJugados` (`mm:ss` → minutos con decimales) |
+| `PTS`                | `puntos`                                           |
+| `TC 2P` `A/I`        | `T2C` / `T2L`                                      |
+| `TC 3P` `A/I`        | `T3C` / `T3L`                                      |
+| `TL` `A/I`           | `T1C` / `T1L`                                      |
+| `DEF`, `OF`          | `rebotesDef`, `rebotesOf` (`Tot.` se ignora)       |
+| `AST`, `REC`, `PER`  | `asistencias`, `recuperos`, `perdidas`             |
+| `TAP` `TC` / `TR`    | `taponesRealizados` / `taponesRecibidos`           |
+| `FAL` `FC` / `FR`    | `faltasCometidas` / `faltasRecibidas`              |
+| `Num.`, `VAL`, `+/-` | no se guardan en v0.2 (ver decisiones)             |
 
 - **Capa de Dominio:** reusa `FormatoArchivoInvalidoError` (US-206).
 - **Capa de Aplicación:**
@@ -2504,13 +2521,13 @@ desarrollo; una sección `[vX.Y.Z] - YYYY-MM-DD` por release con subsecciones `A
 
 Cada módulo de datos se divide siguiendo el S.R.P. (Single Responsibility Principle):
 
-| Entidad / Agregado | Repositorio                    | Vistas Relacionadas                         | Estado real                                                              |
-| ------------------ | ------------------------------ | ------------------------------------------- | ------------------------------------------------------------------------ |
-| **Identidad**      | `SqliteUsuarioRepositorio`     | N/A                                         | ✅ funcional y testeado                                                  |
-| **Clubes**         | `SqliteClubRepositorio`        | `v_listas_detalle`                          | ✅ funcional y testeado                                                  |
-| **Jugadores**      | `SqliteJugadorRepositorio`     | `v_jugador_totales_temporada`               | ✅ funcional y testeado (el bug de `link_to_club` se corrigió)           |
-| **Competencia**    | `SqliteCompetenciaRepositorio` | `v_listas_detalle`                          | ✅ funcional y testeado (bugs corregidos, ver sección 20)                |
-| **Partidos/Stats** | `SqlitePartidoRepositorio`     | `v_partidos_resumen`, `v_boxscore_completo` | ✅ funcional y testeado (reescrito, ver sección 20)                      |
+| Entidad / Agregado | Repositorio                    | Vistas Relacionadas                         | Estado real                                                    |
+| ------------------ | ------------------------------ | ------------------------------------------- | -------------------------------------------------------------- |
+| **Identidad**      | `SqliteUsuarioRepositorio`     | N/A                                         | ✅ funcional y testeado                                        |
+| **Clubes**         | `SqliteClubRepositorio`        | `v_listas_detalle`                          | ✅ funcional y testeado                                        |
+| **Jugadores**      | `SqliteJugadorRepositorio`     | `v_jugador_totales_temporada`               | ✅ funcional y testeado (el bug de `link_to_club` se corrigió) |
+| **Competencia**    | `SqliteCompetenciaRepositorio` | `v_listas_detalle`                          | ✅ funcional y testeado (bugs corregidos, ver sección 20)      |
+| **Partidos/Stats** | `SqlitePartidoRepositorio`     | `v_partidos_resumen`, `v_boxscore_completo` | ✅ funcional y testeado (reescrito, ver sección 20)            |
 
 > **Corrección respecto a ambas fuentes originales:** tanto el LaTeX como el `.md` del submódulo
 > listan esta tabla con **solo 4 filas**, omitiendo el repositorio de Competencia — pese a que el
@@ -2524,17 +2541,17 @@ Cada módulo de datos se divide siguiendo el S.R.P. (Single Responsibility Princ
 (Duplicado intencional de la sección 8, en el formato de tabla de bloqueo que traían ambas
 fuentes, por si se prefiere consultar esta vista en vez de la de "Registro de Decisiones":)
 
-| ADR     | Título                     | Bloquea       | Decisión recomendada                                                                                                                                                              |
-| ------- | -------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ADR-001 | Arquitectura Local-First   | Hito 1        | ✅ SQLite + offline-first (ya definido)                                                                                                                                           |
-| ADR-002 | Framework UI               | US-105        | ✅ Flet, se descarta Compose Multiplatform; única interfaz desde el 2026-10-31 (ver `docs/adr/ADR-002-framework-ui.md`)                                                          |
-| ADR-003 | Protocolo de Ingesta       | US-201/US-206 | ⏳ Propuesta con archivos reales: mapeo fijo buscando encabezados por texto; falta elegir la librería de PDF (ver `docs/adr/ADR-003-protocolo-ingesta-excel.md`)                  |
-| ADR-004 | Versionado de DB           | Hito 2        | ⏳ Migraciones manuales vs. `alembic` — pregunta abierta sobre agregar SQLAlchemy solo por el runner (ver `docs/adr/ADR-004-versionado-db.md`)                                    |
-| ADR-005 | Reportes PDF               | US-302        | ✅ `reportlab` (ya definido, ver `docs/adr/ADR-005-reportes-pdf.md`)                                                                                                              |
-| ADR-006 | Seguridad y Cifrado        | US-104/US-403 | ✅ v0.1: `pbkdf2_hmac` con salt **dinámico** (ver `docs/adr/ADR-006-seguridad-cifrado.md`). v1.0: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma |
-| ADR-007 | Motor de Visualización     | US-301        | ✅ `matplotlib` (ya definido, ver `docs/adr/ADR-007-motor-visualizacion.md`)                                                                                                      |
-| ADR-008 | Estrategia de Backup       | Hito 4        | ✅ Export manual con `VACUUM INTO`/backup online de SQLite (ya definido, ver `docs/adr/ADR-008-estrategia-backup.md`)                                                             |
-| ADR-009 | Pipeline CI/CD             | US-109        | ✅ GitHub Actions hosteados por GitHub, ya implementado (ver `docs/adr/ADR-009-pipeline-cicd.md`)                                                                                 |
+| ADR     | Título                   | Bloquea       | Decisión recomendada                                                                                                                                                              |
+| ------- | ------------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ADR-001 | Arquitectura Local-First | Hito 1        | ✅ SQLite + offline-first (ya definido)                                                                                                                                           |
+| ADR-002 | Framework UI             | US-105        | ✅ Flet, se descarta Compose Multiplatform; única interfaz desde el 2026-10-31 (ver `docs/adr/ADR-002-framework-ui.md`)                                                           |
+| ADR-003 | Protocolo de Ingesta     | US-201/US-206 | ⏳ Propuesta con archivos reales: mapeo fijo buscando encabezados por texto; falta elegir la librería de PDF (ver `docs/adr/ADR-003-protocolo-ingesta-excel.md`)                  |
+| ADR-004 | Versionado de DB         | Hito 2        | ⏳ Migraciones manuales vs. `alembic` — pregunta abierta sobre agregar SQLAlchemy solo por el runner (ver `docs/adr/ADR-004-versionado-db.md`)                                    |
+| ADR-005 | Reportes PDF             | US-302        | ✅ `reportlab` (ya definido, ver `docs/adr/ADR-005-reportes-pdf.md`)                                                                                                              |
+| ADR-006 | Seguridad y Cifrado      | US-104/US-403 | ✅ v0.1: `pbkdf2_hmac` con salt **dinámico** (ver `docs/adr/ADR-006-seguridad-cifrado.md`). v1.0: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma |
+| ADR-007 | Motor de Visualización   | US-301        | ✅ `matplotlib` (ya definido, ver `docs/adr/ADR-007-motor-visualizacion.md`)                                                                                                      |
+| ADR-008 | Estrategia de Backup     | Hito 4        | ✅ Export manual con `VACUUM INTO`/backup online de SQLite (ya definido, ver `docs/adr/ADR-008-estrategia-backup.md`)                                                             |
+| ADR-009 | Pipeline CI/CD           | US-109        | ✅ GitHub Actions hosteados por GitHub, ya implementado (ver `docs/adr/ADR-009-pipeline-cicd.md`)                                                                                 |
 
 ---
 

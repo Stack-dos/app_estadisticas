@@ -1,0 +1,55 @@
+"""Pantalla de inicio de sesion (US-105, AC2).
+
+Pantalla fina, igual que la de registro: lee los campos, arma el DTO y llama al caso de uso. El
+mensaje de credenciales invalidas es generico a proposito (lo arma `LoginLocalUseCase`): no dice si
+el email existe, para no permitir enumerar usuarios. La pantalla lo muestra tal cual.
+"""
+
+import flet as ft
+
+from aplicacion.casos_uso.login_local import LoginLocalUseCase
+from aplicacion.dtos.auth_dto import LoginDTO
+from aplicacion.servicios.session_manager import SessionManager
+from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostrando_errores
+
+
+def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: SessionManager) -> ft.View:
+    """
+    Arma la pantalla de login. Si las credenciales son validas, inicia la sesion y va a "/inicio".
+
+    Args:
+        page (ft.Page): La ventana, para navegar y redibujar.
+        login_uc (LoginLocalUseCase): Caso de uso de login.
+        sesion (SessionManager): Sesion en memoria, se inicia con el usuario autenticado.
+
+    Returns:
+        ft.View: La pantalla, para la ruta "/login".
+    """
+    email = ft.TextField(label="Email", autofocus=True, keyboard_type=ft.KeyboardType.EMAIL)
+    password = ft.TextField(label="Contraseña", password=True, can_reveal_password=True)
+    error = crear_etiqueta_error()
+
+    def ingresar() -> None:
+        """Handler del boton "Ingresar" y del Enter en la contraseña."""
+
+        def accion() -> None:
+            usuario = login_uc.ejecutar(LoginDTO(email=email.value, password=password.value))
+            sesion.iniciar_sesion(usuario)
+            page.navigate("/inicio")  # adentro de la accion: si el login falla, no se navega
+
+        ejecutar_mostrando_errores(accion, error)
+        page.update()
+
+    password.on_submit = ingresar
+
+    return ft.View(
+        route="/login",
+        controls=[
+            ft.Text("Iniciar sesión", size=24),
+            email,
+            password,
+            error,
+            ft.Button("Ingresar", on_click=ingresar),
+            ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro")),
+        ],
+    )

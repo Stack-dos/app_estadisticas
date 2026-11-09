@@ -35,7 +35,7 @@ Imagina que un Caso de Uso es un carpintero. Para hacer una silla (ejecutar su a
   caso_uso.execute(datos2)
   ```
 
-Pasar las dependencias por constructor en el inicio de la app (Inyección de Dependencias) nos permite configurar todo una sola vez. Cuando el controlador (Flet/CLI) necesita usar el CU, simplemente llama al método con los datos, sin tener que saber de qué base de datos viene la información.
+Pasar las dependencias por constructor en el inicio de la app (Inyección de Dependencias) nos permite configurar todo una sola vez. Cuando el controlador (la pantalla de Flet) necesita usar el CU, simplemente llama al método con los datos, sin tener que saber de qué base de datos viene la información.
 
 #### Impacto en Testing
 Usar clases hace que las pruebas unitarias sean un paseo por el parque. Puedes instanciar tu Caso de Uso inyectando *Mocks* o *Fakes* de tus repositorios, y luego probar múltiples escenarios (éxito, fallo) llamando a `.execute()` sin re-enviar los fakes cada vez.
@@ -86,7 +86,7 @@ Imagina que la **Entidad** es tu **Pasaporte Original**. Tiene sellos de segurid
 El **DTO** es una **fotocopia o un formulario impreso** que llenas para el hotel. No tiene valor legal por sí mismo, es solo para mover tus datos de tu bolsillo a la recepción. Si rompes el formulario (DTO), no pasa nada; si alteras el pasaporte (Entidad), vas a la cárcel.
 
 ### Peligros del Acoplamiento: ¿Qué pasa si la UI usa Entidades?
-Si tu interfaz gráfica (Flet) o CLI importa directamente las Entidades del Dominio:
+Si tu interfaz gráfica (Flet) importa directamente las Entidades del Dominio:
 1. **Acoplamiento Mortal:** Si mañana la regla de negocio cambia y el "nombre" del Jugador se divide en "nombre" y "apellido", tendrás que modificar cada pantalla y botón de tu UI.
 2. **Violación de Privacidad:** A veces la Entidad tiene datos sensibles (ej. `password_hash`). Si mandas la Entidad a la UI, podrías exponer datos que la pantalla no necesita, arriesgando fugas de información.
 
@@ -199,7 +199,7 @@ lo que sigue es el mapa entre el concepto y lo que **realmente existe** en el re
 | :--- | :--- |
 | Caso de Uso como **clase** con un método | Clases en `src/aplicacion/casos_uso/`; el método se llama **`ejecutar()`** (no `execute`) |
 | Inyección de dependencias por constructor | `RegistrarJugadorUseCase(jugador_repo)`, `InscribirClubEnCompetenciaUseCase(repo_competencia, repo_club)` |
-| *Composition Root* | Hoy cada **comando de la CLI** arma el repositorio real y se lo pasa al caso de uso (ver [04-arquitectura.md](04-arquitectura.md), sección 10); desde la US-105 lo hace `ui/flet/app.py` una sola vez al arrancar la GUI |
+| *Composition Root* | `construir_dependencias` de `ui/flet/app.py` arma una sola vez, al abrir la app, los repositorios reales y los casos de uso (ver [04-arquitectura.md](04-arquitectura.md), sección 10) |
 | Puerto de salida (interfaz en el Dominio) | Clases `ABC` en `src/dominio/repositorios/` (`JugadorRepositorio`, `ClubRepositorio`, ...), no `Protocol` (ver [07-protocolos.md](07-protocolos.md)) |
 | Entidad con invariantes | `dataclass` en `src/dominio/entidades/` que valida en `__post_init__` (tipos, rangos, reglas del boxscore) |
 | DTO de entrada / salida | `dataclass` simples en `src/aplicacion/dtos/` (`CrearJugadorDTO` entra, `JugadorDTO` sale). **No** son `frozen=True` |
@@ -208,7 +208,7 @@ lo que sigue es el mapa entre el concepto y lo que **realmente existe** en el re
 
 **Dos decisiones que conviene conocer:**
 
-- **Los casos de uso devuelven DTOs, no entidades** (con una excepción hoy: `VincularJugadorAClubUseCase` devuelve la entidad `JugadorClub`). Así la interfaz (hoy la CLI, desde la US-105 la GUI) no queda acoplada a la forma interna del dominio.
+- **Los casos de uso devuelven DTOs, no entidades** (con una excepción hoy: `VincularJugadorAClubUseCase` devuelve la entidad `JugadorClub`). Así la interfaz (la GUI) no queda acoplada a la forma interna del dominio.
 - **Las entidades declaran su ID como `int | None`** (antes de guardarse no lo tienen) pero los DTOs de salida exigen `int`. La función `id_persistido()` de `src/utils.py` deja esa garantía explícita en un solo lugar.
 
 El catálogo real de casos de uso (qué recibe y qué devuelve cada uno, paso a paso) está en [03-casos-de-uso.md](03-casos-de-uso.md). La tabla de la sección 3 de esta guía

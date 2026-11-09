@@ -4,9 +4,9 @@
 
 Para cumplir con los requerimientos de **portabilidad**, **testabilidad** y **ejecución local-first** definidos en el PRD, el sistema adopta una **Arquitectura Limpia (Clean Architecture)** con un enfoque **Hexagonal**.
 
-Esta estructura permite que la lógica de negocio (reglas del básquet y cálculos estadísticos) sea independiente de la base de datos (SQLite), de la interfaz de usuario (CLI hoy, GUI Flet desde la US-105) y de las librerías externas (Pandas).
+Esta estructura permite que la lógica de negocio (reglas del básquet y cálculos estadísticos) sea independiente de la base de datos (SQLite), de la interfaz de usuario (GUI de escritorio con Flet) y de las librerías externas (Pandas).
 
-> **Aviso (2026-10-31):** la CLI se retira en la **US-105** y la interfaz pasa a ser una app de escritorio (Flet). Lo que este documento cuenta sobre la CLI describe el código actual y se reescribe en esa US.
+> **Historia:** hasta la US-104 la interfaz era una CLI (`argparse`); en la US-105 se retiró y la reemplazó la GUI. Por qué se tomó esa decisión: `docs/context_ia/2026-10-31-retiro-cli-y-gui-en-hito-1.md`.
 
 !!! note "Nombres reales del proyecto"
     La primera versión de esta guía se escribió como diseño previo y usaba nombres en inglés (`domain`, `use_cases`, `Protocol`).
@@ -20,7 +20,7 @@ Esta estructura permite que la lógica de negocio (reglas del básquet y cálcul
 La regla de oro es que **las dependencias apuntan siempre hacia adentro**:
 
 ```text
-ui/cli  ──►  aplicacion (casos de uso)  ──►  dominio (entidades, contratos, excepciones)
+ui/flet ──►  aplicacion (casos de uso)  ──►  dominio (entidades, contratos, excepciones)
                                                 ▲
 infraestructura/repositorios (SQLite) ──────────┘  implementan los contratos del dominio
 ```
@@ -45,7 +45,8 @@ Contiene la lógica de la aplicación y los orquestadores.
 
 - **Casos de uso (`casos_uso/`):** clases con un método `ejecutar()` que realizan una acción del usuario, como `RegistrarJugadorUseCase` o `InscribirClubEnCompetenciaUseCase`.
   Reciben los repositorios **por constructor** (Inyección de Dependencias). Detalle de cada uno en [03-casos-de-uso.md](03-casos-de-uso.md).
-- **DTOs (`dtos/`):** objetos planos que viajan entre la CLI y los casos de uso (`CrearJugadorDTO`, `JugadorDTO`, ...).
+- **Servicios (`servicios/`):** `SessionManager`, la sesión **en memoria** (quién inició sesión mientras la app está abierta).
+- **DTOs (`dtos/`):** objetos planos que viajan entre la GUI y los casos de uso (`CrearJugadorDTO`, `JugadorDTO`, ...).
 
 ### 2.3 Capa de Infraestructura (`src/infraestructura`)
 
@@ -53,14 +54,16 @@ Implementaciones técnicas y herramientas externas.
 
 - **Persistencia (`persistencia/`):** `SQLiteManager` (conexión, esquema, vistas, seed) y los scripts SQL en `sql/` (`schema.sql`, `views.sql`, `seed.sql`, `limpieza.sql`).
 - **Repositorios (`repositorios/`):** implementaciones `Sqlite*Repositorio` de los contratos del dominio.
-- **UI (`ui/cli/`):** adaptador de entrada. Hoy una **CLI** con `argparse` (comandos en `commands/`, tablas en `formatters/`); en el futuro puede sumarse una GUI (**Flet**).
+- **UI (`ui/flet/`):** adaptador de entrada: la GUI de escritorio con **Flet**. `app.py` es el *Composition Root* (arma las dependencias, la tabla de rutas y la ruta protegida),
+  `errores.py` muestra los errores junto al formulario y `screens/` tiene una pantalla por archivo. Detalle en [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).
+- **Seguridad (`security/`):** `Pbkdf2PasswordHasher`, la implementación del puerto `PasswordHasher` del dominio.
 - **Logger (`logger.py`):** configuración central del logging (ver [01-logger.md](01-logger.md)).
 - **Análisis (`analytics/`):** *(todavía no existe)* motor estadístico con **Pandas** para el Hito 2.
 
 ### 2.4 Piezas transversales (`src/` raíz)
 
-- **`main.py`:** punto de entrada y *Composition Root* de la CLI (arma el parser, inicializa la base y traduce los errores de negocio).
-- **`utils.py`:** helpers **puros** que usan todas las capas (`id_persistido`, `abortar`, `fecha_iso`). No importa nada de `infraestructura`: una capa interna nunca puede depender de una externa.
+- **`main.py`:** punto de entrada. Solo llama a `ejecutar()` de `ui/flet/app.py`; el armado vive ahí.
+- **`utils.py`:** helpers **puros** que usan todas las capas (`id_persistido`). No importa nada de `infraestructura`: una capa interna nunca puede depender de una externa.
 - **`config/rutas.py`:** rutas del proyecto (base de datos, scripts SQL, logs).
 
 ---
@@ -69,7 +72,7 @@ Implementaciones técnicas y herramientas externas.
 
 ```text
 src/
-├── main.py                       # Punto de entrada (parser de la CLI, composición y manejo de errores)
+├── main.py                       # Punto de entrada: abre la GUI
 ├── utils.py                      # Helpers puros compartidos
 ├── config/
 │   └── rutas.py                  # Rutas de la base de datos, scripts SQL y logs
@@ -79,22 +82,25 @@ src/
 │   └── exceptions.py             # Excepciones de negocio (ErrorDeDominio y derivadas)
 ├── aplicacion/
 │   ├── casos_uso/                # Lógica de aplicación (un archivo por acción)
+│   ├── servicios/                # SessionManager (sesión en memoria)
 │   └── dtos/                     # Data Transfer Objects para comunicación con la UI
 └── infraestructura/
     ├── logger.py
     ├── persistencia/
-    │   ├── database_manager.py   # SQLiteManager y abrir_conexion()
+    │   ├── database_manager.py   # SQLiteManager
     │   └── sql/                  # Scripts .sql (schema, views, seed, limpieza)
     ├── repositorios/             # Implementaciones SQLite de los repositorios
+    ├── security/                 # Pbkdf2PasswordHasher
     └── ui/
-        └── cli/
-            ├── commands/         # Un archivo por comando (club_add.py, jugador_link.py, ...)
-            └── formatters/       # Formato de salida (tablas con tabulate)
+        └── flet/
+            ├── app.py            # Composition root, tabla de rutas y ruta protegida
+            ├── errores.py        # Manejador común de errores de la GUI
+            └── screens/          # Una pantalla por archivo (login, registro, inicio, ...)
 
 tests/
 ├── conftest.py                   # Fixtures compartidas (bases en memoria, fábricas de datos)
-├── unit/                         # Tests sin base de datos (entidades, casos de uso, comandos)
-└── integration/                  # Tests con SQLite real (repositorios, esquema, CLI de punta a punta)
+├── unit/                         # Tests sin base de datos (entidades, casos de uso, pantallas sin ventana)
+└── integration/                  # Tests con SQLite real (repositorios, esquema, casos de uso de punta a punta)
 ```
 
 ---
@@ -116,8 +122,8 @@ Para asegurar un código profesional y mantenible, se utilizan los siguientes pa
 
 Es el mecanismo por el cual un objeto recibe sus dependencias de una fuente externa en lugar de crearlas él mismo.
 
-- **¿Cómo se aplica?** Cada comando de la CLI arma el repositorio real (`SqliteJugadorRepositorio(abrir_conexion())`) y se lo pasa al constructor del caso de uso (`RegistrarJugadorUseCase(repo)`).
-  Como la función `ejecutar(args, repo=None)` del comando acepta el repositorio como parámetro opcional, en los tests se le pasa uno falso.
+- **¿Cómo se aplica?** El composition root de la GUI (`construir_dependencias` en `ui/flet/app.py`) arma una sola vez los repositorios reales y se los pasa al constructor de cada caso
+  de uso (`LoginLocalUseCase(repo_usuario, hasher)`). Las pantallas reciben los casos de uso ya armados, así que en los tests se les pasa un mock.
 - **Beneficio:** Permite que el Caso de Uso trabaje con una _interfaz_ (`JugadorRepositorio`) y no con una implementación concreta. Si queremos testear, le pasamos un `MagicMock(spec=JugadorRepositorio)` y el código funciona igual.
 
 ### 5.2 Repository Pattern
@@ -129,15 +135,15 @@ Ver [el detalle del patrón](../arquitectura/01-repository-pattern.md).
 
 *(Todavía no se usa.)* La US-104 resolvió el hasheo sin fábrica: `RegistrarEntrenadorUseCase` recibe un `PasswordHasher` por constructor y hashea antes de crear el `Usuario`.
 
-### 5.4 Command Pattern (en la CLI, hasta la US-105)
+### 5.4 Una pantalla por archivo y tabla de rutas (antes, Command Pattern)
 
-Cada acción del usuario (ej: `jugador add`, `club list`) se encapsula en su propio archivo dentro de `ui/cli/commands/`, y `main.py` la registra en el parser con `set_defaults(func=...)`.
-Esto facilita la extensión de la CLI sin llenar el código de sentencias `if/else` gigantes. Detalle en [06-patron-command.md](06-patron-command.md).
-En la GUI (US-105 en adelante) cumple ese rol la convención **una pantalla por archivo** en `ui/flet/screens/`, registrada en la tabla de rutas de `app.py`.
+Cada pantalla vive en su propio archivo dentro de `ui/flet/screens/` y se registra en la tabla de rutas de `app.py` (`{"/login": lambda: crear_login_view(...)}`).
+Agregar una pantalla no obliga a tocar las demás ni a escribir un `if/elif` gigante. Cumple el rol que tenía el Command Pattern en la CLI retirada
+([06-patron-command.md](06-patron-command.md)); el detalle de la GUI está en [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).
 
 ---
 
-## 6. Modelo de Dominio v0.1 (CLI)
+## 6. Modelo de Dominio v0.1
 
 Para la primera versión funcional, el foco está en la **Persistencia Robusta** de las siguientes entidades:
 
@@ -161,20 +167,20 @@ Para la primera versión funcional, el foco está en la **Persistencia Robusta**
 
 ---
 
-## 7. Casos de Uso del Hito 1 (CLI v0.1)
+## 7. Casos de Uso del Hito 1
 
 Para cumplir con la **US-103** y las siguientes, se implementan estos orquestadores de lógica.
 El estado detallado (qué recibe y devuelve cada uno, paso a paso) está en [03-casos-de-uso.md](03-casos-de-uso.md).
 
-### 7.1 Gestión de Identidad (Auth) — *US-104, pendiente*
+### 7.1 Gestión de Identidad (Auth) — *US-104 y US-105, implementada*
 
 - `RegistrarEntrenador`: Crea un perfil local con password hasheado.
-- `LoginLocal`: Valida credenciales y mantiene la sesión activa.
-- `SeleccionarClubActivo` *(hoy `CambiarClubActivoUseCase`, que solo valida)*: Establece el contexto para los siguientes comandos.
+- `LoginLocal`: Valida credenciales; la GUI guarda al usuario en el `SessionManager` (sesión en memoria).
+- `SeleccionarClubActivo` *(hoy `CambiarClubActivoUseCase`, que solo valida)*: Establece el club con el que se trabaja (lo guarda en la sesión la US-106).
 
 ### 7.2 Gestión Administrativa — *US-103, implementada*
 
-- `CrearClubUseCase`: Registra un nuevo club (todavía no lo vincula al usuario: necesita la sesión de la US-104).
+- `CrearClubUseCase`: Registra un nuevo club (todavía no lo vincula al usuario: lo hace la US-106 con la sesión).
 - `RegistrarJugadorUseCase`: Crea un jugador en el sistema.
 - `VincularJugadorAClubUseCase`: Registra la pertenencia de un jugador a un club en un periodo.
 - `CrearCompetenciaUseCase`: Registra ligas o torneos.
@@ -184,21 +190,22 @@ El estado detallado (qué recibe y devuelve cada uno, paso a paso) está en [03-
 - `ListarClubesUsuarioUseCase`, `ListarJugadoresClubUseCase`, `ListarPartidosPorClubUseCase`, `ListarCategoriasUseCase`, `ListarCompetenciasUseCase`,
   `ListarInscripcionesClubUseCase`, `ListarListaBuenaFeUseCase`: consultas.
 
-### 7.3 Operaciones de Partido — *US-105, pendiente*
+### 7.3 Operaciones de Partido — *US-108, pendiente*
 
 - `CargarPartidoManual`: Registra el evento de partido y sus estadísticas básicas por jugador (Boxscore).
 
 ---
 
-## 8. Funcionalidades de la Interfaz CLI
+## 8. Funcionalidades de la Interfaz Gráfica
 
-La CLI se diseñó para ser rápida y "amigable" bajo las siguientes premisas:
+La GUI (Flet) sigue estas premisas (detalle en [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md)):
 
-1. **Navegación por Comandos:** Uso de subcomandos claros (ej: `club add`, `jugador list`), con `--help` en cada nivel. La referencia completa está en el [RUNBOOK](../../RUNBOOK.md).
-2. **Errores sin traceback:** los errores de negocio se muestran como un mensaje (`Error: ...`) en stderr y terminan con código de salida 1.
-3. **Salida Tabulada:** los listados se muestran como tablas de consola con `tabulate` (`formatters/table_formatter.py`).
-4. **Formularios:** la carga de partido no se hace en la CLI: es una pantalla de la GUI (US-108).
-5. **Manejo de Sesión:** no existe en la CLI; en la GUI la sesión vive en memoria (US-105) y se puede recordar entre aperturas junto con el club activo (US-106, archivo `~/.statspro/session.json`).
+1. **Navegación por rutas:** cada pantalla tiene una ruta (`/login`, `/registro`, `/inicio`) y un único router decide qué se dibuja. La **ruta protegida**
+   (`resolver_ruta`) impide llegar a una pantalla interna sin sesión.
+2. **Errores junto al formulario:** los errores de negocio se muestran debajo del formulario que los causó, sin traceback y sin cerrar la app; un bug muestra un
+   mensaje genérico y deja el traceback en `logs/app.log` (`ejecutar_mostrando_errores`).
+3. **Pantallas finas:** las pantallas no validan ni calculan: leen los campos, arman el DTO y llaman al caso de uso.
+4. **Manejo de Sesión:** vive en memoria (`SessionManager`, US-105); recordarla entre aperturas junto con el club activo es la US-106 (archivo `~/.statspro/session.json`).
 
 ---
 
@@ -212,7 +219,6 @@ Esta clase (`infraestructura/persistencia/database_manager.py`) es la responsabl
 
 - **Responsabilidad:** Crear el archivo `.db`, activar `Foreign Keys` (importante en SQLite), ejecutar `schema.sql` y `views.sql`, y proveer el objeto de conexión.
 - **API:** `connect()`, `inicializar_schema()`, `cargar_seed()`, `limpieza()`, `close_connection()`.
-- **Atajo `abrir_conexion()`:** función del mismo módulo que abre la base real de la aplicación (`estadisticas.db`); la usan los comandos de la CLI.
 
 ```python
 manager = SQLiteManager(r.DB_FILE, r.SCHEMA_SQL, r.VISTA_SQL)
@@ -221,7 +227,7 @@ manager.inicializar_schema()      # ejecuta schema.sql y luego views.sql
 ```
 
 !!! warning "El schema se ejecuta en cada arranque"
-    `main()` llama a `inicializar_schema()` **cada vez que se ejecuta la CLI**. Por eso `schema.sql` solo usa `CREATE TABLE IF NOT EXISTS` y **nunca** `DROP TABLE`:
+    `ejecutar()` de `ui/flet/app.py` llama a `inicializar_schema()` **cada vez que se abre la app**. Por eso `schema.sql` solo usa `CREATE TABLE IF NOT EXISTS` y **nunca** `DROP TABLE`:
     una versión anterior borraba las tablas al arrancar y destruía todos los datos. Las vistas sí se recrean en cada arranque (`DROP VIEW` + `CREATE VIEW`),
     lo cual es seguro porque una vista no guarda datos y así siempre queda con su definición más reciente.
 
@@ -242,32 +248,34 @@ En lugar de una sola clase con todos los CRUD, hay un repositorio por cada **Agr
 
 ---
 
-## 10. Ciclo de Vida en main.py (Orquestación)
+## 10. Ciclo de Vida de la Aplicación (Orquestación)
 
-Cada ejecución de la CLI es **un proceso nuevo que corre un único comando**, así que cada comando arma solo las dependencias que necesita.
-El `main()` real hace lo siguiente:
-
-```python
-def main() -> None:
-    inicializar_db()                    # 1. Crea el esquema y las vistas si no existen (idempotente)
-
-    parser = construir_parser()         # 2. Arma el árbol de comandos (subparsers + set_defaults(func=...))
-    args = parser.parse_args()          # 3. Valida y convierte los argumentos que escribió el usuario
-    if hasattr(args, "func"):
-        try:
-            args.func(args)             # 4. Ejecuta el comando elegido, sin ningún if/elif
-        except ErrorDeDominio as e:     # 5. Un solo lugar traduce los errores de negocio a un mensaje
-            abortar(str(e))             #    ("Error: ..." en stderr, código de salida 1, sin traceback)
-    else:
-        parser.print_help()
-```
-
-Y adentro de cada comando (ej. `club_add.ejecutar`) se hace la inyección de dependencias:
+`main.py` solo llama a `ejecutar()` de `ui/flet/app.py`, que es el *Composition Root*: el único lugar que conoce las clases concretas.
+La app es **un solo proceso que vive mientras la ventana está abierta**, así que todo se arma una sola vez al arrancar:
 
 ```python
-def ejecutar(args, repo: ClubRepositorio | None = None) -> None:
-    if repo is None:                                              # en producción: repositorio real
-        repo = SqliteClubRepositorio(conexion=abrir_conexion())
-    club = CrearClubUseCase(repo).ejecutar(CrearClubDTO(nombre=args.nombre))
-    ...
+def ejecutar() -> None:
+    db = SQLiteManager(r.DB_FILE, r.SCHEMA_SQL, r.VISTA_SQL)
+    conexion = db.connect()                                  # 1. Una sola conexión para toda la app
+    try:
+        db.inicializar_schema()                              # 2. Crea el esquema y las vistas si no existen (idempotente)
+        deps = construir_dependencias(conexion, Pbkdf2PasswordHasher())   # 3. Repositorios, sesión y casos de uso
+        ft.run(lambda page: _main(page, deps))               # 4. Abre la ventana y espera eventos hasta que se cierra
+    finally:
+        db.close_connection()                                # 5. Se cierra aunque algo falle
 ```
+
+Y la inyección de dependencias queda en un solo lugar:
+
+```python
+def construir_dependencias(conexion, hasher) -> Dependencias:
+    repo_usuario = SqliteUsuarioRepositorio(conexion)
+    return Dependencias(
+        sesion=SessionManager(),
+        registrar_uc=RegistrarEntrenadorUseCase(repo_usuario, hasher),
+        login_uc=LoginLocalUseCase(repo_usuario, hasher),
+    )
+```
+
+`_main(page, deps)` arma la tabla de rutas y el router; cada pantalla recibe solo los casos de uso que usa. Una sola conexión alcanza porque en Flet 1.x
+los handlers síncronos corren en el mismo hilo que la abrió (ver la sección 8 de [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md)).
