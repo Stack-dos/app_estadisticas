@@ -1009,7 +1009,7 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
   - `menu_lateral.py` — `crear_menu_lateral(...)`: `ft.NavigationRail` con el logo y un destino por sección (`DESTINOS`); reemplaza a los botones "Inicio" y "Clubes" de la barra superior. Cada US que suma una sección agrega su fila.
   - `formulario.py` — `crear_formulario(...)`: campos en columna con el ancho del tema, la etiqueta de error de `errores.py` debajo, el botón principal destacado (`ft.FilledButton`) y los secundarios como texto, siempre en el mismo lugar.
 - **Repaso:** `login_screen.py`, `registro_screen.py`, `inicio_screen.py` y `clubes_screen.py` pasan a usar el tema y los componentes, sin cambiar su comportamiento.
-- **Logo (decidido el 2026-11-08):** el isotipo de `public/logo/` (pelota, flecha que sube y barras), redibujado en vector a partir del logo generado con IA (`public/logo_statpro.jpg`, que queda solo como referencia: es un JPG sin transparencia y su texto dice «Basketball Stats Pro»). El nombre visible sigue siendo **StatsPro**. Hay tres versiones: a color (`statspro-isotipo.svg`), en blanco para fondos de color (`statspro-isotipo-blanco.svg`) e ícono de app sobre fondo azul noche (`statspro-icono-app.svg`, lo usa la US-404). Las tres salen del mismo dibujo; si se toca, se regeneran juntas.
+- **Logo (decidido el 2026-11-08):** el isotipo de `public/logo/` (pelota, flecha que sube y barras), redibujado en vector a partir del logo generado con IA (`public/logo_statpro.jpg`, que queda solo como referencia: es un JPG sin transparencia y su texto dice «Basketball Stats Pro»). El nombre visible sigue siendo **StatsPro**. Hay tres versiones: a color (`statspro-isotipo.svg`), en blanco para fondos de color (`statspro-isotipo-blanco.svg`) e ícono de app sobre fondo azul noche (`src/assets/icon.svg`: desde la US-109 vive ahí, con el nombre que busca `flet build`). Las tres salen del mismo dibujo; si se toca, se regeneran juntas.
 
 **Criterios de Aceptación:**
 
@@ -2478,10 +2478,11 @@ tests/unit/test_credential_policy.py
   - **AC5.** ~~`CHANGELOG.md` actualizado siguiendo formato _Keep a Changelog_ en cada release.~~
     Cubierto desde la v0.1 por el AC10 de la US-109.
   - **AC6 — Ícono (logo decidido el 2026-11-08, ver la US-111):** el ejecutable, la ventana
-    (`page.window.icon`), el acceso directo y el APK usan el ícono de la app. Se generan desde
-    `src/assets/logo/statspro-icono-app.svg`: `.ico` para Windows (16, 32, 48 y 256 px en un solo
-    archivo) y `.png` para Linux y Android (los tamaños que pida `flet build`). Se generan con un
-    script reproducible, no a mano.
+    (`page.window.icon`), el acceso directo y el APK usan el ícono de la app.
+    **Adelantado en la US-109 (2026-11-09):** `flet build` toma `src/assets/icon.svg` (lo rasteriza con
+    resvg) y genera solo el `.ico` de Windows y los `.png` de Linux y Android; no hace falta script. El
+    `.deb` instala el mismo SVG para el acceso directo. Queda acá: comprobar el ícono del APK y el de la
+    ventana mientras corre en Linux (`page.window.icon`), si no sale solo.
 - **Testing Mínimo:** instalar binario desktop en máquina limpia (sin Python) y ejecutar flujo
   completo; instalar APK en dispositivo/emulador Android y verificar arranque; el pipeline de
   release ejecuta tests completos antes de generar artefactos.
@@ -2500,7 +2501,7 @@ empaquetado/   (no build/: es la carpeta de salida de flet build y está en .git
 ├── windows/statspro.iss  ← existe desde la US-109 (instalador .exe); se le suma el ícono (AC6)
 ├── linux/armar_deb.sh    ← existe desde la US-109 (.deb)
 ├── build_android.py   ← flet build apk
-└── generar_iconos.py  ← .ico y .png desde src/assets/logo/statspro-icono-app.svg (AC6)
+└── (generar_iconos.py ya no hace falta: flet build arma los íconos desde src/assets/icon.svg)
 
 .github/workflows/release.yml   ← existe desde la US-109; se le suma el APK (y macOS, si se decide)
 docs/install-guide.md           ← instrucciones de instalación por plataforma
