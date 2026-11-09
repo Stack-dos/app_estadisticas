@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=StatsPro
+Comment=Estadísticas de básquet para entrenadores
+Exec=/opt/statspro/StatsPro
+Icon=statspro
+Terminal=false
+Categories=Education;Sports;
