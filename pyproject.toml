@@ -38,6 +38,8 @@ copyright = "Copyright (C) 2026: Nicolas Piñera - Marcos Battigane"
 
 [tool.flet.app]
 path = "src"                     # donde esta main.py; flet build toma tambien src/assets/
+# Lo deja "uv run" al instalar el proyecto en src/; no es parte de la app
+exclude = ["statspro_basketball.egg-info"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -47,12 +47,19 @@ jobs:
       # --yes: si no hay Flutter, flet lo baja solo (la version que esa flet-cli necesita)
       - name: flet build ${{ matrix.plataforma }}
         shell: bash
+        env:
+          # En Windows la consola de Python usa cp1252 y flet-cli explota al reenviar el "√" con el que Flutter
+          # avisa que termino (UnicodeEncodeError). Modo UTF-8 de Python: stdout en UTF-8. En Linux no cambia nada.
+          PYTHONUTF8: "1"
         run: uv run --locked --no-dev --with flet-cli==1.1.2 flet build "${{ matrix.plataforma }}" --yes --no-rich-output --verbose
 
+      # Sin "| head": con pipefail (el bash de Actions lo usa), el "Broken pipe" de ls hace fallar el paso
       - name: Contenido del build
         shell: bash
         run: |
-          ls -R "build/${{ matrix.plataforma }}" | head -100
+          find "build/${{ matrix.plataforma }}" -maxdepth 2 | sort
+          echo "--- scripts SQL (sin estos la app no arranca) ---"
+          find "build/${{ matrix.plataforma }}" -name "*.sql"
           du -sh "build/${{ matrix.plataforma }}"
 
       - name: Subir la carpeta como artifact
