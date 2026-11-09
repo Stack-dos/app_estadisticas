@@ -35,6 +35,9 @@ sin abrir la ventana; antes era `main.py --help` de la CLI) y un job agregador `
 Request, en `push` a `main`/`develop` y manualmente. Dependencias gestionadas con `uv`
 (reproducibles vía `uv.lock`) y actualizadas automáticamente con Dependabot.
 
+> **Actualización (2026-11-09, US-109):** gitleaks se sacó del CI a propósito y no vuelve. Lo que este ADR dice
+> de la detección de secretos queda como registro histórico. En su lugar se sumaron las reglas `S` (Bandit) de ruff y CodeQL.
+
 ## Ventajas y Desventajas
 
 ### Ventajas
