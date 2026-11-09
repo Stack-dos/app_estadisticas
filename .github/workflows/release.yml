@@ -1,0 +1,213 @@
+name: Release
+
+# US-109, AC9: un tag vX.Y.Z publica una version. En orden:
+#   1. version: el tag tiene que coincidir con [project].version de pyproject.toml
+#   2. tests:   la suite completa, en Linux y en Windows (si falla, no se publica nada)
+#   3. build:   flet build en Windows (instalador .exe + .zip portable) y en Linux (.deb)
+#   4. publicar: GitHub Release con los tres archivos y, como notas, la seccion de la version en CHANGELOG.md
+# Un tag con sufijo (v0.1.0-rc.1) publica un pre-release: sirve para probar todo sin sacar una version de verdad.
+# Como se saca un release, paso a paso: RUNBOOK.md, seccion "Sacar una version".
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+# Solo lectura; el unico job que escribe (publicar) pide contents: write para el mismo.
+permissions:
+  contents: read
+
+# Nunca se cancela un release a la mitad
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # v0.1.0 -> 0.1.0 · v0.1.0-rc.1 -> 0.1.0-rc.1 (y se compara 0.1.0, sin el sufijo, contra pyproject.toml)
+      - name: Verificar que el tag coincida con pyproject.toml
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BASE="${VERSION%%-*}"
+          PYPROJECT="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          if [ "$BASE" != "$PYPROJECT" ]; then
+            echo "::error::El tag $GITHUB_REF_NAME no coincide con version = \"$PYPROJECT\" de pyproject.toml"
+            exit 1
+          fi
+          if [ "$VERSION" != "$BASE" ]; then PRERELEASE=true; else PRERELEASE=false; fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Version $VERSION (pre-release: $PRERELEASE)"
+
+  # Se prueba con Python 3.14: es el que flet build mete adentro del paquete.
+  tests-linux:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run tests and coverage on Linux
+        uses: ./.github/actions/coverage/linux
+        with:
+          python-version: "3.14"
+
+  tests-windows:
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run tests and coverage on Windows
+        uses: ./.github/actions/coverage/windows
+        with:
+          python-version: "3.14"
+
+  build-windows:
+    needs: [version, tests-linux, tests-windows]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Instalar uv y Python
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # PYTHONUTF8: sin esto, flet-cli se cae al reenviar el "√" de Flutter con la consola en cp1252 (spike, paso 7).
+      # --yes: si no hay Flutter, flet baja la version que necesita.
+      - name: flet build windows
+        shell: bash
+        env:
+          PYTHONUTF8: "1"
+        run: uv run --locked --no-dev --with flet-cli==1.1.2 flet build windows --yes --no-rich-output
+
+      # El .zip lleva una carpeta StatsPro adentro: al descomprimir no se desparraman los archivos.
+      - name: Armar el .zip portable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist, portable | Out-Null
+          Copy-Item -Recurse build/windows portable/StatsPro
+          Compress-Archive -Path portable/StatsPro -DestinationPath "dist/StatsPro-$env:VERSION-windows-x64-portable.zip"
+
+      # Inno Setup viene instalado en windows-latest
+      - name: Armar el instalador .exe (Inno Setup)
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DVersion=$env:VERSION" `
+            "/DCarpetaApp=$env:GITHUB_WORKSPACE\build\windows" `
+            "/DSalida=$env:GITHUB_WORKSPACE\dist" `
+            empaquetado\windows\statspro.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Subir los archivos de Windows
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-windows
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  build-linux:
+    needs: [version, tests-linux, tests-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Instalar uv y Python
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      # Lo que pide Flutter para compilar en Linux
+      - name: Dependencias de sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: flet build linux
+        env:
+          PYTHONUTF8: "1"
+        run: uv run --locked --no-dev --with flet-cli==1.1.2 flet build linux --yes --no-rich-output
+
+      - name: Armar el .deb
+        run: bash empaquetado/linux/armar_deb.sh "$VERSION" build/linux dist
+
+      - name: Subir el .deb
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-linux
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publicar:
+    needs: [version, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Bajar los archivos de los builds
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Notas: la seccion "## [X.Y.Z]" de CHANGELOG.md (un pre-release usa la de su version final, si ya esta).
+      - name: Armar las notas desde CHANGELOG.md
+        run: |
+          BASE="${VERSION%%-*}"
+          awk -v encabezado="## [$BASE]" '
+            index($0, encabezado) == 1 { adentro = 1; next }
+            /^## \[/ && adentro { exit }
+            adentro { print }
+          ' CHANGELOG.md > notas.md
+          if [ ! -s notas.md ]; then
+            if [ "$PRERELEASE" = "true" ]; then
+              echo "Pre-release de prueba de la versión $BASE: todavía no tiene su sección en el CHANGELOG." > notas.md
+            else
+              echo "::error::CHANGELOG.md no tiene la sección ## [$BASE] (falta correr: make changelog VERSION=$BASE)"
+              exit 1
+            fi
+          fi
+          cat notas.md
+
+      - name: Crear el GitHub Release
+        run: |
+          OPCIONES=()
+          if [ "$PRERELEASE" = "true" ]; then OPCIONES+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --title "StatsPro $VERSION" \
+            --notes-file notas.md \
+            "${OPCIONES[@]}"
