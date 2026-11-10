@@ -348,7 +348,7 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 
 - **Diseño precede a la implementación:** no se escribe código sin un diseño previo aprobado (ADR).
 - **Atomicidad:** commits pequeños y lógicos. Formato: `tipo(alcance): descripción`.
-- **Gestión de ramas:** `feature/nombre-tarea`, `hotfix/descripción`, `release/vX.Y`.
+- **Gestión de ramas:** `feature/usXXX` → `feature/epicaN` → `feature/hitoN` → `develop` → `main` (tag `vX.Y.Z`), y `hotfix/descripción`; detalle y estrategia de merge en la sección 15.
 - **Higiene del repositorio:** prohibido subir binarios, bases SQLite con datos reales, o archivos temporales.
 
 ### Calidad de código y pruebas
@@ -400,6 +400,10 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
   competencia). Un jugador puede estar en varias listas: otra competencia, otra temporada o la
   misma categoría dos años seguidos.
 - Cada inscripción tiene una única lista de buena fe asociada (1:1).
+- **Una competencia tiene sus categorías** (decisión del 2026-11-08, US-107): la categoría sigue
+  siendo un catálogo común (U13 Mixto, U15, U17...), pero cada competencia habilita las que juega
+  (`competenciaCategoria`). Un club solo se puede inscribir en una categoría habilitada en esa
+  competencia, y no se puede quitar una categoría que ya tiene clubes inscriptos.
 - En la carga manual de un partido (US-108), solo pueden figurar jugadores de la lista de buena fe
   de su club para la competencia y categoría del partido. La importación de una planilla de
   partido (US-201) o de un listado de la CAB (US-206) **genera o completa** esas listas en vez de
@@ -430,6 +434,35 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
   - Además del promedio por partido se ofrece el valor cada 40 minutos jugados, para no castigar a
     quien juega pocos minutos. Solo se calcula para quien llega al mínimo de partidos: con muy
     pocos minutos, el valor cada 40 se dispara.
+- **Puntos por cuarto** (decisión del 2026-11-08, US-108): son **opcionales**. Si no se tienen,
+  el partido se carga igual, sin error ni aviso.
+  - Se cargan para los dos equipos o para ninguno, con la misma cantidad de períodos: 4 cuartos y,
+    si hubo, las prórrogas (período 5, 6...).
+  - Los puntos por cuarto de cada club suman sus puntos del boxscore.
+  - Un promedio por cuarto se calcula solo sobre los partidos que los tienen y dice sobre cuántos
+    («sobre 4 de 9 partidos»); la regla de muestra chica se aplica a esos 4, no a los 9.
+- **Filtros de estadísticas** (decisión del 2026-11-08): todas las pantallas de estadísticas
+  (Líderes, Comparativa, Tablero, Scouting y Perfil de jugador) usan la misma barra de filtros,
+  `components/filtros_estadisticas.py` (nace en la US-205).
+  - Tres desplegables encadenados: **Año** → **Competencia** → **Categoría**. Cada uno arranca con
+    «Todos/Todas». Elegir un año achica la lista de competencias; elegir una competencia achica la
+    de categorías a las habilitadas en ella (`competenciaCategoria`, US-107).
+  - El año **no se guarda aparte**: sale de `competencia.anio` (la lista de años es
+    `SELECT DISTINCT anio FROM competencia`). Alcanza mientras cada competencia sea de un solo año
+    calendario, que es como se juegan las formativas.
+  - Cada partido cuenta en la competencia y la categoría **en que se jugó** (`partido.idCompetencia`
+    y `partido.idCategoria`), no en una categoría «actual» del jugador. Quien jugó en U17 y U19
+    en la misma temporada suma por separado en cada una, y en «Todas» suma los dos.
+  - Lo que el filtro deja pasar se suma y recién después se calcula: los porcentajes salen de los
+    totales (aciertos sobre intentos), **nunca promediando porcentajes** de filas distintas.
+  - Cada pantalla agrega a la barra su propio selector: Club y Contra (Comparativa), Rival y
+    ventana de partidos (Scouting), Jugador (Perfil).
+  - En **Líderes** y **Comparativa** la categoría es **obligatoria** (no tiene «Todas»): un ranking
+    o una comparación entre chicos de edades distintas no dice nada. Año y competencia sí pueden
+    ir en «Todos» (por ejemplo, el máximo anotador histórico de U17). Un jugador que pasó de U15 a
+    U17 aparece en el ranking de cada categoría con los partidos que jugó en ella; su recorrido
+    completo está en el Perfil y en el Tablero, donde la categoría sí puede ser «Todas». El
+    componente lo recibe como parámetro (`categoria_obligatoria`).
 
 ---
 
@@ -473,12 +506,14 @@ de contraseñas comprometidas, ambas para la parte de v1.0).
 
 **Objetivo del hito:** construir una base técnica funcional con persistencia robusta, autenticación local, casos de uso operativos, validaciones de integridad, una interfaz gráfica de escritorio (Flet) que cubra la gestión completa y la carga de partidos, y un entorno de calidad que garantice reproducibilidad desde el primer commit.
 
-**Épicas:** 3 · **Historias:** 10 (US-101 a US-110; la US-104 original se dividió en Autenticación
-y Sesión el 2026-10-03, y el 2026-10-31 se agregó la US-105 de GUI base y se renumeraron las
-siguientes — ver la tabla al inicio del documento) · **Esfuerzo total estimado:** ~60 días·persona
+**Épicas:** 3 · **Historias:** 12 (US-101 a US-112; la US-104 original se dividió en Autenticación
+y Sesión el 2026-10-03, el 2026-10-31 se agregó la US-105 de GUI base y se renumeraron las
+siguientes — ver la tabla al inicio del documento —, el 2026-11-08 se agregó la US-111 de base
+visual, que va antes de la US-107 aunque tenga número más alto, y ese mismo día la US-107 se
+dividió en US-107 (competencias, inscripciones y listas) y US-112 (jugadores y partidos)) · **Esfuerzo total estimado:** ~60 días·persona
 
 **Orden de ejecución:** US-101 → US-102 → US-103 → US-104 (todas ✅) → ajuste previo (quitar el
-DNI, en paralelo con el arranque de la US-105) → US-105 → US-106 → US-107 → US-108 → US-110. La US-109 (CI/CD) es transversal: no depende de ninguna y se va completando a lo
+DNI, en paralelo con el arranque de la US-105) → US-105 → US-106 → US-111 → US-107 → US-112 → US-108 → US-110. La US-109 (CI/CD) es transversal: no depende de ninguna y se va completando a lo
 largo del hito.
 
 ### Plan de trabajo en paralelo (equipo de dos, 2026-10-31)
@@ -488,7 +523,7 @@ parte de backend (casos de uso, repositorios, servicios) que no necesita la GUI 
 con mocks o con SQLite en memoria. Por eso el trabajo se reparte en dos **pistas** que avanzan a la
 vez. **Todas las historias pendientes salvo la US-105** tienen su bloque "Reparto en dos pistas"
 con el detalle. La US-105 es bloqueante para todas las pantallas: la hace la Pista A, y la Pista B
-solo aporta el `SessionManager` en memoria mientras avanza con el backend de las US-106 y US-107.
+solo aporta el `SessionManager` en memoria mientras avanza con el backend de las US-106, US-107 y US-112.
 
 - **Pista A — interfaz:** pantallas, navegación y componentes de `ui/flet/`.
 - **Pista B — backend:** casos de uso, DTOs, repositorios y servicios.
@@ -500,12 +535,12 @@ solo aporta el `SessionManager` en memoria mientras avanza con el backend de las
 Las pistas se cruzan a propósito en la ronda 2 (B también hace pantallas), para que los dos
 integrantes pasen por las dos capas.
 
-| Ronda | Pista A                                                                                            | Pista B                                                                                                                          |
-| ----- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                                      | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de la US-106 y de la US-107 |
-| 2     | US-106: pantallas de sesión y clubes; US-107: `tabla_datos.py` (**primero**), jugadores y partidos | US-107: pantallas de competencias, inscripciones y listas de buena fe                                                            |
-| 3     | US-108: `CargaPartidoScreen`                                                                       | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                                             |
-| 4     | US-110: conectar los eventos de log a las acciones de las pantallas                                | US-204 (migraciones), si el ADR-004 ya está decidido                                                                             |
+| Ronda | Pista A                                                                                                                                                       | Pista B                                                                                                                          |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                                                                                                 | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de las US-106, US-107 y US-112 |
+| 2     | US-106: pantallas de sesión y clubes; US-111: tema y componentes (**primero**, después de los bocetos juntos); US-107: `tabla_datos.py`; US-112: jugadores y partidos | US-111: repaso de las pantallas existentes y guía visual; US-107: pantallas de competencias, inscripciones y listas de buena fe  |
+| 3     | US-108: `CargaPartidoScreen`                                                                                                                                  | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                                             |
+| 4     | US-110: conectar los eventos de log a las acciones de las pantallas                                                                                           | US-204 (migraciones), si el ADR-004 ya está decidido                                                                             |
 
 Las rondas marcan orden, no duración: una ronda termina cuando las dos pistas mergearon.
 
@@ -523,6 +558,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 - El ADR-003 ya tiene archivos reales (`data/`, 2026-10-31): falta elegir la librería de PDF y
   confirmar el mapeo, pero ya no espera datos. Si igual se traba, la cadena US-201 → US-202 (casos
   de uso) → US-203 → US-205 espera y se adelantan la US-402 y la US-403, que no dependen de ella.
+- La **US-207** (carga masiva) solo depende de la US-201: puede ir en paralelo con la US-202.
 - La **US-402** (backup) solo depende de la US-204: puede hacerse en cualquier momento después.
 - La **US-403** (seguridad) solo depende de las US-104 y US-106 y del ADR-006: puede hacerse en
   cualquier momento después del Hito 1.
@@ -542,7 +578,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 - `app.py`: los dos registran pantallas en la tabla de rutas → una línea por pantalla y PRs chicos.
 - `pyproject.toml` / `uv.lock`: una sola persona agrega dependencias por ronda; si igual chocan,
   se regenera con `uv lock` en vez de resolver el lock a mano.
-- `partido_dto.py`: lo tocan la US-107 (`BoxscoreFilaDTO`) y la US-108 → mergea primero la US-107.
+- `partido_dto.py`: lo tocan la US-112 (`BoxscoreFilaDTO`) y la US-108 → mergea primero la US-112.
 - La CLI y los archivos de jugador: el ajuste previo (Pista B) toca la CLI, la entidad `Jugador` y
   sus tests, y la US-105 (Pista A) borra la CLI → la Pista A borra la CLI recién cuando el ajuste
   está mergeado, y mientras tanto avanza con las pantallas.
@@ -783,7 +819,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
   - **AC1.** No queda ninguna referencia al DNI en `src/` ni en `tests/` (`grep -rin dni src tests` no devuelve nada).
   - **AC2.** Se puede dar de alta un jugador sin año de nacimiento; si se informa, se sigue validando (mayor a 1900 y no posterior al año actual).
   - **AC3.** Todos los checks del CI pasan.
-- **Qué no entra:** evitar jugadores repetidos ahora que no hay DNI. En el alta manual lo resuelve la US-107 (buscar por nombre antes de dar de alta) y en la importación, la US-206 (`IdentificadorJugadores`).
+- **Qué no entra:** evitar jugadores repetidos ahora que no hay DNI. En el alta manual lo resuelve la US-112 (buscar por nombre antes de dar de alta) y en la importación, la US-206 (`IdentificadorJugadores`).
 
 #### US-105 — Interfaz Gráfica Base (Flet) y Retiro de la CLI
 
@@ -901,7 +937,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 - `LoginScreen` suma la casilla "Recordarme" (`ft.Checkbox`). **Hecho (paso 7).**
 - `ClubesScreen` (ruta `/clubes`): alta de club, listado de "mis clubes" (`ListarClubesUsuarioUseCase` con el usuario de la sesión, un `ft.ListTile` por club, el activo marcado "✓ En uso") y botón "Usar este club" (`CambiarClubActivoUseCase` + `SessionManager.set_active_club`, y va al inicio). Al crear un club la lista se rehace en el lugar, sin navegar. **Hecho (paso 9).**
 - El club activo se muestra siempre en la barra superior: `crear_barra_superior` (`ui/flet/barra_superior.py`) arma la `AppBar` de todas las pantallas internas ("StatsPro · club", Inicio, Clubes, Cerrar sesión). Sin club, el inicio invita a elegir uno. **Hecho (paso 8).**
-- Guard de navegación `requiere_club_activo`: las pantallas operativas (US-107 y US-108) sin club activo llevan a `ClubesScreen` con un aviso. **Se posterga a la US-107** (ver las decisiones).
+- Guard de navegación `requiere_club_activo`: las pantallas operativas (US-107, US-112 y US-108) sin club activo llevan a `ClubesScreen` con un aviso. **Se posterga a la US-107** (ver las decisiones).
 
 **Criterios de Aceptación:**
 
@@ -931,15 +967,188 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
   guard `requiere_club_activo`.
 - **Juntos, antes de la ronda 2:** si la sesión se guarda a través de un puerto (**decidido:** sí, ver las decisiones).
 
-#### US-107 — Pantallas de Gestión Administrativa
+#### US-111 — Base Visual de la GUI (tema, página y formularios)
 
-**Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08 · **Estado:** 🔧 Implementada (2026-11-09), falta la prueba manual guiada y el PR
 
-**Objetivo Funcional:** gestionar desde la GUI todo lo que la US-103 dejó resuelto en casos de uso (jugadores, competencias, categorías, inscripciones, listas de buena fe y partidos), siempre en el contexto del club activo.
+**Objetivo Funcional:** definir **una sola vez** cómo se ven las pantallas (colores, tipografía, espaciados, ancho del contenido, cómo se arma un formulario) en un tema y unos pocos componentes compartidos, y aplicarlo a las pantallas que ya existen, para que todas las que vienen (US-107, US-108, US-205, US-301...) nazcan acomodadas y parejas.
 
-**Narrativa:** Como entrenador, quiero cargar y consultar mis jugadores, competencias, inscripciones y listas de buena fe desde pantallas con formularios y tablas, sin tener que conocer IDs.
+**Narrativa:** Como entrenador, quiero que todas las pantallas se vean ordenadas y se usen igual (dónde están los campos, dónde los botones, dónde aparecen los errores), para no tener que aprender cada una de nuevo.
 
-**Nota de reuso (no se pisa con otras US):** las pantallas envuelven casos de uso que **ya existen** desde la US-103 — no se agrega lógica de negocio. Las piezas nuevas de aplicación son chicas y de lectura: el boxscore de un partido (antes previsto como comando `partido boxscore` de esta misma US), y la búsqueda de jugadores por nombre. La US-205 le agrega métricas avanzadas a esa misma pantalla de detalle; no crea otra.
+**Por qué ahora (decisión 2026-11-08):** hasta la US-106 las pantallas se armaron para que funcionen, apilando controles sin un criterio común. El único repaso visual previsto era el de la US-401 (v1.0); para entonces habría unas 15 pantallas para rehacer, y las versiones v0.1 a v0.3 saldrían con pantallas sin acomodar. Es el mismo patrón que ya usan `crear_barra_superior` y `crear_etiqueta_error`, llevado a todo lo visual.
+
+**Fuera de alcance (US-401):** elegir el modo oscuro a mano y revisarlo pantalla por pantalla, adaptación a celular (responsive), pantallas finales. Esta US sí define `page.dark_theme` con la misma semilla: sin eso, con Windows en oscuro Flet usaba su paleta por defecto y el tema propio no se veía. El logo en pantalla **sí** entra acá (AC6); el ícono del ejecutable y de la ventana (`.ico`, `.png`) queda en la US-404. Esta US deja todo en el tema para que esos cambios sean de un solo lugar.
+
+**Decisión tomada (2026-11-09): combinación elegida en el muestrario** — propuesta «Pizarra», modificada:
+
+| Perilla | Elección |
+| --- | --- |
+| Color | Semilla `#4A5866`, variante **tonal** (la de Flet por defecto; el principal sale más azul que la semilla) |
+| Formato | **Menú lateral** (`ft.NavigationRail`) con el logo arriba; la barra superior conserva el club activo y "Cerrar sesión" |
+| Densidad | Cómoda: espacios 8 / 16 / 24, título 24, campo de 56 px |
+| Tablas | Filas alternadas (lo aplica `tabla_datos.py`, US-107) |
+| Campos | Con relleno |
+| Botón principal | Ancho completo |
+| Esquinas | Suaves: 8 px en botones, campos y tarjetas |
+| Letra | IBM Plex Sans, empaquetada en `src/assets/fuentes/` (licencia OFL) |
+
+Se revisó en modo oscuro. Login y registro usan el formato del muestrario para el menú lateral: panel de marca a la izquierda (logo blanco, nombre y lema sobre el color principal) y el formulario centrado a la derecha. Imágenes y letra viven en `src/assets/` (`assets_dir` absoluta, desde `config/rutas.py`); `public/logo_statpro.jpg` queda solo como referencia.
+
+**Opciones que se compararon:**
+
+- **Muestrario en lugar de bocetos (2026-11-08):** las combinaciones se comparan en un muestrario interactivo (https://claude.ai/artifact/PSH4GU5MA6kVn5s5bZbFZb): 9 propuestas aplicadas a 23 pantallas del PRD (las de hoy, gestión, carga e importación de partidos con su vista previa, estadísticas, gráficos, scouting, perfil y los informes PDF). Se elige ahí y la elección queda escrita en esta US y en la guía 13:
+  - **Color:** semilla de Material 3 (`ft.Theme(color_scheme_seed=...)`) y su **variante**: «tonal» (lo que hace Flet por defecto, baja la saturación) o «fiel a la semilla» (mantiene el color tal cual; en Flet probablemente con `ft.ColorScheme(primary=...)`, a confirmar). Con el naranja del logo, «tonal» da botones color ladrillo.
+  - **Formato** (tarjetas, columna limpia o menú lateral con `ft.NavigationRail`), **densidad**, **estilo de tablas** (lo usa `tabla_datos.py`, US-107), **campos**, **botón principal**, **esquinas** y **letra**.
+- **Dónde viven las imágenes:** Flet sirve imágenes desde la carpeta que se pasa como `assets_dir`, y `flet build` (US-404) la busca en `src/assets/`. Recomendado: mover ahí `public/logo/` y dejar en `public/` solo el original de referencia.
+
+**Capa de Infraestructura (UI):**
+
+- **Tema:** `ui/flet/estilo.py` — colores, tamaños de letra, espaciados (por ejemplo `ESPACIO_CHICO`, `ESPACIO`, `ESPACIO_GRANDE`), ancho máximo del contenido y ancho de los formularios, y el `ft.Theme` que `ejecutar()` asigna a `page.theme`. Tamaño inicial y mínimo de la ventana.
+- **Componentes** (`ui/flet/components/`):
+  - `pagina.py` — `crear_pagina(...)`: el contenido de cada pantalla. Título, subtítulo, márgenes, ancho máximo y un panel lateral opcional. Lo envuelven `crear_vista_interna(...)` (barra superior, menú lateral y _scroll_) y `crear_vista_acceso(...)` (login y registro: marca y formulario centrado).
+  - `menu_lateral.py` — `crear_menu_lateral(...)`: `ft.NavigationRail` con el logo y un destino por sección (`DESTINOS`); reemplaza a los botones "Inicio" y "Clubes" de la barra superior. Cada US que suma una sección agrega su fila.
+  - `formulario.py` — `crear_formulario(...)`: campos en columna con el ancho del tema, la etiqueta de error de `errores.py` debajo, el botón principal destacado (`ft.FilledButton`) y los secundarios como texto, siempre en el mismo lugar.
+- **Repaso:** `login_screen.py`, `registro_screen.py`, `inicio_screen.py` y `clubes_screen.py` pasan a usar el tema y los componentes, sin cambiar su comportamiento.
+- **Logo (decidido el 2026-11-08):** el isotipo de `public/logo/` (pelota, flecha que sube y barras), redibujado en vector a partir del logo generado con IA (`public/logo_statpro.jpg`, que queda solo como referencia: es un JPG sin transparencia y su texto dice «Basketball Stats Pro»). El nombre visible sigue siendo **StatsPro**. Hay tres versiones: a color (`statspro-isotipo.svg`), en blanco para fondos de color (`statspro-isotipo-blanco.svg`) e ícono de app sobre fondo azul noche (`statspro-icono-app.svg`, lo usa la US-404). Las tres salen del mismo dibujo; si se toca, se regeneran juntas.
+
+**Criterios de Aceptación:**
+
+- **AC1 — Tema en un solo lugar:** colores, tamaños de letra y espaciados salen de `estilo.py`; ninguna pantalla escribe un color ni un número de espaciado propio.
+- **AC2 — Página común:** todas las pantallas usan `crear_pagina`; en una ventana de 1366×768 y en una maximizada, el contenido no se corta ni se estira de borde a borde.
+- **AC3 — Formularios iguales:** login, registro y alta de club usan `crear_formulario`: mismo ancho, error debajo de los campos, botón principal en el mismo lugar, y **Enter** envía el formulario.
+- **AC4 — Sin cambios de comportamiento:** los tests de las pantallas existentes siguen pasando sin tocar lo que verifican (buscan controles por su texto, no por su posición).
+- **AC5 — Guía visual:** las reglas (qué componente usar, dónde va cada cosa) y la combinación elegida en el muestrario quedan en la guía `docs/info_modulo/13-gui-flet-y-eventos.md`, junto con los conceptos de Flet nuevos (`ft.Theme`, `ft.Container`, `ft.Image`, alineación y _scroll_).
+- **AC6 — Logo:** el login muestra el isotipo junto al nombre «StatsPro», y todas las pantallas internas lo muestran arriba del menú lateral (con el formato elegido, el menú es lo primero que se ve; antes de elegirlo, este AC decía «la barra superior»). Se ve nítido en 1366×768 y maximizado, y la app arranca aunque falte el archivo (Flet muestra el hueco, no lanza error).
+
+**Testing Mínimo:**
+
+- _Unitarias:_ `crear_pagina` incluye el título y respeta el ancho máximo; `crear_formulario` ubica la etiqueta de error y el botón principal; Enter en el último campo dispara la acción; el menú marca la pantalla actual y navega; el tema usa la misma semilla y letra en claro y en oscuro.
+- _Las existentes:_ toda la suite de pantallas sigue en verde (AC4). Los ayudantes de `tests/unit/ayudantes_flet.py` recorren el árbol de controles completo, así los tests no dependen de cómo está anidada la pantalla; lo único que cambió en ellos es cómo encuentran la lista de clubes (por su `key`) y que la navegación se prueba en el menú, no en la barra.
+- _Manual guiado:_ recorrer login → registro → inicio → clubes en 1366×768 y maximizada, en claro y en oscuro, y comparar con el muestrario.
+
+**Reparto en dos pistas:**
+
+- **Juntos, primero:** los bocetos y la decisión del color; son el contrato entre las dos pistas.
+- **Pista A:** `estilo.py`, `crear_pagina` y `crear_formulario`, con sus tests.
+- **Pista B:** el repaso de las cuatro pantallas, en cuanto los componentes estén mergeados; la guía visual (AC5).
+
+**Archivos:**
+
+```text
+src/assets/
+├── logo/                     ← isotipo, versión blanca e ícono (movidos desde public/logo/)
+└── fuentes/                  ← IBMPlexSans.ttf y su licencia OFL.txt
+src/config/rutas.py           ← + ASSETS_DIR
+src/infraestructura/ui/flet/
+├── estilo.py                 ← nuevo: tema, espaciados, anchos, logo, ventana
+├── app.py                    ← aplicar_tema(page) y assets_dir en ejecutar()
+├── barra_superior.py         ← sin Inicio ni Clubes (pasaron al menú)
+├── components/
+│   ├── pagina.py             ← nuevo: crear_pagina, crear_vista_interna, crear_vista_acceso
+│   ├── formulario.py         ← nuevo
+│   └── menu_lateral.py       ← nuevo
+└── screens/                  ← login, registro, inicio y clubes usan los componentes
+
+tests/unit/ayudantes_flet.py          ← recorren el árbol de controles completo
+tests/unit/test_componentes_base.py   ← nuevo
+docs/info_modulo/13-gui-flet-y-eventos.md   ← + sección 16: guía visual y conceptos nuevos
+```
+
+#### US-107 — Competencias, Inscripciones y Listas de Buena Fe en Pantalla
+
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-111
+
+> **Dividida el 2026-11-08.** La US-107 original («Pantallas de Gestión Administrativa», L) creció con las categorías por competencia y se partió en dos: esta, con todo lo del torneo (competencias, categorías, inscripciones y listas de buena fe), y la **US-112**, con jugadores y partidos. Esta va primero porque crea `tabla_datos.py` y el guard `requiere_club_activo`, que la US-112 reusa.
+
+**Objetivo Funcional:** gestionar desde la GUI las competencias, sus categorías, las inscripciones del club activo y sus listas de buena fe, sobre los casos de uso de la US-103.
+
+**Narrativa:** Como entrenador, quiero cargar las competencias con sus categorías, inscribir a mi club y armar las listas de buena fe desde pantallas con formularios y tablas, sin tener que conocer IDs.
+
+**Nota de reuso:** las pantallas envuelven casos de uso que **ya existen** desde la US-103. La única lógica de negocio nueva es la de categorías por competencia.
+
+**Ampliada (2026-11-08): categorías por competencia.** Hasta ahora la categoría era un catálogo suelto y la relación con la competencia solo existía a través de las inscripciones: al inscribir, el desplegable mostraba todas las categorías y nada impedía inscribir a un club en una categoría que esa competencia no juega. Se agrega la tabla `competenciaCategoria` (la competencia habilita las categorías que juega) y esta US suma esa lógica de negocio, además de las pantallas. Es una regla nueva de la sección 6.
+
+**Capa de Aplicación:**
+
+- **Categorías por competencia (2026-11-08):**
+  - **Repositorio:** `CompetenciaRepositorio` (que ya maneja categorías e inscripciones) suma `habilitar_categoria(idCompetencia, idCategoria)`, `obtener_categorias_de_competencia(idCompetencia)`, `quitar_categoria(idCompetencia, idCategoria)` y `guardar_competencia_con_categorias(competencia, idCategorias)`, que guarda la competencia y sus categorías en **una transacción** (mismo patrón que `guardar_con_entrenador` de la US-106).
+  - **Casos de uso nuevos:** `HabilitarCategoriaEnCompetenciaUseCase`, `ListarCategoriasDeCompetenciaUseCase` y `QuitarCategoriaDeCompetenciaUseCase` (rechaza si la categoría ya tiene clubes inscriptos en esa competencia).
+  - **Casos de uso extendidos:** `CrearCompetenciaUseCase` acepta las categorías al crear (`CrearCompetenciaDTO.idCategorias`, lista que puede venir vacía); `InscribirClubEnCompetenciaUseCase` rechaza una categoría no habilitada en la competencia.
+  - **Excepciones nuevas** (`ErrorDeDominio`): `CategoriaNoHabilitadaError` (inscribir en una categoría que la competencia no juega), `CategoriaYaHabilitadaError` y `CategoriaConInscripcionesError` (quitar una categoría con clubes inscriptos).
+  - **Base de datos:** tabla `competenciaCategoria (idCompetencia, idCategoria)`, con clave primaria compuesta y FK a las dos tablas. Además, `inscripcion` suma una **FK compuesta** `(idCompetencia, idCategoria) → competenciaCategoria`, para que la base tampoco acepte una inscripción en una categoría no habilitada aunque alguien se saltee el caso de uso. `seed.sql` habilita sus categorías antes de inscribir. Como en la US-108 con `partido.idCategoria`: se cambia `schema.sql` y cada integrante borra y recrea su base local (todavía no hay versión entregada; las migraciones son de la US-204).
+
+**Capa de Infraestructura (UI):**
+
+- **Componente compartido:** `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados, también los de la US-112. Reemplaza a `formatters/table_formatter.py` de la CLI. Toma colores y espaciados de `estilo.py` (US-111), con **filas alternadas** (lo elegido en el muestrario): una fila sí y otra no con fondo `SURFACE_CONTAINER_LOW`.
+- **Menú lateral:** cada sección nueva suma su fila a `DESTINOS` en `components/menu_lateral.py` (US-111): «Torneos» lleva a competencias, inscripciones y listas.
+- **Guard `requiere_club_activo`** (postergado desde la US-106): las pantallas de esta US y de las US-112 y US-108 sin club activo llevan a `ClubesScreen` con un aviso.
+- **Base visual:** todas las pantallas usan `crear_pagina` y sus formularios `crear_formulario` (US-111), siguiendo la guía visual de la guía 13.
+- **Pantallas** (`screens/`):
+  - `CompetenciasScreen` — alta y listado de competencias y de categorías (`CrearCompetenciaUseCase`, `ListarCompetenciasUseCase`, `CrearCategoriaUseCase`, `ListarCategoriasUseCase`). Al crear una competencia se eligen sus categorías del catálogo; en el listado, cada competencia muestra sus categorías y permite habilitar otra o quitar una (`HabilitarCategoriaEnCompetenciaUseCase`, `QuitarCategoriaDeCompetenciaUseCase`).
+  - `InscripcionesScreen` — inscribir al club activo en una competencia y categoría (`InscribirClubEnCompetenciaUseCase`) y listar sus inscripciones (`ListarInscripcionesClubUseCase`). El desplegable de categoría muestra solo las habilitadas en la competencia elegida (`ListarCategoriasDeCompetenciaUseCase`).
+  - `ListaBuenaFeScreen` — habilitar y quitar jugadores de la lista de una inscripción y verla (`AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`). Los jugadores se eligen entre los del club activo (`ListarJugadoresClubUseCase`).
+
+**Criterios de Aceptación:**
+
+- **AC1 — Pantallas desacopladas:** agregar una pantalla solo requiere crear su archivo en `screens/` y registrarla en la tabla de rutas de `app.py`, sin modificar otras pantallas (el equivalente del AC1 de la vieja US-107 para la CLI). Vale también para la US-112 y las siguientes.
+- **AC2 — Sin IDs a mano:** competencia, categoría, inscripción y jugadores del club se eligen de listas desplegables cargadas desde los casos de uso de listado; el club es siempre el club activo (US-106).
+- **AC3 — Errores de negocio:** toda excepción de dominio (jugador ya en lista, inscripción duplicada, categoría no habilitada, etc.) se muestra junto al formulario con el manejador común de la US-105.
+- **AC4 — Sesión:** todas las pantallas de esta US exigen sesión y club activo (guard de la US-105 y `requiere_club_activo`).
+- **AC5 — Categorías por competencia:** una competencia se crea con sus categorías en una sola transacción; se puede habilitar otra o quitar una sin inscriptos; inscribir en una categoría no habilitada lanza `CategoriaNoHabilitadaError` desde el caso de uso, y la FK compuesta la rechaza también desde la base.
+
+**Testing Mínimo:**
+
+- _Unitarias:_ las funciones puras que convierten DTOs en filas de `tabla_datos`; los tres casos de uso de categorías por competencia y la validación nueva de `InscribirClubEnCompetenciaUseCase` (categoría habilitada, no habilitada, quitar con y sin inscriptos).
+- _Integración:_ `guardar_competencia_con_categorias` guarda todo o nada; un `INSERT` directo en `inscripcion` con una categoría no habilitada falla por la FK compuesta. Los demás casos de uso ya tienen sus tests desde la US-103. Los tests de integración de la US-103 que insertan inscripciones directo tienen que habilitar antes la categoría (la FK compuesta los rompería).
+- _Manual guiado:_ recorrido club → competencia con sus categorías → inscripción → lista de buena fe (con los jugadores de `seed.sql`), probando al menos un error de negocio en cada pantalla.
+
+**Reparto en dos pistas:**
+
+- **Pista B, ronda 1:** la tabla `competenciaCategoria`, sus métodos de repositorio y sus casos de uso (AC5), con sus tests, **antes** de `CompetenciasScreen` e `InscripcionesScreen`.
+- **Pista A, ronda 2:** `tabla_datos.py` y `requiere_club_activo` **primero** (los usan la Pista B y la US-112).
+- **Pista B, ronda 2:** `CompetenciasScreen`, `InscripcionesScreen` y `ListaBuenaFeScreen`.
+
+**Archivos:**
+
+```text
+src/aplicacion/
+├── casos_uso/habilitar_categoria_competencia.py
+├── casos_uso/listar_categorias_competencia.py
+├── casos_uso/quitar_categoria_competencia.py
+├── casos_uso/crear_competencia.py            ← + categorías al crear
+├── casos_uso/inscribir_club_competencia.py    ← + categoría habilitada
+└── dtos/competencia_dto.py         ← CrearCompetenciaDTO + idCategorias
+
+src/dominio/exceptions.py                                      ← + CategoriaNoHabilitadaError, CategoriaYaHabilitadaError, CategoriaConInscripcionesError
+src/dominio/repositorios/competencia_repositorio.py            ← + categorías por competencia
+src/infraestructura/repositorios/sqlite_competencia_repositorio.py ← + categorías por competencia
+src/infraestructura/persistencia/sql/schema.sql                ← + competenciaCategoria, FK compuesta en inscripcion
+src/infraestructura/persistencia/sql/seed.sql                  ← habilita las categorías antes de inscribir
+
+src/infraestructura/ui/flet/
+├── app.py                      ← resolver_ruta + club activo (requiere_club_activo)
+├── components/tabla_datos.py
+└── screens/
+    ├── competencias_screen.py
+    ├── inscripciones_screen.py
+    └── lista_buena_fe_screen.py
+
+tests/unit/test_tabla_datos.py
+tests/unit/test_uc_categorias_competencia.py
+tests/integration/test_competencia_categoria.py
+```
+
+#### US-112 — Jugadores y Partidos en Pantalla
+
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-107
+
+> **Nueva (2026-11-08), sale de dividir la US-107.** Usa `tabla_datos.py` y `requiere_club_activo`, que crea la US-107. Va antes que la US-108: el alta de jugadores de esta US es la que llena las listas de buena fe contra las que la US-108 valida.
+
+**Objetivo Funcional:** dar de alta, buscar, vincular y desvincular jugadores del club activo, y consultar sus partidos con el boxscore, sobre los casos de uso de la US-103.
+
+**Narrativa:** Como entrenador, quiero manejar el plantel de mi club y ver los partidos cargados con su boxscore, sin duplicar jugadores ni conocer IDs.
+
+**Nota de reuso:** las pantallas envuelven casos de uso que **ya existen** desde la US-103. Las piezas nuevas de aplicación son chicas y de lectura: el boxscore de un partido (antes previsto como comando `partido boxscore`) y la búsqueda de jugadores por nombre. La US-205 le agrega métricas avanzadas a esa misma pantalla de detalle; no crea otra.
 
 **Capa de Aplicación:**
 
@@ -949,33 +1158,28 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Capa de Infraestructura (UI):**
 
-- **Componente compartido:** `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados. Reemplaza a `formatters/table_formatter.py` de la CLI.
+- Usa `tabla_datos.py`, `requiere_club_activo` (US-107), `crear_pagina`, `crear_vista_interna` y `crear_formulario` (US-111), y suma «Jugadores» y «Partidos» a `DESTINOS` del menú lateral.
 - **Pantallas** (`screens/`):
   - `JugadoresScreen` — alta (`RegistrarJugadorUseCase`; antes de guardar muestra los jugadores con el mismo nombre, para vincular uno existente en vez de duplicarlo), listado del club activo (`ListarJugadoresClubUseCase`), buscar por nombre un jugador que todavía no está en el club (`BuscarJugadoresPorNombreUseCase`) para vincularlo al club activo (`VincularJugadorAClubUseCase`), y dar de baja (`DesvincularJugadorDeClubUseCase`).
-  - `CompetenciasScreen` — alta y listado de competencias y de categorías (`CrearCompetenciaUseCase`, `ListarCompetenciasUseCase`, `CrearCategoriaUseCase`, `ListarCategoriasUseCase`).
-  - `InscripcionesScreen` — inscribir al club activo en una competencia y categoría (`InscribirClubEnCompetenciaUseCase`) y listar sus inscripciones (`ListarInscripcionesClubUseCase`).
-  - `ListaBuenaFeScreen` — habilitar y quitar jugadores de la lista de una inscripción y verla (`AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`).
-  - `PartidosScreen` — listado de partidos del club activo (`ListarPartidosPorClubUseCase`, con nombres desde `v_partidos_resumen`) y detalle con el boxscore (`ObtenerBoxscorePartidoUseCase`).
+  - `PartidosScreen` — listado de partidos del club activo (`ListarPartidosPorClubUseCase`, con nombres desde `v_partidos_resumen`) y detalle con el boxscore (`ObtenerBoxscorePartidoUseCase`). Dos desplegables filtran el listado (2026-11-08): **Competencia** (solo aquellas en las que el club activo está inscripto, de `ListarInscripcionesClubUseCase`) y **Categoría** (solo las inscriptas en la competencia elegida); los dos arrancan en «Todas». El filtro se aplica sobre la lista ya cargada: los partidos de un club son pocos y no hace falta otra consulta. Desde la US-108, si el partido tiene puntos por cuarto, el detalle los muestra en una línea arriba del boxscore; si no, no muestra nada.
 
 **Criterios de Aceptación:**
 
-- **AC1 — Pantallas desacopladas:** agregar una pantalla solo requiere crear su archivo en `screens/` y registrarla en la tabla de rutas de `app.py`, sin modificar otras pantallas (el equivalente del AC1 de la vieja US-107 para la CLI).
-- **AC2 — Sin IDs a mano:** competencia, categoría, inscripción y jugadores del club se eligen de listas desplegables cargadas desde los casos de uso de listado; un jugador que todavía no está en el club se busca por nombre; el club es siempre el club activo (US-106).
+- **AC1 — Sin IDs a mano:** un jugador que todavía no está en el club se busca por nombre; el club es siempre el club activo (US-106).
+- **AC2 — Sin duplicados:** el alta avisa si ya hay jugadores con ese nombre y ofrece vincular uno de ellos en vez de crear otro.
 - **AC3 — Visualización con vistas SQL:** el listado de partidos usa `v_partidos_resumen` (nombres, no IDs); el detalle usa `v_boxscore_completo`.
-- **AC4 — Errores de negocio:** toda excepción de dominio (vínculo superpuesto, jugador ya en lista, inscripción duplicada, etc.) se muestra junto al formulario con el manejador común de la US-105.
-- **AC5 — Sesión:** todas las pantallas de esta US exigen sesión y club activo (guards de las US-105 y US-106).
+- **AC4 — Errores y sesión:** las excepciones de dominio (vínculo superpuesto, etc.) se muestran junto al formulario con el manejador común de la US-105; las dos pantallas exigen sesión y club activo.
 
 **Testing Mínimo:**
 
-- _Unitarias:_ `ObtenerBoxscorePartidoUseCase` y `BuscarJugadoresPorNombreUseCase` con repositorio mock; las funciones puras que convierten DTOs en filas de `tabla_datos`.
-- _Integración:_ `ObtenerBoxscorePartidoUseCase` contra `v_boxscore_completo` con `seed.sql`. Los demás casos de uso ya tienen sus tests desde la US-103.
-- _Manual guiado:_ recorrido completo club → jugador → vínculo → competencia → categoría → inscripción → lista de buena fe → partidos → boxscore, probando al menos un error de negocio en cada pantalla.
+- _Unitarias:_ `ObtenerBoxscorePartidoUseCase` y `BuscarJugadoresPorNombreUseCase` con repositorio mock.
+- _Integración:_ `ObtenerBoxscorePartidoUseCase` contra `v_boxscore_completo` con `seed.sql`; `buscar_por_nombre` sin distinguir mayúsculas ni tildes de más.
+- _Manual guiado:_ alta de un jugador con un nombre que ya existe (vincular en vez de duplicar) → baja → partidos filtrados por competencia y categoría → boxscore.
 
 **Reparto en dos pistas:**
 
-- **Pista B, ronda 1:** `buscar_por_nombre` y `BuscarJugadoresPorNombreUseCase`, `boxscore_por_partido` y `ObtenerBoxscorePartidoUseCase`, con sus tests.
-- **Pista A, ronda 2:** `tabla_datos.py` **primero** (la Pista B la necesita), después `JugadoresScreen` y `PartidosScreen`.
-- **Pista B, ronda 2:** `CompetenciasScreen`, `InscripcionesScreen` y `ListaBuenaFeScreen`.
+- **Pista B, ronda 1:** `buscar_por_nombre` y `BuscarJugadoresPorNombreUseCase`, `boxscore_por_partido` y `ObtenerBoxscorePartidoUseCase`, con sus tests (no necesitan la GUI).
+- **Pista A, ronda 2:** `JugadoresScreen` y `PartidosScreen`, apenas la US-107 mergea `tabla_datos.py`.
 
 **Archivos:**
 
@@ -990,50 +1194,41 @@ src/infraestructura/repositorios/sqlite_partido_repositorio.py ← + boxscore_po
 src/dominio/repositorios/jugador_repositorio.py                ← + buscar_por_nombre
 src/infraestructura/repositorios/sqlite_jugador_repositorio.py ← + buscar_por_nombre
 
-src/infraestructura/ui/flet/
-├── components/tabla_datos.py
-└── screens/
-    ├── jugadores_screen.py
-    ├── competencias_screen.py
-    ├── inscripciones_screen.py
-    ├── lista_buena_fe_screen.py
-    └── partidos_screen.py
+src/infraestructura/ui/flet/screens/
+├── jugadores_screen.py
+└── partidos_screen.py
 
 tests/unit/test_uc_boxscore.py
 tests/unit/test_uc_buscar_jugador.py
-tests/unit/test_tabla_datos.py
 tests/integration/test_boxscore_vista.py
 ```
 
 #### US-108 — Carga Atómica de Partido (CargarPartido)
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-107
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-107, US-112
 - **Antes era la US-106.** Pasó de S a M porque el formulario de varios pasos ahora es una pantalla de la GUI, no un flujo de consola.
 - **Objetivo Funcional:** registrar un partido de una competencia y categoría, con las estadísticas individuales de los dos equipos, garantizando la integridad de los datos mediante una transacción atómica (todo o nada).
 - **Narrativa:** Como DT, quiero registrar un partido completo —de mi club o de otros clubes de la competencia— con todas las estadísticas de los jugadores en una única operación; si falla una sola estadística, nada se persiste.
 
 > **Decisiones tomadas el 2026-10-31** (cierran las dos decisiones pendientes que tenía esta historia):
 >
-> 1. **Cualquier partido de la competencia.** Se puede cargar un partido aunque el club activo no
->    juegue; el club activo (US-106) solo viene **preseleccionado** como local y el usuario puede
->    cambiar los dos equipos. Motivo: si solo se cargan los partidos propios, el club activo tiene
->    N partidos y cada rival 0 o 1, y el promedio de un rival con un solo partido no dice nada.
-> 2. **El partido guarda la categoría.** Un partido es de una categoría que juega una competencia.
->    Las categorías se repiten (U13 juega el Asociativo 2026, el Asociativo 2027 y el Provincial 2026) y cada combinación tiene su inscripción y su lista de buena fe por club; sin la
->    categoría no se sabe contra qué lista validar.
-> 3. **Clubes rivales o de terceros.** `ClubRepositorio.listar_todos` para elegir cualquier club, y
->    `CrearClubUseCase` con `idUsuario` opcional: sin usuario, el club se crea **sin** vínculo en
->    `usuarioClub`.
+> 1. **Cualquier partido de la competencia.** Se puede cargar un partido aunque el club activo no juegue; el club activo (US-106) solo viene **preseleccionado** como local y el usuario puede cambiar los dos equipos. Motivo: si solo se cargan los partidos propios, el club activo tiene N partidos y cada rival 0 o 1, y el promedio de un rival con un solo partido no dice nada.
+> 2. **El partido guarda la categoría.** Un partido es de una categoría que juega una competencia. Las categorías se repiten (U13 juega el Asociativo 2026, el Asociativo 2027 y el Provincial 2026) y cada combinación tiene su inscripción y su lista de buena fe por club; sin la categoría no se sabe contra qué lista validar.
+> 3. **Clubes rivales o de terceros.** `ClubRepositorio.listar_todos` para elegir cualquier club, y `CrearClubUseCase` con `idUsuario` opcional: sin usuario, el club se crea **sin** vínculo en `usuarioClub`.
 
-- **Capa de Dominio:** `Partido` suma `idCategoria: int` (obligatorio). `JugadorPartido` no cambia.
+- **Puntos por cuarto (2026-11-08):** opcionales (regla de la sección 6). Van en una tabla aparte y
+  no en columnas de `partido`: así entran las prórrogas sin columnas vacías y "no se cargaron" es
+  simplemente que no hay filas.
+- **Capa de Dominio:** `Partido` suma `idCategoria: int` (obligatorio). `JugadorPartido` no cambia. Excepción nueva `CuartosInconsistentesError` (`ErrorDeDominio`): cuartos de un solo equipo, distinta cantidad de períodos, o una suma que no da los puntos del boxscore.
 - **Capa de Aplicación:**
   - **Caso de uso:** `CargarPartidoUseCase` — orquesta: para **cada uno de los dos equipos** busca la inscripción del club en la competencia y categoría del partido, valida que su boxscore solo tenga jugadores de esa lista (`CompetenciaRepositorio.obtener_jugadores_lista`, ya existe de US-103) y llama a `PartidoRepositorio.save_with_boxscore` con los dos boxscores juntos.
   - **Caso de uso nuevo:** `ListarClubesUseCase` (todos los clubes, para elegir local y visitante).
   - **Caso de uso extendido:** `CrearClubUseCase` con `idUsuario` opcional (decisión 3).
-  - **DTOs:** `PartidoDTO` (de carga, con la categoría — el de solo lectura que ya existe se llama `PartidoResumenDTO`), `BoxscoreDTO`, `EstadisticaInputDTO`.
+  - **DTOs:** `PartidoDTO` (de carga, con la categoría y `cuartos: list[CuartoDTO]`, vacía si no se cargaron — el de solo lectura que ya existe se llama `PartidoResumenDTO`), `BoxscoreDTO`, `EstadisticaInputDTO`, `CuartoDTO (idClub, nroCuarto, puntos)`.
+  - **Validación de cuartos:** `CargarPartidoUseCase` la hace antes de guardar, junto con la de las listas (AC2).
 - **Capa de Infraestructura:**
-  - **Base de datos:** columna `partido.idCategoria` (FK a `categoria`); `v_partidos_resumen` suma el nombre de la categoría; `SqlitePartidoRepositorio` la guarda y la lee; `SqliteClubRepositorio.listar_todos`.
-  - **`CargaPartidoScreen`** — formulario de varios pasos: (1) competencia, categoría, fecha, local y visitante, con el club activo preseleccionado como local; (2) el boxscore de cada equipo, una fila por jugador de su lista de buena fe; (3) resumen y confirmación. Si un equipo no tiene inscripción o lista en esa competencia y categoría, la pantalla lo avisa y lleva a `ListaBuenaFeScreen` (US-107) para cargarla — desde la US-206 también se puede importar del listado de la CAB. Los errores de validación se marcan en el campo o la fila que los causó.
+  - **Base de datos:** columna `partido.idCategoria` (FK a `categoria`); `v_partidos_resumen` suma el nombre de la categoría; `SqlitePartidoRepositorio` la guarda y la lee; `SqliteClubRepositorio.listar_todos`. Tabla `partidoCuarto (idPartido, idClub, nroCuarto, puntos)` con clave primaria `(idPartido, idClub, nroCuarto)`, FK a `partido` con `ON DELETE CASCADE`, `nroCuarto ≥ 1` y `puntos ≥ 0`. `save_with_boxscore` recibe los cuartos (opcional) y los guarda **en la misma transacción** que el partido y los boxscores.
+  - **`CargaPartidoScreen`** — formulario de varios pasos: (1) competencia, categoría, fecha, local y visitante, con el club activo preseleccionado como local; (2) el boxscore de cada equipo, una fila por jugador de su lista de buena fe; (3) resumen y confirmación, con un bloque opcional **Puntos por cuarto** (4 casilleros por equipo y un botón para agregar prórroga; es `components/puntos_por_cuarto.py`, que reusa la vista previa de la US-201). Si un equipo no tiene inscripción o lista en esa competencia y categoría, la pantalla lo avisa y lleva a `ListaBuenaFeScreen` (US-107) para cargarla — desde la US-206 también se puede importar del listado de la CAB. Los errores de validación se marcan en el campo o la fila que los causó.
 - **Decisión tomada (2026-10-31) — cómo llega `partido.idCategoria` a las bases que ya existen:**
   `schema.sql` usa `CREATE TABLE IF NOT EXISTS`, así que agregar la columna ahí no cambia una base
   ya creada. Se cambia `schema.sql` y cada integrante borra y recrea su base local: todavía no hay
@@ -1046,6 +1241,7 @@ tests/integration/test_boxscore_vista.py
   - **AC4 — Formulario:** si el guardado falla, el formulario conserva lo cargado para corregirlo, sin perder los datos de los demás jugadores.
   - **AC5 — Partidos de otros clubes:** se puede cargar un partido entre dos clubes que no son el club activo ni están vinculados al usuario.
   - **AC6 — Categoría:** un jugador que está en la lista del club para otra categoría u otra competencia (por ejemplo, el Asociativo 2025) no puede figurar en el boxscore.
+  - **AC7 — Puntos por cuarto opcionales:** un partido sin cuartos se guarda igual, sin aviso. Con cuartos, se guardan solo si están los dos equipos con la misma cantidad de períodos y cada suma da los puntos de su boxscore; si no, `CuartosInconsistentesError` dice qué equipo y cuánto falta o sobra, y no se guarda nada.
 - **Reglas de Negocio (las cuatro primeras ya están en `JugadorPartido.__post_init__` y la quinta en `save_with_boxscore`; se listan para trazabilidad):**
   - `(T1C×1) + (T2C×2) + (T3C×3)` = puntos totales.
   - `convertidos ≤ lanzados` para T1, T2, T3.
@@ -1055,18 +1251,18 @@ tests/integration/test_boxscore_vista.py
   - **En el boxscore de cada equipo solo figuran jugadores de la lista de buena fe de ese club para la competencia y categoría del partido** (regla de la sección 6). Las listas se cargan desde `ListaBuenaFeScreen` (US-107) o se importan (US-206, US-201); si un jugador no está, se lanza una excepción de dominio.
   - **Nota (campo propuesto, no implementado todavía):** si se agrega a `Partido` un resultado final (`puntosLocalFinal`/`puntosVisitanteFinal`, ver sección 20 y el DER en `docs/diagramas/diagramas.md`), esta US sería el lugar natural para completarlo, con una regla que valide que la suma de puntos del boxscore por club coincide con ese resultado. La importación (US-201) ya no lo necesita: valida contra la fila `TOTALES` del archivo.
 - **Testing Mínimo:**
-  - _Unitarias:_ `CargarPartidoUseCase` rechaza un jugador que no está en la lista de su club (en cualquiera de los dos equipos) y uno que está en la lista de otra categoría (mock de `CompetenciaRepositorio`); camino feliz llama a `save_with_boxscore` con los DTOs traducidos. `CrearClubUseCase` sin usuario no vincula.
-  - _Integración:_ flujo completo (partido + dos boxscores) en DB `:memory:` con repositorios reales, incluido un partido entre dos clubes sin vínculo con el usuario — puede reusar el fixture de `tests/integration/test_repositorios_partido.py`.
+  - _Unitarias:_ `CargarPartidoUseCase` rechaza un jugador que no está en la lista de su club (en cualquiera de los dos equipos) y uno que está en la lista de otra categoría (mock de `CompetenciaRepositorio`); camino feliz llama a `save_with_boxscore` con los DTOs traducidos. `CrearClubUseCase` sin usuario no vincula. Cuartos (AC7): sin cuartos, con 4 cuartos válidos, con prórroga, de un solo equipo y con una suma que no coincide.
+  - _Integración:_ flujo completo (partido + dos boxscores, con y sin cuartos) en DB `:memory:` con repositorios reales, incluido un partido entre dos clubes sin vínculo con el usuario — puede reusar el fixture de `tests/integration/test_repositorios_partido.py`.
   - _Manual guiado:_ cargar un partido completo desde la pantalla, uno de otros dos clubes, y uno con un jugador fuera de la lista para ver el error y que nada se guardó.
 
 **Reparto en dos pistas** (ronda 3):
 
 - **Juntos, antes de empezar:** los DTOs de carga (`PartidoDTO`, `BoxscoreDTO`,
   `EstadisticaInputDTO`), que son el contrato entre las dos pistas.
-- **Pista B:** `idCategoria` en el esquema, la entidad, el repositorio y la vista;
+- **Pista B:** `idCategoria` y `partidoCuarto` en el esquema, la entidad, el repositorio y la vista; la validación de cuartos (AC7);
   `listar_todos`, `ListarClubesUseCase` y `CrearClubUseCase` con usuario opcional; DTOs,
   `CargarPartidoUseCase` y sus tests unitarios y de integración.
-- **Pista A:** `CargaPartidoScreen`, programada contra los DTOs acordados (puede arrancar con un
+- **Pista A:** `CargaPartidoScreen` y `components/puntos_por_cuarto.py`, programados contra los DTOs acordados (puede arrancar con un
   caso de uso falso hasta que la Pista B mergee el real).
 
 **Archivos a crear o modificar:**
@@ -1074,13 +1270,13 @@ tests/integration/test_boxscore_vista.py
 ```text
 src/dominio/entidades/partido.py              ← Partido + idCategoria
 src/infraestructura/persistencia/sql/
-├── schema.sql                                ← partido.idCategoria (cada uno recrea su base local)
+├── schema.sql                                ← partido.idCategoria y partidoCuarto (cada uno recrea su base local)
 └── views.sql                                 ← v_partidos_resumen + categoría
 src/infraestructura/repositorios/
 ├── sqlite_partido_repositorio.py             ← guarda y lee idCategoria
 └── sqlite_club_repositorio.py                ← + listar_todos
 src/aplicacion/
-├── dtos/partido_dto.py     ← se extiende: PartidoDTO (carga), BoxscoreDTO, EstadisticaInputDTO
+├── dtos/partido_dto.py     ← se extiende: PartidoDTO (carga), BoxscoreDTO, EstadisticaInputDTO, CuartoDTO
 └── casos_uso/
     ├── cargar_partido.py
     ├── listar_clubes.py
@@ -1088,6 +1284,8 @@ src/aplicacion/
 
 src/infraestructura/ui/flet/screens/
 └── carga_partido_screen.py
+src/infraestructura/ui/flet/components/
+└── puntos_por_cuarto.py   ← bloque opcional, lo reusa la vista previa de la US-201
 
 tests/unit/
 └── test_uc_cargar_partido.py
@@ -1109,12 +1307,9 @@ tests/integration/
 ```text
 src/infraestructura/logging/
 ├── logger_config.py       ← configuración de sinks (local-file / Seq)
-└── seq_handler.py         ← handler HTTP para Seq (opcional)
 
 src/aplicacion/servicios/
 └── execution_context.py   ← genera correlation_id UUIDv4 y propaga contexto
-
-docker-compose.yml          ← perfil "observabilidad" con Seq (opcional)
 
 tests/unit/
 ├── test_execution_context.py
@@ -1126,50 +1321,49 @@ tests/unit/
   - **AC1.** Niveles DEBUG/INFO/WARNING/ERROR en formato JSON estructurado.
   - **AC2.** `correlation_id` UUIDv4 generado al inicio de cada acción del usuario y propagado hasta repositorios.
   - **AC3.** Secretos (passwords, tokens, hashes sensibles) redactados en todos los niveles de log.
-  - **AC4.** Selección de sink (local-file o Seq) por configuración, sin cambiar código de negocio.
-  - **AC5.** En modo Seq, eventos filtrables por `correlation_id`, `accion` (pantalla + acción) y nivel.
+  - **AC4.** Selección de sink (local-file) por configuración, sin cambiar código de negocio.
 - **Testing Mínimo:**
   - _Unitario:_ creación y propagación de `execution_context`; redacción de secretos en campos conocidos.
   - _Integración:_ una acción completa (por ejemplo, crear un club con sesión iniciada) → verificar que todos sus eventos tienen el mismo `correlation_id` y que otra acción tiene uno distinto.
 
-> **Estado real:** el proyecto ya tiene un logger funcional (`src/infraestructura/logger.py`,
-> rotación 10MB/5 backups, formato `asctime - name - levelname - message`) — es más simple que lo
-> que pide esta US (sin JSON estructurado, sin `correlation_id`, sin redacción de secretos, sin
-> Seq). Es un buen punto de partida, no un reemplazo completo de la US-110. Ver
-> `docs/info_modulo/01-logger.md`.
-
 ### Épica H1-E3: Entorno de Calidad y Pipeline CI/CD
-
-> **Regla de alcance para US-104 a US-110 (agregada el 2026-10-03; ampliada a la US-110 al renumerar el 2026-10-31):** si al implementar cualquiera
-> de estas historias hace falta tocar algo que no está declarado en su propia sección — en
-> particular, cualquier cambio de CI/CD o de Docker, que es responsabilidad de la US-109 — se
-> anota explícitamente en la sección de esa US como **"trabajo adelantado de US-109"**, en vez de
-> mezclarse en el mismo PR sin dejar rastro. Es la corrección directa a lo que ya pasó una vez: ver
-> la nota de "Estado real" de la US-109 más abajo.
 
 #### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
-- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Dependencias:** —
-- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto.
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI)
+- **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto; y que **publicar una versión** (desde la v0.1) sea un proceso automático y repetible: tag → tests → binarios → GitHub Release con changelog.
+
+> **Ampliada (2026-11-08):** se le suma todo el **release** de escritorio (Windows y Linux), que antes era de la US-404, para que la
+> v0.1 ya salga con binarios descargables; más el chequeo del título de los PR, actionlint y SAST (Bandit vía ruff y CodeQL).
+> La US-404 conserva Android, macOS, la versión visible en la app y la guía de instalación. Decisiones tomadas:
+>
+> - **Tag a mano en `main` + git-cliff**, no Release Please: se publica una vez por hito, y Release Please suma dos PR por release
+>   (su "Release PR" y el de `main` de vuelta a `develop`). Si los releases se vuelven frecuentes, se migra.
+> - **El tag va en `main`**, después de mergear `develop`: marca exactamente el código publicado (un tag en `develop` apunta a otro commit).
+> - **Estrategia de merge mixta** (ver la sección 15): _squash_ en los PR de trabajo y _merge commit_ en los de promoción. Con
+>   _squash_ en todos los niveles, a `main` llegaría un solo commit por hito y el changelog tendría una línea.
+> - **Matriz de runners** (`windows-latest` para el `.exe`, `ubuntu-latest` para el `.deb`): PyInstaller y `flet build` no compilan
+>   para otro sistema operativo (no hay compilación cruzada, tampoco con Wine).
+> - **Sin `.zip` del código:** GitHub ya agrega "Source code (zip/tar.gz)" a cada release.
+>
+> **Decisión a tomar al arrancar:** `flet build windows|linux` (basado en Flutter) o `flet pack` (PyInstaller configurado para Flet).
+> PyInstaller "a secas" no incluye el cliente de escritorio de Flet: el binario compila pero no abre ninguna ventana.
+
 - **Archivos a crear/existentes:**
 
 ```text
-.github/workflows/MainAction.yml  ✅ existe (jobs: check_dep [pip-audit], gitleaks, lint [ruff], static [mypy],
-                                     tests-linux, tests-windows, tests-docker, ci-ok [agregador];
-                                     matriz de Python 3.12–3.14 solo en tests-linux (Windows y Docker: una corrida con 3.13;
-                                     mypy: una corrida contra 3.12); se dispara en PR, push a main/develop y manual;
-                                     con concurrency, permissions y timeout-minutes)
-.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen (versión de ruff/mypy = la de pyproject.toml/uv.lock;
-                                     ruff corre `ruff check .` + `ruff format --check .` con las reglas de pyproject.toml)
-.github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen (todas reciben `python-version`;
-                                     la de Linux exige cobertura ≥ 85 % y guarda el reporte HTML)
+.github/workflows/MainAction.yml  ✅ existe
+.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen
+.github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen
 .github/dependabot.yml          ✅ existe (uv, github-actions y docker; semanal)
-pytest.ini / .coveragerc        ➡️ migrados a pyproject.toml ([tool.pytest.ini_options] y [tool.coverage.*], 2026-10-17;
-                                     de paso se corrigió branch=True, que estaba mal ubicado y no medía ramas)
-.pre-commit-config.yaml         ✅ existe (check-yaml, end-of-file-fixer, trailing-whitespace y ruff check/format
-                                     ejecutados con `uv run`: misma versión de ruff que el CI)
-pyproject.toml                  ✅ existe (dependencias con versión fija + config de ruff/mypy/pytest/coverage + comando `statspro`; uv.lock; sin requerimientos.txt)
-Makefile                        ✅ existe (instalar_dependencias [uv sync], run_test, run_linter_ruf, corregir_linter, pre_commit, docker_test, static_check)
+.pre-commit-config.yaml         ✅ existe (+ hook de actionlint)
+pyproject.toml                  ✅ existe (+ reglas "S" de ruff)
+Makefile                        ✅ existe
+
+.github/workflows/release.yml   ← nuevo: se dispara con el tag vX.Y.Z (AC9)
+cliff.toml                      ← nuevo: configuración de git-cliff (AC10)
+CHANGELOG.md                    ← nuevo: Keep a Changelog, generado con git-cliff (AC10)
+RUNBOOK.md                      ← + cómo sacar un release y qué estrategia de merge va en cada PR
 ```
 
 - **Criterios de Aceptación:**
@@ -1177,48 +1371,21 @@ Makefile                        ✅ existe (instalar_dependencias [uv sync], run
   - **AC2.** `make run_linter_ruf` falla ante cualquier infracción de estilo o de formato.
   - **AC3.** El pipeline CI falla el PR ante test fallido, cobertura insuficiente (Linux), error de linting o de tipos, dependencias con vulnerabilidades conocidas o secretos en el historial.
   - **AC4.** `pre-commit install` configura hooks locales en un único comando (los hooks de ruff se ejecutan con `uv run`: usan la versión fijada en `pyproject.toml`, la misma del CI).
-  - _(La numeración salta de AC4 a AC6; se conserva porque ADR-009 y la sección de estado citan AC6–AC8.)_
   - **AC6 — Job agregador y required status checks (nuevo, antes solo vivía en `ideas-aprendizaje.md` §8.9):** un job final `ci-ok` que depende de todos los demás y falla si alguno falló; registrado como _required status check_ de la rama, para que un PR con el CI en rojo no se pueda mergear.
   - **AC7 — `ruff format --check` (nuevo, antes §8.2):** el job `lint` también falla si algún archivo no está formateado con `ruff format`, no solo si viola reglas de estilo.
   - **AC8 — Smoke test de la app (nuevo, antes §8.14):** un paso que falla si el punto de entrada no se puede importar. Con la CLI era `uv run python src/main.py --help`; desde la US-105 es un paso que importa el composition root de la GUI (`app.py`) sin abrir ninguna ventana.
-- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6).
-- **Reparto en dos pistas** (trabajo suelto, para quien termine antes su parte de una ronda):
-  - **Pista A:** documentación — `docs/catalogo-criticidad.md` (sección 14) y
-    `docs/info_modulo/11-flujo-de-trabajo-git.md`.
-  - **Pista B:** pipeline — fijar las actions de terceros por hash (8.13) y marcar `ci-ok` como
-    _required status check_ en GitHub (AC6). El smoke test nuevo ya lo hace la US-105.
-    > **Estado real:** ver `docs/ideas-aprendizaje.md` sección 8 (informe de CI) para el detalle
-    > técnico de cada punto. Ya aplicado (2026-09-20): `mypy`, `pip-audit`, build de Docker, una sola
-    > versión de ruff/mypy (`pyproject.toml`) en CI y pre-commit, matriz de Python 3.11–3.14 (Windows
-    > solo 3.13), disparo en `push`, `concurrency`/`permissions`/`timeout-minutes`, cobertura mínima de
-    > 85 % con reporte guardado (Linux), Dependabot y `gitleaks`.
-    >
-    > **Importante — esto es exactamente el ejemplo de historias pisándose entre sí que motivó esta
-    > revisión completa del 2026-10-03:** todo lo anterior se hizo **durante el PR de la US-103**
-    > (commits `f5c4386` y `938c93f` de ese branch), no en un PR dedicado a esta US. El trabajo quedó
-    > bien hecho, pero no quedó registrado como tal en su momento — de ahí la "Regla de alcance para
-    > US-104 a US-110" agregada al principio de esta épica.
-    >
-    > **Aplicado el 2026-10-11 (trabajo adelantado de US-109, hecho en la rama de la US-104 antes de
-    > abrir su PR — ver la "Regla de alcance" de arriba):**
-    >
-    > - **AC6:** job agregador `ci-ok` (falla si algún job falló, se canceló o se salteó). **Falta un
-    >   paso manual en GitHub:** marcarlo como _required status check_ en Settings → Branches.
-    > - **AC7:** el job `lint` corre también `ruff format --check .`.
-    > - **AC8:** smoke test `python src/main.py --help` en los jobs de tests de Linux y Windows (lo
-    >   reemplaza la US-105 por el import de `app.py`, como trabajo adelantado de esta US).
-    > - **8.4:** se sacó `submodules: recursive` de `check_dep`, `lint` y `static`.
-    > - **Matriz reducida:** las versiones de Python (3.12, 3.13 y 3.14) se prueban solo en
-    >   `tests-linux`; Docker y Windows corren una vez (3.13) y mypy una vez (contra 3.12). La 3.11
-    >   dejó de probarse en el CI aunque `pyproject.toml` sigue declarando `requires-python >= 3.11`.
-    > - **Ruff más estricto:** las reglas viven solo en `pyproject.toml` (`E`, `W`, `F`, `I`, `B`,
-    >   `UP`, `SIM`, `C4`, `RUF`; antes `E501` + `I`, y el CI pasaba `--select E --select I` por su
-    >   cuenta). CI, pre-commit y Makefile corren `ruff check` sin `--select`. `docs/` queda excluido.
-    >   Al activarlas se corrigió el código existente; entre otras cosas apareció un test duplicado en
-    >   `test_repositorios_competencia.py` (mismo nombre dos veces: el primero nunca se ejecutaba).
-    > - **mypy** ya era `--strict`; no cambió.
-    >
-    > **Sigue pendiente:** fijar las actions de terceros por hash (8.13, prioridad baja).
+  - **AC9 — Release por tag (antes AC3 de la US-404):** `release.yml` se dispara con `push: tags: ["v*.*.*"]` y, en orden:
+    1. corre la suite de tests (si falla, no se publica nada);
+    2. falla si la versión de `pyproject.toml` no coincide con el tag (`v0.1.0` ↔ `version = "0.1.0"`);
+    3. compila en una matriz de runners: `windows-latest` arma el `.exe`, `ubuntu-latest` el `.deb` (`dpkg-deb`; la versión del paquete va sin la `v`);
+    4. crea el GitHub Release con los binarios y, como notas, la sección de esa versión del `CHANGELOG.md`.
+       Un tag con sufijo (`v0.1.0-rc.1`) crea un _pre-release_: sirve para probar el workflow sin publicar una versión de verdad. Permisos: `contents: write` solo en el job que publica.
+  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`uvx git-cliff --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR `develop → main`, junto con el cambio de versión.
+  - **AC11 — Título del PR:** un job falla si el título del PR no sigue Conventional Commits (`amannn/action-semantic-pull-request`). Con _squash_, el título del PR es el mensaje del commit que llega a la rama, y de ahí sale el changelog. El repo se configura para que el _squash_ use siempre el título del PR.
+  - **AC12 — Workflows revisados:** actionlint en pre-commit y en el job `lint` (detecta errores como un input mal escrito en un `with:`).
+  - **AC13 — SAST:** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
+  - **AC14 — Binario probado:** antes de publicar la v0.1, el `.exe` y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia): la app arranca, se registra un usuario y se crea un club.
+- **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6); un PR con título `arreglos varios` falla (AC11); un tag `v0.1.0-rc.1` genera un _pre-release_ con los dos binarios y sus notas (AC9); un tag que no coincide con `pyproject.toml` falla sin publicar nada (AC9); el binario abre en una máquina limpia (AC14).
 
 ---
 
@@ -1228,7 +1395,7 @@ Makefile                        ✅ existe (instalar_dependencias [uv sync], run
 confiables, exponerlas en pantallas de la GUI y asegurar la evolución controlada del esquema de
 base de datos.
 
-**Épicas:** 3 · **Historias:** 6 (la US-206 se agregó el 2026-10-31) · **Esfuerzo total estimado:** ~34 días·persona
+**Épicas:** 3 · **Historias:** 7 (la US-206 se agregó el 2026-10-31; la US-207 salió de dividir la US-201 el 2026-11-08) · **Esfuerzo total estimado:** ~34 días·persona
 
 **Decisión previa requerida:** ninguna sobre ADR-002 — la GUI Flet ya existe desde la US-105 y
 este hito le suma pantallas (importación en la US-201, consulta estadística en la US-205). _Nota
@@ -1338,7 +1505,8 @@ docs/info_modulo/12-como-agregar-una-migracion.md
     reusa.
   - **Caso de uso `ImportarListaBuenaFeUseCase`** con `preview()`: el club viene sugerido del título
     (si no existe, se crea sin vínculo con el usuario, US-108); competencia y categoría se eligen en
-    la pantalla. Crea la inscripción con su lista si no existe (`inscribir_con_lista`, con la fecha
+    la pantalla; si esa categoría no está habilitada en la competencia, la vista previa lo avisa y
+    al confirmar se habilita (regla de la sección 6). Crea la inscripción con su lista si no existe (`inscribir_con_lista`, con la fecha
     de importación como fecha de presentación) y agrega los jugadores que faltan. No quita de la
     lista a los que no vienen en el archivo: los informa.
 - **Capa de Infraestructura:**
@@ -1403,7 +1571,10 @@ tests/integration/fixtures/listado_jugadores_anonimo.xlsx (y .pdf)
   US-206, ADR-003
 - **Antes se llamaba "Parseo de Planillas Excel con Pandas".** El 2026-10-31 se revisaron archivos
   reales y se sumó el PDF, que trae el mismo contenido (más titulares y capitán).
-- **Objetivo Funcional:** convertir la planilla de estadísticas de un partido que exporta Gesdeportiva (CAB), en Excel o PDF, en un partido con el boxscore de los dos equipos, sin
+- **Dividida (2026-11-08):** la carga masiva (varias planillas a la vez) pasó a la **US-207**, que
+  se apoya en esta sin cambiarla. Esta US importa **una** planilla con su vista previa; el aspecto
+  de la vista previa quedó en el muestrario de la US-111.
+- **Objetivo Funcional:** convertir una planilla de estadísticas de partido que exporta Gesdeportiva (CAB), en Excel o PDF, en un partido con el boxscore de los dos equipos, sin
   transcripción manual, con vista previa sin efecto secundario y reporte de calidad. De paso genera
   o completa las listas de buena fe de los dos clubes para esa competencia y categoría.
 - **Narrativa:** Como analista, quiero importar las planillas de partido de Gesdeportiva —de mi
@@ -1456,9 +1627,13 @@ Mapeo a `jugadorPartido`:
   - **Parsers:** `PlanillaPartidoExcelParser` y `PlanillaPartidoPdfParser`. Los dos devuelven un
     `PlanillaPartidoDTO`, así el resto no sabe de qué formato vino el archivo.
   - **`IngestService`** — resuelve clubes, jugadores, inscripciones y listas, y arma el partido.
-  - **UI:** `ImportScreen` — elegir el archivo (`FilePicker` de Flet), completar lo que el archivo
-    no trae (la fecha), confirmar competencia y categoría, ver la vista previa con el reporte y
-    confirmar.
+  - **UI:** `ImportScreen` — elegir **un** archivo (`FilePicker` de Flet) y pasar a la **vista
+    previa**: completar lo que el archivo no trae (la fecha), confirmar competencia y categoría,
+    invertir local y visitante si hace falta, resolver los ambiguos, ver el boxscore tal como se
+    leyó y **confirmar o descartar**. La planilla no trae puntos por cuarto: la vista previa
+    ofrece el mismo bloque opcional que `CargaPartidoScreen` (US-108); si se deja vacío, el
+    partido se importa sin cuartos. La vista previa queda como un componente que recibe un
+    archivo, para que la US-207 la repita por cada archivo de una tanda.
 - **Base de Datos:** afecta `club`, `jugador`, `jugadorClub`, `inscripcion`, `listaBuenaFe`,
   `jugadorListaBuenaFe`, `partido`, `jugadorPartido`.
 - **Criterios de Aceptación:**
@@ -1492,6 +1667,8 @@ Mapeo a `jugadorPartido`:
   - Competencia y categoría **no** se crean solas: se eligen en la pantalla, sugeridas cuando el
     nombre coincide. Los dos archivos de la CAB nombran distinto la misma categoría (`U13MX` y
     `INFANTILES MIXTO`), así que crearlas automáticamente generaría duplicados.
+  - Si la categoría no está habilitada en la competencia, la vista previa lo avisa («se habilita U13
+    Mixto en Asociación 2026») y al confirmar se habilita antes de inscribir (US-107).
   - Si un club no tiene inscripción en esa competencia y categoría, se crea con su lista
     (`inscribir_con_lista`, con la fecha del partido); los jugadores de la planilla que no están en
     la lista se agregan. Así se cumple la regla de la sección 6 sin rechazar el archivo.
@@ -1518,8 +1695,8 @@ Mapeo a `jugadorPartido`:
 
 - **Juntos, antes:** el `PlanillaPartidoDTO` (lo que entregan los parsers) y el `IngestReportDTO`
   (lo que muestra la pantalla).
-- **Pista A:** `ImportScreen` (AC7) y los dos parsers (AC1, AC8); el de PDF reusa la librería que
-  fijó la US-206.
+- **Pista A:** `ImportScreen` con la vista previa como componente (AC7) y los dos parsers (AC1,
+  AC8); el de PDF reusa la librería que fijó la US-206.
 - **Pista B:** `IngestService` (AC2, AC3, AC9), `ImportarPlanillaPartidoUseCase` con `preview()`
   (AC5) y el reporte (AC6), con los fixtures y los tests de integración.
 
@@ -1541,6 +1718,66 @@ tests/unit/test_planilla_partido_parsers.py
 tests/integration/
 ├── test_importar_planilla_partido.py
 └── fixtures/planilla_partido_anonima.xlsx (y .pdf; casos borde: TOTALES que no coincide, jugador ya existente, club nuevo)
+```
+
+#### US-207 — Carga Masiva de Planillas de Partido
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Dependencias:** US-201
+- **Nueva (2026-11-08), sale de dividir la US-201.** No cambia nada de la importación de una
+  planilla: le suma elegir varias a la vez. El aspecto de las pantallas (elegir archivos y
+  resultado) está en el muestrario de la US-111.
+- **Objetivo Funcional:** importar de una vez las planillas de una fecha completa (o de varias),
+  revisando cada partido en su vista previa.
+- **Narrativa:** Como analista, quiero elegir todas las planillas de una fecha juntas en vez de
+  importarlas de a una.
+- **Por qué cada archivo se sigue confirmando por separado:** la planilla no trae la fecha del
+  partido; confirmar todo de un golpe obligaría a cargar las fechas a ciegas.
+- **Capa de Aplicación:** sin casos de uso nuevos. La tanda vive en la pantalla: llama a
+  `preview()` de `ImportarPlanillaPartidoUseCase` (US-201) por cada archivo y, al confirmar, al
+  mismo caso de uso que importa uno solo.
+- **Capa de Infraestructura:**
+  - **Función pura** `misma_planilla(a, b)` sobre dos `PlanillaPartidoDTO` (US-201): mismo título
+    y mismas filas `TOTALES` de los dos equipos. Es lo que permite detectar el Excel y el PDF de un
+    mismo partido antes de que ninguno esté guardado (y antes de saber la fecha).
+  - **UI:** `ImportScreen` pasa a tener tres pasos:
+    1. **Elegir archivos:** uno o varios (`FilePicker` con `allow_multiple=True`). Cada archivo
+       aparece en una lista con el partido detectado y su estado: listo para revisar, con
+       jugadores ambiguos, ya cargado, repetido en la tanda o rechazado (con la causa).
+    2. **Vista previa, archivo por archivo:** el componente de la US-201, sin cambios.
+    3. **Resultado:** resumen de la tanda (importados, ya cargados, descartados y rechazados, con
+       la causa de cada uno).
+- **Criterios de Aceptación:**
+  - **AC1 — Carga masiva:** se pueden elegir varios archivos a la vez. Cada uno se valida antes de
+    la vista previa (formato, totales, ya cargado); un archivo rechazado no frena a los demás.
+    Cada partido se confirma por separado y se guarda en su propia transacción: si uno falla, los
+    ya confirmados quedan guardados y los siguientes se pueden seguir revisando.
+  - **AC2 — Repetidos en la misma tanda:** si dos archivos describen el mismo partido (por
+    ejemplo, el Excel y el PDF de la misma planilla), se marca el segundo como repetido y solo se
+    revisa el primero. Hace falta porque el AC9 de la US-201 mira la base, y en ese momento
+    ninguno de los dos está guardado todavía.
+  - **AC3 — Resultado de la tanda:** al terminar se muestra cuántos partidos se importaron y qué
+    archivos no, con su causa; el mismo detalle queda en el log (AC6 de la US-201).
+- **Testing Mínimo:**
+  - _Unitarias:_ `misma_planilla` (mismo partido en Excel y PDF → sí; mismo título con otros
+    totales → no).
+  - _Integración:_ tanda de cuatro archivos (uno válido, uno ya cargado, uno con `TOTALES` que no
+    coincide y el PDF del mismo partido que el válido): se importa solo el válido y los otros tres
+    se informan con su causa (AC1 a AC3).
+  - _Manual guiado:_ una tanda de varios archivos con uno descartado en la vista previa.
+
+**Reparto en dos pistas:**
+
+- **Pista A:** los pasos 1 y 3 de `ImportScreen` (AC1, AC3).
+- **Pista B:** `misma_planilla` (AC2) y el test de integración de la tanda.
+
+**Archivos:**
+
+```text
+src/infraestructura/ingest/misma_planilla.py
+src/infraestructura/ui/flet/screens/import_screen.py   ← + elegir varios archivos y resultado de la tanda
+
+tests/unit/test_misma_planilla.py
+tests/integration/test_importar_tanda.py
 ```
 
 ### Épica H2-E2: Motor Estadístico Avanzado
@@ -1574,6 +1811,9 @@ tests/integration/
   - **PPP (Puntos por Posesión):** `Puntos / Posesiones`.
   - **Posesiones (estimación FIBA):** `(T2L + T3L) + 0.44 × T1L + PERD − REB_OF`.
   - **% de Rebotes:** proporción de rebotes totales capturados sobre el total disponible.
+  - **Promedio de puntos por cuarto (2026-11-08):** por club, a favor y en contra, para cada
+    período. Solo sobre los partidos con cuartos cargados (US-108); devuelve también N (partidos
+    con cuartos) y M (partidos del recorte).
 - **Criterios de Aceptación:**
   - **AC1.** Disponibilidad de eFG%, EFF, PPP, PER (simplificado) y % de Rebotes.
   - **AC2.** Reporte comparativo "Equipo vs Rival" para un `idPartido` dado, **o agregado para un
@@ -1589,9 +1829,13 @@ tests/integration/
   - **AC8 (2026-10-31) — Muestra chica:** los resultados traen los partidos jugados (PJ) y los
     minutos; una comparación marca la muestra chica cuando alguno no llega al mínimo de partidos
     (sección 6). `formulas.py` suma el valor cada 40 minutos.
+  - **AC9 (2026-11-08) — Puntos por cuarto:** el promedio por cuarto ignora los partidos sin
+    cuartos, informa «sobre N de M partidos» y, si N es 0, no muestra nada (no un cero). Las
+    prórrogas se promedian solo entre los partidos que las tuvieron.
 - **Testing Mínimo:**
   - _Unitarias (`tests/unit/test_formulas.py`):_ cobertura del **100%** de las funciones matemáticas, con
-    valores calculados a mano y casos límite (ceros).
+    valores calculados a mano y casos límite (ceros). Promedio por cuarto con partidos mezclados
+    (con y sin cuartos, uno con prórroga) y sin ningún partido con cuartos (AC9).
   - _Integración:_ `GenerarTablaComparativaUseCase` con datos de dos equipos en un mismo partido
     (semilla), verificando que los totales coinciden con el resultado final; y con datos de dos
     equipos a lo largo de una competencia completa, verificando el agregado.
@@ -1639,12 +1883,15 @@ tests/unit/test_formulas.py
 - **Capa de Dominio:** **Interfaz:** `AnalyticsService` (`src/dominio/servicios/analytics_service.py`, junto a `PasswordHasher`: es un servicio, no un repositorio)
   — declara `get_boxscore_partido(partido_id)`, `get_totales_temporada(club_id, temporada)`, y los
   métodos nuevos que cubren los recortes multi-dimensionales pedidos (ver AC5):
-  `get_totales_jugador(jugador_id, *, competencia_id=None, anio=None)` (si no se pasa ningún
-  filtro, devuelve el acumulado global/de toda la carrera del jugador),
-  `get_totales_club(club_id, *, competencia_id=None, anio=None)` (**nuevo** — agregado a nivel
+  `get_totales_jugador(jugador_id, *, competencia_id=None, anio=None, categoria_id=None)` (si no
+  se pasa ningún filtro, devuelve el acumulado global/de toda la carrera del jugador),
+  `get_totales_club(club_id, *, competencia_id=None, anio=None, categoria_id=None)` (**nuevo** — agregado a nivel
   equipo, análogo al de jugador pero sumando a todos los jugadores del club; ver también sección
   3), y `get_evolucion_jugador(jugador_id, metrica)` (**nuevo** — serie temporal partido a partido
-  de una métrica puntual, para ver tendencia/progreso, no solo un total acumulado).
+  de una métrica puntual, para ver tendencia/progreso, no solo un total acumulado), y
+  `get_cuartos_club(club_id, *, competencia_id=None, anio=None, categoria_id=None)` (**nuevo,
+  2026-11-08** — lee `partidoCuarto` para el promedio por cuarto de la US-202). Los tres filtros
+  son los de la barra común de la sección 6.
 - **Capa de Aplicación:**
   - **Caso de uso:** `CalcularEstadisticasPartidoUseCase`.
   - **DTOs:** `MetricasPartidoDTO`, `MetricasJugadorDTO`, `MetricasClubDTO` (**nuevo**),
@@ -1669,9 +1916,9 @@ tests/unit/test_formulas.py
     según corresponda.
   - **AC5 (nuevo) — Recortes multi-dimensionales:** tanto para jugador como para club, el motor
     soporta obtener totales por partido individual, por competencia específica, por año, y
-    global/toda la carrera — sin mezclar competencias distintas jugadas en un mismo año (ver el
-    bug de `v_jugador_totales_temporada` documentado en sección 20, a corregir antes o durante
-    esta US).
+    global/toda la carrera — sin mezclar competencias distintas jugadas en un mismo año ni
+    categorías distintas de una misma competencia. Para eso se corrige
+    `v_jugador_totales_temporada` (decidido el 2026-11-08, ver la Pista A y la sección 20).
   - **AC6 (nuevo) — Evolución/tendencia:** `get_evolucion_jugador` devuelve la serie ordenada por
     fecha de una métrica elegida, partido a partido, para poder graficar si un jugador está
     mejorando o empeorando (consumido después por `GenerarGraficoRendimientoUseCase` en US-301).
@@ -1681,37 +1928,52 @@ tests/unit/test_formulas.py
     esperados.
   - _Integración:_ `get_totales_jugador`/`get_totales_club` con un jugador/club que participó en
     dos competencias distintas dentro del mismo año — confirmar que **no** se mezclan si se pide
-    por competencia, y que sí se suman si se pide por año o global.
+    por competencia, y que sí se suman si se pide por año o global. Lo mismo con un jugador que
+    jugó en U17 y U19 de la misma competencia: separados por categoría, sumados sin filtro, y los
+    porcentajes recalculados desde los totales (no promediados).
   - _Regresión:_ test que falla si se renombra una columna consumida.
 
 - **Reparto en dos pistas** (sin interfaz):
   - **Juntos, antes:** la interfaz `AnalyticsService` (nombres de métodos y columnas que devuelve).
-  - **Pista A:** datos — corregir el agrupamiento de `v_jugador_totales_temporada` (sección 20) y
-    el agregado por club (sección 3), con la prueba de regresión de columnas.
+  - **Pista A:** datos — corregir `v_jugador_totales_temporada` (decidido el 2026-11-08: se cambia
+    la vista misma, no se crea otra): `GROUP BY j.idJugador, p.idCompetencia, p.idCategoria`, con
+    las columnas `idJugador`, `idCompetencia`, `anio_competencia` e `idCategoria` para poder
+    filtrar; se ajusta `tests/integration/test_database.py`, que la consulta. Después, el agregado
+    por club (sección 3), con la prueba de regresión de columnas.
   - **Pista B:** `PandasAnalyticsService`, `CalcularEstadisticasPartidoUseCase` y sus DTOs, con los
     tests de recortes por competencia/año/global (AC5) y de evolución (AC6).
 
 #### US-205 — Consulta Estadística en Pantalla
 
-- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Dependencias:** US-203, US-107
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Dependencias:** US-203, US-112
 - **Objetivo Funcional:** mostrar en la GUI las métricas del motor analítico, para que el DT
   consulte líderes, las estadísticas avanzadas de un partido y la comparativa de equipo.
   _Antes (hasta 2026-10-31) eran comandos de consola: `stats show partido`, `stats leaders` y
   `stats compare`._
 - **Pantallas:**
-  - **Detalle de partido** — la `PartidosScreen` de la US-107 ya muestra el boxscore; esta US le
+  - **Detalle de partido** — la `PartidosScreen` de la US-112 ya muestra el boxscore; esta US le
     suma las métricas avanzadas del partido (`CalcularEstadisticasPartidoUseCase`). No se crea una
     pantalla nueva.
-  - **`LideresScreen`** — top-N por PTS, REB, AST y EFF de una temporada, con filtros de temporada
-    y competencia, sobre `ObtenerLideresTemporadaUseCase` en su **versión básica** (se crea acá).
+  - **`LideresScreen`** — top-N por PTS, REB, AST y EFF de una competencia y una categoría, sobre
+    `ObtenerLideresTemporadaUseCase` en su **versión básica** (se crea acá). Filtros: la barra
+    común de estadísticas (sección 6, 2026-11-08), que nace en esta US. Quien jugó en U17 y en
+    U19 en la misma temporada aparece en los dos rankings, cada uno con sus partidos.
     La US-301 (Hito 3) amplía ese mismo caso de uso y esta misma pantalla con filtros multi-año y
     local/visitante — no es una pantalla nueva que compita con esta.
-  - **`ComparativaScreen`** — comparativa equipo vs. rival de un partido
-    (`GenerarTablaComparativaUseCase`, US-202).
+  - **`ComparativaScreen`** — comparativa entre dos clubes (`GenerarTablaComparativaUseCase`,
+    US-202). Filtros (2026-11-08): **Club** (arranca en el club activo), **Contra** (los otros
+    clubes inscriptos en la competencia y categoría elegidas) y la barra común de estadísticas
+    (sección 6). Dos modos: **un partido entre ellos** (aparece un desplegable
+    **Partido** con los cruces cargados; si no hay, se avisa) o **acumulado en la competencia**
+    (cada club con todos sus partidos de esa competencia y categoría, con PJ y el aviso de
+    muestra chica). Si hay partidos con cuartos cargados, suma el promedio por cuarto de cada
+    club «sobre N de M partidos» (AC9 de la US-202); si no hay, no muestra esa sección.
 - **Criterios de Aceptación:**
   - **AC1.** Cada pantalla muestra tablas legibles (`components/tabla_datos.py`, US-107) con
     alineación numérica correcta.
-  - **AC2.** Los filtros de temporada y competencia funcionan en `LideresScreen`.
+  - **AC2.** Los filtros de año, competencia y categoría funcionan en `LideresScreen`, y un jugador que
+    jugó en dos categorías de la misma competencia suma por separado en cada una (test de
+    integración con ese caso).
   - **AC3.** Partido o temporada sin datos → mensaje descriptivo en pantalla, no traceback.
   - **AC4.** Todos los valores consistentes con los calculados por `formulas.py`.
   - **AC5 — Muestra chica:** `LideresScreen` muestra PJ y deja afuera a quien no llega al mínimo de
@@ -1721,8 +1983,8 @@ tests/unit/test_formulas.py
   Manual guiado: recorrer las tres pantallas con los datos semilla.
 
 - **Reparto en dos pistas:**
-  - **Pista A:** `LideresScreen`, `ComparativaScreen` y las métricas avanzadas en el detalle de
-    `PartidosScreen`.
+  - **Pista A:** `LideresScreen`, `ComparativaScreen`, la barra común `filtros_estadisticas.py` y
+    las métricas avanzadas en el detalle de `PartidosScreen`.
   - **Pista B:** `ObtenerLideresTemporadaUseCase` en versión básica y los tests de integración de
     los casos de uso detrás de cada pantalla (AC2, AC3, AC4).
 
@@ -1738,6 +2000,7 @@ src/infraestructura/ui/flet/screens/     # una pantalla por archivo, misma conve
 ├── partidos_screen.py                    ← se extiende: métricas avanzadas en el detalle
 ├── lideres_screen.py
 └── comparativa_screen.py
+src/infraestructura/ui/flet/components/filtros_estadisticas.py   ← barra común Año → Competencia → Categoría (sección 6)
 
 tests/integration/
 └── test_analytics_service.py
@@ -1789,7 +2052,8 @@ por el DT para tomar decisiones tácticas antes, durante y después del partido.
 - **Capa de Infraestructura:**
   - **Motor de Gráficos:** `ChartGenerator` (`src/infraestructura/analytics/chart_generator.py`)
     — genera figuras a partir de DataFrames con `matplotlib` (ADR-007).
-  - **UI:** `DashboardScreen` (top-5 de líderes por rubro + gráfico de tendencia) y
+  - **UI:** `DashboardScreen` (resumen de los jugadores del club activo: top-5 por rubro + gráfico
+    de tendencia; con la barra común en «Todos» muestra toda la historia del club) y
     `ChartComponent` (`components/chart_component.py`, muestra en pantalla las figuras de
     `ChartGenerator`). Ambos estaban previstos en la US-401; nacen acá porque es donde aparecen
     los gráficos. Se descartan `rich`/`textual`, que eran para la consola.
@@ -1800,8 +2064,9 @@ por el DT para tomar decisiones tácticas antes, durante y después del partido.
   - **AC2 — Generación de Figuras:** `ChartGenerator` produce gráficos (PNG o interactivos) en
     **menos de 2 segundos** para un dataset de referencia (3 temporadas, 20 equipos, 1200 filas
     de boxscore).
-  - **AC3 — Interactividad:** filtro por temporada **y por competencia** en `LideresScreen` y
-    `DashboardScreen`.
+  - **AC3 — Interactividad:** `LideresScreen` y `DashboardScreen` usan la barra común de filtros
+    (sección 6): año, competencia y categoría, cada uno con «Todos». Con todo en «Todos», el
+    tablero resume a los jugadores del club activo a lo largo del tiempo.
   - **AC4.** Valores graficados coinciden con los calculados por las vistas SQL.
   - **AC5 (nuevo) — Split local/visitante:** los reportes de líderes y de rendimiento aceptan un
     filtro opcional de condición (local o visitante) para ver si un jugador/equipo rinde distinto
@@ -1809,7 +2074,7 @@ por el DT para tomar decisiones tácticas antes, durante y después del partido.
     no requiere cambios de schema).
   - **AC6 — Muestra chica:** el dashboard y los gráficos muestran PJ y respetan el mínimo de
     partidos y el aviso de la sección 6.
-- **Implementación requerida:** elegir una temporada en `LideresScreen` invoca a
+- **Implementación requerida:** cambiar un filtro en `LideresScreen` invoca a
   `ObtenerLideresTemporadaUseCase` y muestra los resultados en `tabla_datos`.
 - **Testing Mínimo:**
   - _Unitario:_ ordenamiento de líderes y desempate por criterio secundario; transformación de
@@ -1856,12 +2121,30 @@ por el DT para tomar decisiones tácticas antes, durante y después del partido.
   - **AC2 — Convención de Nombres:** `boxscore_YYYY-MM-DD_Local_vs_Visitante.pdf`.
   - **AC3 — Robustez:** creación automática del directorio `exports/` si no existe; errores de
     I/O (ruta sin permisos, disco lleno) producen mensaje de recuperación, no crash.
+  - **AC4 — Resumen primero (2026-11-08):** la primera página resume (resultado o récord, 4 o 5
+    números clave y un gráfico); el detalle va en las siguientes. El informe puede tener todos los
+    datos que calcule la US-202: lo que limita es cómo entran en la hoja, no cuántos son.
+  - **AC5 — Tablas anchas:** una tabla de más de ~14 columnas numéricas (el boxscore con todas las
+    métricas avanzadas pasa de 25) va en una hoja horizontal o partida en bloques temáticos (tiro:
+    T2, T3, TL, eFG%, TS%; juego: REB, AST, ROB, PÉR; impacto: EFF, PER, +/-). Nunca se achica la
+    letra hasta volverla ilegible para que entre.
+  - **AC6 — Cortes de página:** una tabla que no entra en una hoja sigue en la siguiente
+    **repitiendo el encabezado**; cada hoja lleva el logo, el tipo de informe y «Página N de M».
+    Es un criterio para elegir la librería en el ADR-005 (ReportLab lo hace con `repeatRows`;
+    WeasyPrint, repitiendo el `<thead>`).
+  - **AC7 — Glosario y muestra chica:** al final, un glosario con las métricas usadas y su fórmula
+    (US-202). Toda tabla de promedios lleva la columna PJ y el aviso de muestra chica (sección 6).
+  - **AC8 — Mismo estilo que la app:** color principal, letra y logo salen de `estilo.py` (US-111).
+    El informe va siempre en claro, aunque la app esté en modo oscuro, porque se imprime. El aspecto
+    objetivo está en el muestrario de la US-111 (https://claude.ai/artifact/PSH4GU5MA6kVn5s5bZbFZb).
 - **Testing Mínimo:** generación exitosa de un PDF completo desde un `idPartido` con datos
   semilla (válido, no corrupto, abre con lector estándar); nombre de archivo y ruta esperados;
-  ruta sin permisos → excepción controlada.
+  ruta sin permisos → excepción controlada. Una tabla que ocupa dos páginas repite el encabezado
+  en la segunda (AC6, verificado extrayendo el texto del PDF); el glosario incluye cada métrica que
+  aparece en las tablas (AC7).
 
 - **Reparto en dos pistas:**
-  - **Pista A:** el diseño del PDF en `PDFReportGenerator` (AC1) y el botón "Exportar PDF" en
+  - **Pista A:** el diseño del PDF en `PDFReportGenerator` (AC1, AC4 a AC8) y el botón "Exportar PDF" en
     `PartidosScreen`, con los errores de I/O mostrados en pantalla.
   - **Pista B:** `ExportarReporteUseCase`, convención de nombres (AC2), carpeta `exports/` y manejo
     de errores de I/O (AC3), con los tests de integración.
@@ -1904,15 +2187,18 @@ tests/integration/
 - **Capa de Aplicación:**
   - **Caso de uso:** `GenerarScoutingRivalUseCase`.
   - **DTOs:** `ScoutingDTO`.
-- **UI:** `ScoutingScreen` — elegir rival, ventana de _N_ partidos y filtros; muestra el reporte
-  y permite exportarlo.
+- **UI:** `ScoutingScreen` — elegir **Rival**, la barra común de filtros (año, competencia,
+  categoría; sección 6) y la ventana de **últimos _N_ partidos**; muestra el reporte y permite
+  exportarlo. Si hay partidos del rival con cuartos cargados, muestra en qué cuarto anota y
+  recibe más, «sobre N de M partidos».
 - **Criterios de Aceptación:**
   - **AC1.** Ventana de análisis de últimos _N_ partidos configurable por parámetro.
   - **AC2.** Detección de patrones: rachas (victorias/derrotas consecutivas), tendencia de tiro,
     pérdidas recurrentes.
   - **AC3.** Filtros por competencia y categoría producen resultados consistentes con las vistas
     SQL.
-  - **AC4.** Reporte exportable (texto/PDF) con conclusiones destacadas y datos fuente citados.
+  - **AC4.** Reporte exportable (texto/PDF) con conclusiones destacadas y datos fuente citados. El
+    PDF usa el mismo `PDFReportGenerator` y cumple los AC4 a AC8 de la US-302.
 - **Testing Mínimo:**
   - _Unitario:_ agregaciones históricas y funciones de detección de rachas.
   - _Integración:_ vistas de scouting con dataset histórico de ejemplo (mínimo 10 partidos del
@@ -1974,7 +2260,7 @@ la US-105, así que este hito ya no "migra" a Flet: completa lo que falta.
   experiencia fluida y visual.
 - **Cambio de alcance (2026-10-31):** esta US era la que creaba la GUI. Con la GUI adelantada al
   Hito 1, las pantallas que listaba ya nacen en otras historias y acá **no se reimplementan**:
-  `GameEntryScreen` → `CargaPartidoScreen` (US-108); `ImportScreen` (US-201); `StatsTableComponent`
+  `GameEntryScreen` → `CargaPartidoScreen` (US-108); `ImportScreen` (US-201 y US-207); `StatsTableComponent`
   → `tabla_datos.py` (US-107); `DashboardScreen` y `ChartComponent` (US-301). Queda lo que todavía
   no tiene dueño.
 - **Nota de reuso:** el botón de backup del AC4 envuelve `ExportarBackupUseCase`/
@@ -1982,10 +2268,16 @@ la US-105, así que este hito ya no "migra" a Flet: completa lo que falta.
   `VerTrayectoriaJugadorUseCase` y `GenerarGraficoRendimientoUseCase` (US-301). Nada de eso se
   reimplementa acá.
 - **Capa de Infraestructura (UI):**
-  - **Pantallas nuevas:** `PlayerProfileScreen` (trayectoria y evolución de un jugador),
-    `AcercaDeScreen` (versión de la app, ver AC4 de la US-404).
+  - **Pantallas nuevas:** `PlayerProfileScreen` (trayectoria y evolución de un jugador). Se
+    elige el **Jugador** (con búsqueda) y se le aplica la barra común de filtros (sección 6): con
+    todo en «Todos» muestra la carrera completa; cualquier combinación de año, competencia y
+    categoría recorta los números. La trayectoria tiene una fila por año, competencia y
+    categoría, así que un año con dos categorías ocupa dos filas.
+  - **Pantalla nueva:** `AcercaDeScreen` (versión de la app, ver AC4 de la US-404).
   - **Transversal:** tema claro/oscuro y diseño adaptable (responsive) en todas las pantallas
-    existentes.
+    existentes. Se construye sobre el tema y los componentes de la US-111 (2026-11-08): el modo
+    oscuro y la adaptación a celular se resuelven en `estilo.py`, `crear_pagina` y
+    `crear_formulario`, no pantalla por pantalla.
 - **Criterios de Aceptación:**
   - **AC1 — Performance:** tiempo de arranque **< 3 segundos** también en mobile (en desktop ya
     lo exige la US-105).
@@ -2126,6 +2418,12 @@ tests/unit/test_credential_policy.py
   (Windows, Linux, macOS, Android) sin requerir instalación de Python ni dependencias externas
   por parte del usuario final.
 
+> **Achicada (2026-11-08):** el release de escritorio para Windows y Linux (`release.yml`, binarios
+> por tag) y el `CHANGELOG.md` pasaron a la US-109 (AC9 y AC10), para que la v0.1 ya salga con
+> binarios. Acá quedan Android, macOS, la versión visible en la app, la guía de instalación y las
+> prolijidades del instalador (ícono, firma). Los AC3 y AC5 de abajo pasan a extender lo que ya
+> existe.
+
 > **iOS fuera de alcance (decisión 2026-10-03):** el NFR-1 pedía también iOS 14+, pero esta US
 > nunca tuvo ningún AC para IPA y el propio plan listaba `build_ios.py` sin más contexto.
 > Compilar y firmar una app iOS exige una Mac + Xcode, y distribuirla fuera de un entorno de
@@ -2137,30 +2435,37 @@ tests/unit/test_credential_policy.py
 - **Criterios de Aceptación:**
   - **AC1.** Binario desktop lanza la aplicación sin Python instalado en el sistema del usuario.
   - **AC2.** APK de Android instalable en dispositivos Android 9+ sin dependencias adicionales.
-  - **AC3.** El pipeline de release genera artefactos para las 3 plataformas desktop en cada tag
-    de versión.
+  - **AC3.** El pipeline de release (US-109) suma macOS a la matriz: genera artefactos para las
+    3 plataformas desktop en cada tag de versión.
   - **AC4.** Versión embebida en la aplicación (`AcercaDeScreen`, US-401) coincide con el tag de
     release.
-  - **AC5.** `CHANGELOG.md` actualizado siguiendo formato _Keep a Changelog_ en cada release.
+  - **AC5.** ~~`CHANGELOG.md` actualizado siguiendo formato _Keep a Changelog_ en cada release.~~
+    Cubierto desde la v0.1 por el AC10 de la US-109.
+  - **AC6 — Ícono (logo decidido el 2026-11-08, ver la US-111):** el ejecutable, la ventana
+    (`page.window.icon`), el acceso directo y el APK usan el ícono de la app. Se generan desde
+    `src/assets/logo/statspro-icono-app.svg`: `.ico` para Windows (16, 32, 48 y 256 px en un solo
+    archivo) y `.png` para Linux y Android (los tamaños que pida `flet build`). Se generan con un
+    script reproducible, no a mano.
 - **Testing Mínimo:** instalar binario desktop en máquina limpia (sin Python) y ejecutar flujo
   completo; instalar APK en dispositivo/emulador Android y verificar arranque; el pipeline de
   release ejecuta tests completos antes de generar artefactos.
 
 **Reparto en dos pistas:**
 
-- **Pista A:** desktop — `build_desktop.py` (AC1), versión embebida (AC4) y la guía de instalación.
-- **Pista B:** Android y release — `build_android.py` (AC2), `release.yml` (AC3) y `CHANGELOG.md`
-  (AC5).
+- **Pista A:** desktop — `build_desktop.py` (AC1), versión embebida (AC4), ícono (AC6) y la guía de
+  instalación.
+- **Pista B:** Android y macOS — `build_android.py` (AC2) y la entrada de macOS en `release.yml`
+  (AC3).
 
 **Archivos a crear:**
 
 ```text
 build/
 ├── build_desktop.py   ← flet build (Windows/Linux/macOS) o PyInstaller, a decidir en la US
-└── build_android.py   ← flet build apk
+├── build_android.py   ← flet build apk
+└── generar_iconos.py  ← .ico y .png desde src/assets/logo/statspro-icono-app.svg (AC6)
 
-.github/workflows/release.yml   ← se activa con tag v*.*.*
-CHANGELOG.md                    ← formato Keep a Changelog
+.github/workflows/release.yml   ← existe desde la US-109; se le suma macOS (y el APK, si se publica)
 docs/install-guide.md           ← instrucciones de instalación por plataforma
 ```
 
@@ -2194,7 +2499,8 @@ Una Historia de Usuario se considera **Hecha** cuando cumple TODOS los siguiente
 8. **Docstring mínimo:** todos los métodos públicos tienen docstring de una línea; los métodos
    complejos documentan sus parámetros.
 9. **Si incluye UI:** validada manualmente en desktop (Windows, y Linux si hay entorno gráfico);
-   desde la US-401 (Hito 4), también en mobile.
+   desde la US-401 (Hito 4), también en mobile. Desde la US-111, la pantalla usa `crear_pagina`,
+   sus formularios usan `crear_formulario` y no define colores ni espaciados propios.
 10. **Trazabilidad:** eventos de log relevantes implementados con `correlation_id` (desde la
     US-110; las historias anteriores usan el logger actual).
 11. **Pipeline CI en verde:** lint + tests + cobertura.
@@ -2245,46 +2551,64 @@ kickoff de hito y en cada planificación de sprint.
 
 ### Estrategia de ramas
 
-| Rama                 | Propósito                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `main`               | Solo commits de merge desde `release/`. Cada commit tiene un tag de versión. Nunca se trabaja directo acá. |
-| `develop`            | Rama de integración; las `feature/` se mergean acá.                                                        |
-| `feature/nombre`     | Una rama por US o tarea, desde `develop`, mergeada por PR. Ej. `feature/us-101-sqlite-schema`.             |
-| `release/vX.Y.Z`     | Se crea desde `develop` cuando el hito está feature-complete. Solo acepta fixes y bump de versión.         |
-| `hotfix/descripcion` | Para bugs críticos en producción; desde `main`, se mergea a `main` y a `develop`.                          |
+> **Actualizado (2026-11-08):** antes esta sección describía ramas `release/vX.Y.Z` que el equipo
+> nunca usó. Ahora describe el flujo real: las ramas de hito y de épica, y el PR `develop → main`
+> que hace de release.
+
+```text
+feature/usXXX ──squash──▶ feature/epicaN ──merge──▶ feature/hitoN ──merge──▶ develop ──merge──▶ main ──tag vX.Y.Z──▶ release.yml
+```
+
+| Rama                 | Propósito                                                                                                   | Su PR se mergea con              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `main`               | Solo lo publicado. Cada release es un tag `vX.Y.Z` sobre un commit de `main`. Nunca se trabaja directo acá. | —                                |
+| `develop`            | Integración entre hitos.                                                                                    | _merge commit_ (hacia `main`)    |
+| `feature/hitoN`      | Integración de las épicas de un hito.                                                                       | _merge commit_ (hacia `develop`) |
+| `feature/epicaN`     | Integración de las historias de una épica.                                                                  | _merge commit_ (hacia el hito)   |
+| `feature/usXXX`      | Una rama por historia de usuario, donde se trabaja.                                                         | **_squash_** (hacia la épica)    |
+| `hotfix/descripcion` | Bug crítico en una versión publicada; sale de `main`.                                                       | **_squash_** (hacia `main`)      |
+
+**Por qué dos estrategias.** El PR de una historia trae muchos commits de trabajo ("wip", "fix
+typo"): el _squash_ los junta en uno solo, con el título del PR como mensaje (por eso el título
+tiene que seguir Conventional Commits, AC11 de la US-109). Los PR de **promoción** (épica → hito →
+`develop` → `main`) no traen código nuevo: el _merge commit_ conserva los commits que llevan. Así a
+`main` llega **un commit por historia**, y git-cliff arma el changelog con un renglón por historia.
+Con _squash_ en todos los niveles, a `main` llegaría un solo commit por hito.
 
 ### Proceso de release paso a paso
 
-1. **Preparar la rama:** `git checkout -b release/v0.1.0 develop`; actualizar `version` en
-   `pyproject.toml`; mover `[Unreleased]` a `[0.1.0] - YYYY-MM-DD` en `CHANGELOG.md`; correr
-   `make test` (debe pasar); solo corregir bugs críticos, sin features nuevas.
-2. **Mergear a `main` y taggear:** merge `--no-ff`; el tag describe el contenido del hito, no
-   solo el número; `git push origin main --tags`.
-3. **Mergear de vuelta a `develop`:** para que los fixes del release lleguen a desarrollo; borrar
-   la rama de release.
-4. **Crear el GitHub Release:** con `gh release create v0.1.0 --title "..." --notes-file
-CHANGELOG.md`; adjuntar binarios con `gh release upload`; o automatizado por
-   `.github/workflows/release.yml` (US-404) al detectar el tag.
-5. **Verificar el release:** confirmar tag/notas/artefactos en GitHub; instalar el binario en
-   máquina limpia y correr el smoke-test de instalación.
+1. **PR `develop → main`:** en ese mismo PR, subir `version` en `pyproject.toml` (ej. `0.1.0`) y
+   regenerar el changelog con `uvx git-cliff --tag v0.1.0 -o CHANGELOG.md`; revisar a mano el
+   texto generado. El CI tiene que pasar entero. Se mergea con _merge commit_.
+2. **(Recomendado) Probar el release:** `git tag v0.1.0-rc.1` sobre `main` y `git push origin
+v0.1.0-rc.1`: `release.yml` arma un _pre-release_ con los binarios. Probarlos en una máquina sin
+   Python (AC14 de la US-109). Si algo falla, se corrige con un PR y se repite con `-rc.2`.
+3. **Taggear la versión:** `git checkout main && git pull`, `git tag v0.1.0`, `git push origin
+v0.1.0`. El tag va en `main`, no en `develop`: marca exactamente el código publicado.
+4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con
+   `pyproject.toml` → compila el `.exe` (Windows) y el `.deb` (Linux) → crea el GitHub Release con
+   los binarios y la sección del changelog como notas.
+5. **Verificar el release:** confirmar en GitHub el tag, las notas y los binarios.
+6. **Volver a sincronizar `develop`:** el commit de versión y changelog entró por el PR
+   `develop → main`, así que `develop` ya lo tiene; solo hace falta mergear `main → develop` si hubo
+   un hotfix.
 
 ### Formato del `CHANGELOG.md`
 
-Estándar **Keep a Changelog** (keepachangelog.com): sección `[Unreleased]` al tope para cambios en
-desarrollo; una sección `[vX.Y.Z] - YYYY-MM-DD` por release con subsecciones `Added`, `Changed`,
-`Fixed`, `Removed`, `Security`.
-
-> **Buena práctica:** actualizar `[Unreleased]` en cada PR mergeado, no solo al momento del
-> release.
+Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release
+con subsecciones (`Added`, `Changed`, `Fixed`, `Removed`, `Security`). Lo genera git-cliff a partir
+de los commits (`feat:` → Added, `fix:` → Fixed, etc., configurado en `cliff.toml`): no se edita a
+mano en cada PR, solo se revisa el texto generado antes del release.
 
 ### Hotfix — corregir un bug en producción
 
 1. `git checkout -b hotfix/descripcion-breve main`.
 2. Aplicar la corrección mínima; un test de regresión que falla sin el fix.
-3. Actualizar `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y `CHANGELOG.md`.
-4. Merge `--no-ff` a `main`; tag `v0.1.1`.
-5. Mergear también a `develop` para no perder el fix.
-6. Crear GitHub Release con la nota del bug corregido.
+3. En el mismo PR, subir `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y regenerar el
+   changelog con `uvx git-cliff --tag v0.1.1 -o CHANGELOG.md`.
+4. PR a `main` con _squash_ (título en Conventional Commits, ej. `fix: ...`); después,
+   `git tag v0.1.1` sobre `main` y `git push origin v0.1.1`: `release.yml` publica el release.
+5. Mergear `main → develop` para no perder el fix.
 
 ---
 
@@ -2434,7 +2758,12 @@ Confirmado hoy, con lectura completa de cada archivo, no solo con `mypy`/`pytest
   competencia específica". Cobra más relevancia ahora que se documentaron explícitamente los
   filtros por competencia en US-202/203/301 (ver más abajo) — hay que corregir esta vista (o
   reemplazarla por agregación en Pandas, ver nota de US-203) antes de construir esos filtros
-  encima.
+  encima. **Ampliado (2026-11-08):** tampoco separa por **categoría**. Un jugador puede jugar en
+  U17 y U19 en la misma temporada, y cada partido pertenece a una categoría
+  (`partido.idCategoria`, US-108), así que el agrupamiento correcto es por jugador, competencia y
+  categoría del partido (`GROUP BY j.idJugador, p.idCompetencia, p.idCategoria`). El año sale de
+  la competencia. **Decidido (2026-11-08):** se corrige la vista misma (no se crea otra) en la
+  Pista A de la US-203.
 - ❌ **No existe ningún agregado estadístico a nivel club/equipo** — solo existe el de jugador
   (`v_jugador_totales_temporada`). Ya se documentó el concepto en la sección 3 (Arquitectura de
   Datos) y se referenció en US-203; falta implementarlo cuando se llegue a esa US.

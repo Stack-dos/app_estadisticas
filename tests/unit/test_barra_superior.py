@@ -1,4 +1,4 @@
-"""Tests de la barra superior compartida (US-106) sin ventana."""
+"""Tests de la barra superior compartida (US-106) sin ventana. La navegacion esta en test_componentes_base.py."""
 
 from unittest.mock import MagicMock
 
@@ -42,11 +42,11 @@ def test_muestra_el_club_activo_en_el_titulo(page, sesion):
     assert barra.title.value == "StatsPro · Atenas"
 
 
-@pytest.mark.parametrize("texto, ruta", [("Inicio", "/inicio"), ("Clubes", "/clubes")])
-def test_los_botones_de_navegacion_van_a_su_ruta(page, sesion, texto, ruta):
-    accion(crear_barra_superior(page, sesion), texto).on_click()
+def test_la_navegacion_ya_no_esta_en_la_barra(page, sesion):
+    """Desde la US-111, Inicio y Clubes estan en el menu lateral: en la barra solo queda cerrar sesion."""
+    barra = crear_barra_superior(page, sesion)
 
-    page.navigate.assert_called_once_with(ruta)
+    assert [c.content for c in barra.actions or []] == ["Cerrar sesión"]
 
 
 def test_cerrar_sesion_cierra_la_sesion_y_vuelve_al_login(page, sesion):

@@ -51,6 +51,7 @@
     - [El smoke test del CI: `import main`](#el-smoke-test-del-ci-import-main)
   - [14. Errores comunes](#14-errores-comunes)
   - [15. Checklist: agregar una pantalla nueva](#15-checklist-agregar-una-pantalla-nueva)
+  - [16. Base visual: tema, página y formulario (US-111)](#16-base-visual-tema-página-y-formulario-us-111)
 
 ---
 
@@ -613,8 +614,9 @@ def crear_inicio_view(page, sesion) -> ft.View:
   cambia mientras la pantalla está abierta. Si no hay sesión lanza `RuntimeError`, pero eso no puede
   pasar porque la ruta protegida nunca construye `/inicio` sin sesión. Si pasara, es un bug y conviene
   que explote.
-- **No tiene menú todavía:** no hay secciones a las que ir. Desde la US-106 la barra tiene "Inicio"
-  y "Clubes"; las pantallas de gestión llegan con la US-107.
+- **No tiene menú todavía:** no hay secciones a las que ir. Desde la US-106 la barra tenía "Inicio"
+  y "Clubes", y desde la US-111 están en el menú lateral ([sección 16](#el-menú-lateral-ftnavigationrail));
+  las pantallas de gestión llegan con las US-107 y US-112.
 
 ### Cerrar sesión
 
@@ -709,6 +711,10 @@ def crear_barra_superior(page, sesion) -> ft.AppBar:
 ```
 
 Cada pantalla interna hace `ft.View(..., appbar=crear_barra_superior(page, sesion), ...)`.
+
+> **Desde la US-111** "Inicio" y "Clubes" ya no están en la barra sino en el menú lateral, y las
+> pantallas no arman la `View` a mano: lo hace `crear_vista_interna`, que pone la barra y el menú
+> (ver la [sección 16](#cómo-se-arma-una-pantalla)). La barra conserva el club activo y "Cerrar sesión".
 
 - **No hay que "avisarle" a la barra que cambió el club.** El router construye la `View` de nuevo en
   cada cambio de ruta, y con ella la barra, que lee `sesion.club_activo()` en ese momento. Por eso
@@ -839,21 +845,32 @@ Para encontrar los controles dentro del `View`, los tests usan `tests/unit/ayuda
 los busca **por tipo y por texto**, no por posición, así no se rompen si se reordena el formulario:
 
 ```python
+def controles(raiz: ft.BaseControl) -> Iterator[ft.BaseControl]:
+    """Recorre en profundidad `raiz` y todos sus descendientes (desde la US-111)."""
+    yield raiz
+    for atributo in ("appbar", "controls", "content", "leading", "title", "subtitle", "trailing", "actions"):
+        valor = getattr(raiz, atributo, None)
+        for hijo in valor if isinstance(valor, list) else [valor]:
+            if isinstance(hijo, ft.BaseControl):
+                yield from controles(hijo)
+
+
 def campo(vista: ft.View, label: str) -> ft.TextField:
-    return next(c for c in vista.controls if isinstance(c, ft.TextField) and c.label == label)
+    return next(c for c in controles(vista) if isinstance(c, ft.TextField) and c.label == label)
 
 
 def boton(vista: ft.View, texto: str) -> ft.Button | ft.TextButton:
-    acciones = list(vista.appbar.actions or []) if isinstance(vista.appbar, ft.AppBar) else []
-    return next(
-        c for c in [*vista.controls, *acciones] if isinstance(c, ft.Button | ft.TextButton) and c.content == texto
-    )
+    return next(c for c in controles(vista) if isinstance(c, ft.Button | ft.TextButton) and c.content == texto)
 ```
+
+- **Por qué recorren el árbol** (US-111): con `crear_pagina` y `crear_formulario`, los campos ya no
+  están en `vista.controls` sino varios niveles adentro (`Row` → `Column` → `Container` →
+  `Column`...). Buscando en todo el árbol, el test no depende de cómo está anidada la pantalla.
 
 - **`ft.TextButton` no hereda de `ft.Button`** (en Flet 1.1.2 son clases hermanas). Por eso `boton`
   pregunta por los dos tipos: con `isinstance(c, ft.Button)` solo, "Cerrar sesión" no se encontraría.
-- **`boton` también mira las `actions` de la `AppBar`**: el botón de cerrar sesión no está en
-  `controls`.
+- **El recorrido también entra en la `AppBar`** (`appbar` → `actions`): el botón de cerrar sesión
+  no está en `controls`.
 - **El texto de un botón está en `content`**: `ft.Button("Ingresar")` guarda `"Ingresar"` en
   `boton.content`.
 - También están `casilla(vista, "Recordarme")` (un `ft.Checkbox` por su `label`) y `textos(vista)`
@@ -985,6 +1002,16 @@ falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ej
   barra, el inicio y la pantalla de clubes muestran lo mismo.
 - **Llamar a `main.main()` o a `ejecutar()` en un test.** Abre la ventana real (la fixture
   `prohibir_abrir_la_ventana` lo corta con un error).
+- **Escribir un color o un número de espaciado en una pantalla** (`color="#2E6389"`, `spacing=12`).
+  Sale de `estilo.py` (US-111); los colores, como roles (`ft.Colors.PRIMARY`).
+- **Definir `page.theme` y no `page.dark_theme`.** Con Windows en oscuro, Flet usa su paleta por
+  defecto y el tema propio no se ve.
+- **`assets_dir` relativa.** Depende de la carpeta desde la que se lanza la app; va absoluta
+  (`config/rutas.py`).
+- **Centrar en vertical una `Column` con scroll.** No se puede: o se saca el scroll o se centra desde
+  afuera.
+- **Conectar `on_submit` a mano en una pantalla que usa `crear_formulario`.** Ya lo hace el componente
+  con el último campo.
 
 ---
 
@@ -996,7 +1023,11 @@ falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ej
    `Dependencias`.
 3. En `app.py`: agregar la constante de la ruta, sumarla a `RUTAS_PUBLICAS` o `RUTAS_INTERNAS`, y
    agregar su entrada en la tabla de rutas.
-4. Si es interna, usa la barra compartida: `appbar=crear_barra_superior(page, sesion)`.
+4. Arma su contenido con `crear_pagina(titulo, controles, ...)` y lo devuelve con
+   `crear_vista_interna(page, sesion, ruta, contenido)` (barra y menú lateral incluidos); los
+   formularios, con `crear_formulario` (ver la [sección 16](#16-base-visual-tema-página-y-formulario-us-111)).
+   Si es una sección nueva, suma su fila a `DESTINOS` en `components/menu_lateral.py`. Ningún color ni
+   espaciado escrito a mano: todo sale de `estilo.py`.
 5. Cada handler que llame a un caso de uso lo hace a través de `ejecutar_mostrando_errores`, con una
    etiqueta de `crear_etiqueta_error()` debajo del formulario.
 6. Agregar los casos de la ruta nueva a `tests/unit/test_navegacion.py`.
@@ -1005,3 +1036,204 @@ falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ej
    usando `campo`, `boton` y `etiqueta_error` de `tests/unit/ayudantes_flet.py`.
 8. Probarla a mano: entrar, salir, provocar cada error del formulario y, si es interna, comprobar
    que sin sesión redirige al login.
+
+---
+
+## 16. Base visual: tema, página y formulario (US-111)
+
+### Qué problema resuelve
+
+Hasta la US-106 cada pantalla apilaba sus controles a su manera: un `ft.Text(..., size=24)` de
+título, los campos uno abajo del otro y los botones donde cayeran. Funcionaba, pero cada pantalla
+nueva copiaba números (24, 16...) y decisiones (¿el error va arriba o abajo?). Con 15 pantallas
+por venir, cambiar el color o el tamaño del título habría sido tocar 15 archivos.
+
+La US-111 junta todo lo visual en **un tema** (`estilo.py`) y **tres componentes** (`pagina.py`,
+`formulario.py`, `menu_lateral.py`). Es el mismo patrón que `crear_barra_superior` y
+`crear_etiqueta_error`, llevado a todo lo visual: las pantallas dicen **qué** muestran; **cómo**
+se ve lo decide un solo lugar.
+
+### La combinación elegida
+
+Se eligió en el muestrario de la US-111 el 2026-11-09 (propuesta "Pizarra", modificada):
+
+| Perilla        | Elección                        | Dónde vive                                             |
+| -------------- | ------------------------------- | ------------------------------------------------------ |
+| Color          | Semilla `#4A5866`, tonal        | `COLOR_SEMILLA` en `estilo.py`                         |
+| Formato        | Menú lateral                    | `crear_vista_interna` + `crear_menu_lateral`           |
+| Densidad       | Cómoda: 8 / 16 / 24, título 24  | `ESPACIO_CHICO`, `ESPACIO`, `ESPACIO_GRANDE`, `TAMANIO_TITULO` |
+| Tablas         | Filas alternadas                | La aplica `tabla_datos.py` (US-107)                    |
+| Campos         | Con relleno                     | `input_decoration_theme` del tema                      |
+| Botón principal| Ancho completo                  | `crear_formulario`                                     |
+| Esquinas       | Suaves, 8 px                    | `RADIO`                                                |
+| Letra          | IBM Plex Sans                   | `FUENTE`, empaquetada en `src/assets/fuentes/`         |
+
+### `ft.Theme` y el color semilla
+
+**Concepto.** Material 3 (el sistema de diseño de Google que usa Flet) no pide los colores de a uno:
+pide **un color semilla** y calcula una paleta entera, con **roles**: `PRIMARY` (botón principal),
+`ON_PRIMARY` (el texto encima del principal), `SURFACE` (fondo), `SURFACE_CONTAINER_LOW` (un fondo
+apenas distinto, para paneles), `ERROR`, `ON_SURFACE_VARIANT` (texto secundario), etc.
+
+```python
+page.theme = ft.Theme(color_scheme_seed="#4A5866", font_family="IBM Plex Sans")
+page.dark_theme = ft.Theme(color_scheme_seed="#4A5866", font_family="IBM Plex Sans")
+```
+
+```mermaid
+flowchart LR
+    S["Semilla #4A5866"] --> M["Material 3<br/>(variante tonal)"]
+    M --> C["Modo claro<br/>PRIMARY = azul pizarra oscuro"]
+    M --> O["Modo oscuro<br/>PRIMARY = celeste claro"]
+    C --> P["Las pantallas usan roles:<br/>ft.Colors.PRIMARY, ft.Colors.ERROR..."]
+    O --> P
+```
+
+- **Las pantallas usan roles, nunca colores.** `ft.Colors.PRIMARY` es azul oscuro en claro y celeste
+  en oscuro; un `"#2E6389"` escrito a mano quedaría mal en uno de los dos.
+- **"Tonal" no respeta el color exacto.** Toma el tono de la semilla y le pone su propia
+  intensidad: con `#4A5866` (gris azulado) el principal sale **más azul** que la semilla. Es lo
+  mismo que se vio en el muestrario.
+- **`dark_theme` con la misma semilla.** Si Windows está en modo oscuro y la app no define
+  `dark_theme`, Flet usa su paleta por defecto (otro azul) y el tema propio no se ve. Lo demás del
+  modo oscuro (elegirlo a mano, revisar cada pantalla) es de la US-401.
+- **El resto del tema** también va en `ft.Theme`: `input_decoration_theme` (campos con relleno y
+  esquinas), `filled_button_theme`/`button_theme`/`text_button_theme` (esquinas de los botones) y
+  `card_theme`. Así ninguna pantalla pasa `border_radius=8` a mano.
+
+### Letras e imágenes: `assets_dir`
+
+**Problema.** La app tiene que funcionar sin internet, pero IBM Plex Sans no viene con Windows y el
+logo es un archivo. Flet los sirve desde una carpeta, la de **assets**.
+
+- `ft.run(main, assets_dir=r.ASSETS_DIR)` dice cuál es esa carpeta: `src/assets/` (la misma que
+  busca `flet build` en la US-404). Va **absoluta** (`config/rutas.py`): relativa, Flet la buscaría
+  desde la carpeta en la que se lanzó la app.
+- Adentro, las rutas son **relativas a esa carpeta**:
+  - `page.fonts = {"IBM Plex Sans": "fuentes/IBMPlexSans.ttf"}` registra la letra con un nombre, y
+    `ft.Theme(font_family="IBM Plex Sans")` la usa en toda la app. La letra tiene licencia OFL
+    (`fuentes/OFL.txt`), que permite empaquetarla.
+  - `ft.Image(src="logo/statspro-isotipo.svg", width=44, height=44)` muestra el logo. Flet dibuja
+    SVG directo, así que el logo se ve nítido en cualquier tamaño.
+- **Si falta el archivo, la app no se rompe:** la imagen queda vacía y la letra cae a la del sistema.
+
+### Acomodar: `ft.Container`, `expand` y el scroll
+
+**`ft.Container`** es una caja que envuelve **un** control (`content=`) y le agrega lo que el control
+no tiene: margen interno (`padding`), fondo (`bgcolor`), esquinas (`border_radius`), un ancho fijo
+(`width`) o un **ancho máximo** (`max_width`), y dónde ubicar al hijo (`alignment`).
+
+```python
+ft.Container(content=columna, max_width=1100, padding=24)   # crear_pagina
+```
+
+- **`max_width`** hace que en una ventana maximizada el contenido no se estire de borde a borde.
+- **`expand=True`** (o un número) en un hijo de `Row`/`Column` hace que ocupe el espacio que sobra.
+  Con números se reparte: en el login, `expand=2` para la marca y `expand=3` para el formulario.
+- **Alineación:** en una `Column`, `alignment` es la vertical y `horizontal_alignment` la
+  horizontal (en una `Row`, al revés). `ft.CrossAxisAlignment.STRETCH` estira a los hijos: así el
+  botón principal de `crear_formulario` ocupa todo el ancho, igual que los campos.
+- **Scroll:** `ft.Column(..., scroll=ft.ScrollMode.AUTO, expand=True)` muestra la barra de
+  desplazamiento solo si el contenido no entra. Lo tiene el contenido de las pantallas internas.
+
+> **Una `Column` con scroll no puede centrar en vertical.** Adentro de un scroll la altura no tiene
+> límite, así que no hay "centro": el formulario del login quedaba pegado arriba. Por eso el lado del
+> formulario es una `Column` **sin** scroll con `alignment=ft.MainAxisAlignment.CENTER` (el registro,
+> el formulario más alto, entra en el alto mínimo de la ventana).
+
+### Cómo se arma una pantalla
+
+Dos formas, una para las pantallas con sesión y otra para login y registro:
+
+```mermaid
+flowchart TB
+    subgraph I["Pantalla interna: crear_vista_interna(page, sesion, ruta, contenido)"]
+        A["appbar: crear_barra_superior<br/>StatsPro · club activo ... Cerrar sesión"]
+        R["Row (expand)"]
+        R --> MN["crear_menu_lateral<br/>ft.NavigationRail: logo, Inicio, Clubes"]
+        R --> D["VerticalDivider"]
+        R --> SC["Column con scroll (expand)"]
+        SC --> PG["crear_pagina: Container max_width 1100<br/>título · subtítulo · controles · panel lateral"]
+    end
+    subgraph AC["Login y registro: crear_vista_acceso(ruta, titulo, subtitulo, formulario)"]
+        R2["Row (expand)"]
+        R2 --> MK["Marca (expand 2, fondo PRIMARY)<br/>logo blanco · StatsPro · lema"]
+        R2 --> FM["Column centrada (expand 3)<br/>título · subtítulo · crear_formulario"]
+    end
+```
+
+Una pantalla interna queda así (`clubes_screen.py`):
+
+```python
+alta = ft.Column(
+    [ft.Text("Nuevo club", weight=ft.FontWeight.W_600),
+     crear_formulario([nombre], error, "Crear club", crear, ancho=None)],
+    spacing=ESPACIO,
+)
+contenido = crear_pagina("Mis clubes", [lista], lateral=alta)
+return crear_vista_interna(page, sesion, "/clubes", contenido)
+```
+
+y una de acceso (`login_screen.py`):
+
+```python
+formulario = crear_formulario(
+    [email, password, recordar], error, "Ingresar", ingresar,
+    secundarios=[ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro"))],
+)
+return crear_vista_acceso("/login", "Iniciar sesión", "Entrá para cargar y ver...", formulario)
+```
+
+### `crear_formulario`: todos los formularios iguales
+
+- Orden fijo: **campos → etiqueta de error → botón principal (`ft.FilledButton`, ancho completo) →
+  secundarios** (`ft.TextButton`).
+- **Conecta el Enter**: le pone `on_submit = al_enviar` al **último** `ft.TextField`. En el login,
+  Enter en la contraseña ingresa; Enter en el email no, para no enviar a medio completar. La pantalla
+  ya no escribe `password.on_submit = ingresar`.
+- `ancho=None` hace que ocupe el ancho de donde se lo ponga (el panel de "Nuevo club").
+- `ft.FilledButton` es el botón destacado de Material 3 (fondo `PRIMARY`). **Sí hereda de
+  `ft.Button`**, así que el ayudante `boton()` de los tests lo encuentra.
+
+### El menú lateral: `ft.NavigationRail`
+
+**Concepto.** Una columna angosta a la izquierda con un destino por sección (ícono + texto) y el
+elegido marcado. Reemplaza a los botones "Inicio" y "Clubes" que tenía la barra.
+
+```python
+DESTINOS = (
+    Destino("/inicio", "Inicio", ft.Icons.HOME_OUTLINED, ft.Icons.HOME),
+    Destino("/clubes", "Clubes", ft.Icons.SHIELD_OUTLINED, ft.Icons.SHIELD),
+)
+
+menu = ft.NavigationRail(
+    selected_index=rutas.index(ruta_actual),
+    leading=ft.Image(src=LOGO, width=44, height=44),   # el logo arriba
+    destinations=[ft.NavigationRailDestination(icon=..., selected_icon=..., label=...) for d in DESTINOS],
+    on_change=al_elegir,
+)
+```
+
+- **`selected_index`** marca la pantalla actual. Como el router reconstruye la `View` en cada
+  navegación, el menú siempre sale con la marca correcta, sin "avisarle" nada (igual que la barra).
+- **`on_change`**: cuando el usuario hace clic, Flet **primero** actualiza `selected_index` y
+  **después** llama al handler, que lee el índice y navega:
+  `page.navigate(rutas[menu.selected_index])`. El handler no recibe parámetros: lee el menú de la
+  clausura (la variable `menu` de la función que lo armó).
+- **Agregar una sección** es sumar una fila a `DESTINOS` (las US-107, US-112... lo hacen).
+- Necesita alto definido: va dentro de una `Row` con `expand=True`.
+
+### Testear pantallas armadas con componentes
+
+- **Los ayudantes recorren el árbol completo.** Antes buscaban solo en `vista.controls`; ahora los
+  campos están adentro de `Container`, `Column` y `Row`. `controles(raiz)` recorre en profundidad los
+  atributos donde Flet guarda hijos (`controls`, `content`, `appbar`, `actions`, `leading`,
+  `title`...), y `campo`, `boton`, `casilla`, `textos` y `etiqueta_error` buscan ahí. Por eso los
+  tests de las pantallas no cambiaron lo que verifican (AC4).
+- **Un control sin texto propio se busca por `key`:** la lista de clubes tiene
+  `key=LISTA_CLUBES` y el test usa `por_clave(vista, LISTA_CLUBES)`.
+- **`MagicMock(spec=ft.Page)` no tiene `window`**: en Flet es un campo con valor por defecto, no un
+  atributo de la clase, y `spec` solo copia los de la clase. Los tests que llaman a `_main` (que
+  aplica el tema y el tamaño de la ventana) agregan `page.window = MagicMock()`.
+- **Lo que los tests no ven** sigue siendo el aspecto: se revisa a mano con la app abierta, en
+  1366×768 y maximizada, en claro y en oscuro.

@@ -12,6 +12,8 @@ import flet as ft
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.dtos.auth_dto import LoginDTO
 from aplicacion.servicios.session_manager import SessionManager
+from infraestructura.ui.flet.components.formulario import crear_formulario
+from infraestructura.ui.flet.components.pagina import crear_vista_acceso
 from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostrando_errores
 
 
@@ -47,17 +49,14 @@ def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: Session
         ejecutar_mostrando_errores(accion, error)
         page.update()
 
-    password.on_submit = ingresar
-
-    return ft.View(
-        route="/login",
-        controls=[
-            ft.Text("Iniciar sesión", size=24),
-            email,
-            password,
-            recordar,
-            error,
-            ft.Button("Ingresar", on_click=ingresar),
-            ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro")),
-        ],
+    # Enter en la contraseña (el ultimo campo de texto) ingresa igual que el boton: lo conecta crear_formulario
+    formulario = crear_formulario(
+        [email, password, recordar],
+        error,
+        "Ingresar",
+        ingresar,
+        secundarios=[ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro"))],
+    )
+    return crear_vista_acceso(
+        "/login", "Iniciar sesión", "Entrá para cargar y ver las estadísticas de tu club.", formulario
     )
