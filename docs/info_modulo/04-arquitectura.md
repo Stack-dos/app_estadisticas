@@ -207,7 +207,7 @@ La GUI (Flet) sigue estas premisas (detalle en [13-gui-flet-y-eventos.md](13-gui
 1. **Navegación por rutas:** cada pantalla tiene una ruta (`/login`, `/registro`, `/inicio`, `/clubes`) y un único router decide qué se dibuja. La **ruta protegida**
    (`resolver_ruta`) impide llegar a una pantalla interna sin sesión.
 2. **Errores junto al formulario:** los errores de negocio se muestran debajo del formulario que los causó, sin traceback y sin cerrar la app; un bug muestra un
-   mensaje genérico y deja el traceback en `logs/app.log` (`ejecutar_mostrando_errores`).
+   mensaje genérico y deja el traceback en `~/.statspro/logs/app.log` (`ejecutar_mostrando_errores`).
 3. **Pantallas finas:** las pantallas no validan ni calculan: leen los campos, arman el DTO y llaman al caso de uso.
 4. **Manejo de Sesión:** vive en memoria (`SessionManager`, US-105). Con "Recordarme" se guarda también en `~/.statspro/session.json` y se restaura al abrir la app,
    junto con el club activo (US-106).

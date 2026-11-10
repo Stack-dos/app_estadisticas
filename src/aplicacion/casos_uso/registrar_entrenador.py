@@ -42,7 +42,8 @@ class RegistrarEntrenadorUseCase:
             raise DatoInvalidoError(f"La contraseña debe tener al menos {LONGITUD_MINIMA_PASSWORD} caracteres")
 
         # Valida nombre y email creando una entidad temporal antes de calcular el hash costoso
-        usuario_temp = Usuario(nombre=dto.nombre, email=dto.email, password_hash="dummy")
+        # "dummy" no es una contraseña: es un relleno, la entidad temporal nunca se guarda
+        usuario_temp = Usuario(nombre=dto.nombre, email=dto.email, password_hash="dummy")  # noqa: S106
 
         if self.repo.encontrar_por_mail(usuario_temp.email) is not None:
             raise EmailYaRegistradoError(f"El email '{usuario_temp.email}' ya esta registrado")
