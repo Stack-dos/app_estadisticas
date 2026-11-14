@@ -75,6 +75,12 @@ def _casos_de_uso(conexion: sqlite3.Connection) -> SimpleNamespace:
         listar_lista=ListarListaBuenaFeUseCase(competencia, jugador),
         quitar_de_lista=QuitarJugadorDeListaBuenaFeUseCase(competencia),
         listar_partidos=ListarPartidosPorClubUseCase(SqlitePartidoRepositorio(conexion)),
+        # shortcut: SQL directo porque HabilitarCategoriaEnCompetenciaUseCase todavia no existe; se reemplaza
+        # por el caso de uso en el paso 3 de la US-107. La FK compuesta de inscripcion exige habilitar antes.
+        habilitar_categoria=lambda id_competencia, id_categoria: conexion.execute(
+            "INSERT INTO competenciaCategoria (idCompetencia, idCategoria) VALUES (?, ?)",
+            (id_competencia, id_categoria),
+        ),
     )
 
 
@@ -107,6 +113,7 @@ def _inscribir_club_1(uc: SimpleNamespace) -> None:
     uc.registrar_jugador.ejecutar(CrearJugadorDTO(nombre="A", apellido="B", anioNacimiento=1990))
     uc.crear_competencia.ejecutar(CrearCompetenciaDTO(nombre="Liga", anio=2026))
     uc.crear_categoria.ejecutar(CrearCategoriaDTO(nombre="U21"))
+    uc.habilitar_categoria(1, 1)
     uc.inscribir.ejecutar(InscribirClubDTO(idClub=1, idCategoria=1, idCompetencia=1, fechaPresentacion="2026-03-01"))
 
 
@@ -142,6 +149,7 @@ def test_flujo_completo_de_punta_a_punta(uc):
     assert [c.nombre for c in uc.listar_categorias.ejecutar()] == ["U21"]
     assert [c.nombre for c in uc.listar_competencias.ejecutar()] == ["Liga"]
 
+    uc.habilitar_categoria(1, 1)
     inscripcion = uc.inscribir.ejecutar(
         InscribirClubDTO(idClub=1, idCategoria=1, idCompetencia=1, fechaPresentacion="2026-03-01")
     )
