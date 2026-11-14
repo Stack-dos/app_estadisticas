@@ -16,6 +16,7 @@ aplicación, la base de datos, los tests y las herramientas de calidad. Para ent
 8. [Manejo de dependencias](#8-manejo-de-dependencias)
 9. [Problemas frecuentes](#9-problemas-frecuentes)
 10. [Qué todavía no se puede hacer](#10-qué-todavía-no-se-puede-hacer)
+11. [Sacar una versión](#11-sacar-una-versión)
 
 ---
 
@@ -67,7 +68,7 @@ uv run python src/main.py
 
 Se abre la ventana en la pantalla de inicio de sesión. El programa queda corriendo hasta que se cierra la ventana.
 
-- **Primera vez:** Flet descarga su cliente de escritorio (la ventana) y tarda unos segundos más. La base de datos (`estadisticas.db`, en la raíz del repositorio) también se crea sola, con
+- **Primera vez:** Flet descarga su cliente de escritorio (la ventana) y tarda unos segundos más. La base de datos (`~/.statspro/estadisticas.db`, en la carpeta de tu usuario; ver la sección 5) también se crea sola, con
   todas sus tablas. No hay nada que preparar antes.
 - **Desde WSL:** hace falta WSLg (el soporte gráfico de WSL en Windows 11). Si la ventana no aparece, abrí la app desde Windows, con su propio entorno (ver la sección 9).
 
@@ -79,8 +80,9 @@ statspro                         # abre la aplicación
 uv tool uninstall statspro-basketball   # para quitarlo
 ```
 
-Al ser editable, usa el código de esta carpeta y la **misma** `estadisticas.db` de la raíz del repo. Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos. El empaquetado
-real (un instalable para otra máquina) es la US-404.
+Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run` (`~/.statspro/estadisticas.db`). Si usás la carpeta desde Windows y WSL, instalalo en uno solo de los dos.
+
+**Sin Python ni el repo:** cada versión publicada trae un instalador de Windows, un `.zip` portable y un `.deb` de Linux (sección 11).
 
 ---
 
@@ -115,11 +117,26 @@ La aplicación no se cierra por un error: después de cualquiera de estos mensaj
 
 | Qué | Dónde |
 | --- | --- |
-| Base de datos (SQLite) | `estadisticas.db`, en la raíz del repositorio (no se sube a git) |
-| Logs | `logs/app.log` (rota a los 10 MB, conserva 5 archivos) |
+| Base de datos (SQLite) | `~/.statspro/estadisticas.db`, en la carpeta de tu usuario del sistema operativo (en Windows, `C:\Users\<usuario>\.statspro\`) |
+| Logs | `~/.statspro/logs/app.log` (rota a los 10 MB, conserva 5 archivos) |
 | Sesión recordada ("Recordarme") | `~/.statspro/session.json`, en la carpeta de tu usuario del sistema operativo (en Windows, `C:\Users\<usuario>\.statspro\`). Guarda id de usuario, email y club activo; nunca la contraseña |
 | Rutas y scripts SQL | `src/config/rutas.py` y `src/infraestructura/persistencia/sql/` |
 
+Todo lo que la app escribe vive en `~/.statspro/`, también cuando se trabaja desde el repo (US-109): instalada, la app no puede escribir en su
+propia carpeta, y así una reinstalación no pisa los datos. Windows y WSL tienen carpetas de usuario distintas: cada uno tiene **su propia** base.
+
+- **Si tenías una base de antes (en la raíz del repo, hasta la US-109):** con la app cerrada, movela una sola vez a la carpeta nueva. Si no, la
+  app arranca con una base vacía (la vieja sigue ahí, no se borra nada).
+
+  ```bash
+  mkdir -p ~/.statspro && mv estadisticas.db ~/.statspro/      # bash (Linux, WSL o Git Bash)
+  ```
+
+  ```powershell
+  New-Item -ItemType Directory -Force "$HOME\.statspro" | Out-Null; Move-Item estadisticas.db "$HOME\.statspro\"   # PowerShell
+  ```
+
+  La carpeta `logs/` de la raíz ya no se usa: se puede borrar.
 - **Cada arranque es seguro para los datos:** la app ejecuta el esquema cada vez que se abre, pero `schema.sql` solo crea lo que falta (`CREATE TABLE IF NOT EXISTS`), nunca borra.
 - **Hacer un backup:** copiar el archivo `estadisticas.db` con la aplicación cerrada.
 - **Empezar de cero:** borrar `estadisticas.db`. Se vuelve a crear vacía la próxima vez que se abre la app. **Se pierden todos los datos.**
@@ -150,19 +167,33 @@ uv run pytest -v --cov=src --cov-report=html    # con cobertura; abrir reportes_
 uv run ruff check .                             # estilo, imports y errores comunes (reglas: pyproject.toml) (make run_linter_ruf)
 uv run ruff format --check .                    # avisa si algún archivo no está formateado, sin tocarlo     (make run_linter_ruf)
 uv run ruff format .                            # formatea el código                                         (make corregir_linter)
+uv run actionlint                               # revisa los workflows de .github/workflows/                 (make run_linter_ruf)
 uv run mypy src/ --strict --explicit-package-bases   # revisión de tipos                                     (make static_check)
 
 # Vulnerabilidades conocidas en las dependencias: ver el comando de la sección 8
 ```
 
 Estos mismos chequeos se ejecutan automáticamente en GitHub (`.github/workflows/MainAction.yml`) en cada Pull Request y en cada `push` a `main` o `develop`: lint, tipos, tests en Linux, Windows y Docker,
-auditoría de dependencias (`pip-audit`) y detección de secretos (`gitleaks`). Los tests de Linux se repiten con **Python 3.12, 3.13 y 3.14**; Windows y Docker corren una sola vez (3.13) y mypy una sola vez (contra la 3.12). El lint incluye `ruff format --check`, y los jobs de tests prueban antes que la app importe sin errores (`python -c "import main"`, sin abrir ninguna ventana).
+auditoría de dependencias (`pip-audit`) y revisión de los propios workflows (`actionlint`). Los tests de Linux se repiten con **Python 3.12, 3.13 y 3.14**; Windows y Docker corren una sola vez (3.13) y mypy una sola vez (contra la 3.12). El lint incluye `ruff format --check`, y los jobs de tests prueban antes que la app importe sin errores (`python -c "import main"`, sin abrir ninguna ventana).
 Un job final, `ci-ok`, queda en rojo si cualquiera de los anteriores falló: es el que se marca como obligatorio en GitHub para que un PR con el CI en rojo no se pueda mergear.
+Aparte, `.github/workflows/titulo-pr.yml` exige que el **título del PR** siga Conventional Commits (`feat: ...`, `fix(gui): ...`,
+`docs: ...`): al hacer _squash_, ese título es el commit que llega a la rama y de ahí sale el changelog. Si falla, se corrige el
+título del PR (el chequeo se vuelve a correr solo); no hace falta otro push.
 En Linux la cobertura mínima es **85 %** y el reporte HTML queda para descargar (pestaña _Actions_ → la corrida → sección _Artifacts_). Además, [Dependabot](.github/dependabot.yml) abre PR cuando hay versiones nuevas de las dependencias.
+
+### Reglas del repositorio en GitHub
+
+Configuradas a mano en GitHub (Settings), no en un archivo del repo (US-109):
+
+- **Ruleset `main y develop`:** no se puede hacer push directo ni force push, ni borrar las ramas; todo entra por PR. Para mergear,
+  `ci-ok` y `titulo-pr` tienen que estar en verde. Métodos de merge: _squash_ (PR de trabajo, el mensaje es el título del PR) y
+  _merge commit_ (PR de promoción `develop → main`); _rebase_ está desactivado.
+- **CodeQL** (_default setup_, Python y GitHub Actions): analiza cada PR, cada push a `main` y una vez por semana. Los hallazgos están
+  en _Security → Code scanning_.
 
 ### Hooks de pre-commit (opcional)
 
-Con [pre-commit](https://pre-commit.com/), ruff revisa y formatea los archivos **al hacer `git commit`**. Los hooks de ruff se ejecutan con `uv run`, o sea que usan la **misma versión que fija `pyproject.toml`** (y que usa el CI): hace falta tener `uv` instalado (sección 1).
+Con [pre-commit](https://pre-commit.com/), ruff revisa y formatea los archivos **al hacer `git commit`**. Los hooks de ruff y de actionlint (este último revisa los workflows de GitHub Actions) se ejecutan con `uv run`, o sea que usan la **misma versión que fija `pyproject.toml`** (y que usa el CI): hace falta tener `uv` instalado (sección 1).
 
 ```bash
 uv tool install pre-commit     # una sola vez
@@ -228,7 +259,7 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 | `Ocurrió un error inesperado` en un formulario | Un bug: el detalle está en `logs/app.log` | Reportarlo con el log |
 | Los acentos o la `ñ` se ven raros en los logs de la consola de Windows | Codificación de la consola | Ejecutar con `PYTHONUTF8=1` (o `chcp 65001` en cmd) |
 | Al abrir la app entra directo con otro usuario o sin pedir login | Quedó una sesión recordada ("Recordarme") | "Cerrar sesión", o borrar `~/.statspro/session.json` |
-| Al abrir la app pide login aunque marqué "Recordarme" | El archivo de sesión se borró, se dañó o su usuario ya no está en la base (por ejemplo, se borró `estadisticas.db`) | Volver a iniciar sesión; el detalle queda como warning en `logs/app.log` |
+| Al abrir la app pide login aunque marqué "Recordarme" | El archivo de sesión se borró, se dañó o su usuario ya no está en la base (por ejemplo, se borró `estadisticas.db`) | Volver a iniciar sesión; el detalle queda como warning en `~/.statspro/logs/app.log` |
 | `database is locked` | Otro programa (ej. un visor de SQLite) tiene la base abierta para escribir | Cerrar el otro programa y reintentar |
 
 ---
@@ -241,3 +272,68 @@ El estado del proyecto por historia de usuario está en el [PRD](docs/plan_desar
 - **La sesión recordada no vence** (v0.1): con "Recordarme", cualquiera que use tu cuenta del sistema operativo abre la app sin contraseña. La expiración llega con la US-403.
 - **No se pueden cargar partidos ni estadísticas** (US-108).
 - **No se puede editar ni borrar** clubes, competencias ni jugadores (el PRD solo pide crear, listar y vincular): un dato mal cargado hoy solo se corrige en la base.
+
+---
+
+## 11. Sacar una versión
+
+Una versión se publica **con un tag** `vX.Y.Z` sobre `main`: el workflow [`release.yml`](.github/workflows/release.yml) hace el resto solo
+(US-109). Por qué el proceso es así (ramas, versionado, hotfix) está en la sección 15 del [PRD](docs/plan_desarrollo_detallado.md).
+
+### Qué publica cada versión
+
+En la pestaña _Releases_ de GitHub, tres archivos (más el código fuente, que agrega GitHub):
+
+| Archivo | Para qué |
+| --- | --- |
+| `StatsPro-X.Y.Z-windows-x64-instalador.exe` | Instalador de Windows (Inno Setup): menú Inicio, acceso directo opcional, desinstalador |
+| `StatsPro-X.Y.Z-windows-x64-portable.zip` | La misma app sin instalar: se descomprime y se abre `StatsPro\StatsPro.exe` |
+| `statspro_X.Y.Z_amd64.deb` | Paquete de Linux (Ubuntu/Debian): se instala en `/opt/statspro` y queda el comando `statspro` |
+
+Ninguno necesita Python. Los tres guardan los datos en `~/.statspro/` (sección 5), y desinstalar **no** los borra.
+
+- **Windows:** el instalador no está firmado (la firma es de la US-404), así que la primera vez Windows muestra "Windows protegió su PC":
+  _Más información → Ejecutar de todas formas_. Una versión nueva se instala encima de la anterior. Se desinstala desde
+  _Configuración → Aplicaciones_.
+- **Linux:** `sudo apt install ./statspro_X.Y.Z_amd64.deb` (con `./`, para que `apt` resuelva las dependencias). Se abre con `statspro` o
+  desde el menú. Se desinstala con `sudo apt remove statspro`.
+
+### Qué estrategia de merge va en cada PR
+
+| PR | Cómo se mergea | Por qué |
+| --- | --- | --- |
+| `feature/usXXX` → su épica o `develop` | **Squash** | Junta los commits de trabajo en uno; el título del PR es el mensaje, y de ahí sale una línea del changelog |
+| Promoción (épica → hito → `develop` → `main`) | **Merge commit** | Conserva un commit por historia: con squash, a `main` llegaría un solo commit por hito |
+| `hotfix/...` → `main` | **Squash** | Una corrección, un commit |
+
+El título del PR tiene que seguir Conventional Commits (lo controla `titulo-pr`, sección 6). _Rebase_ está desactivado.
+
+### Paso a paso
+
+1. **PR `develop → main`** con dos cambios más:
+   - `version = "X.Y.Z"` en `pyproject.toml`;
+   - el changelog regenerado: `make changelog VERSION=X.Y.Z` (sin `make`: `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`).
+
+   Leé la sección nueva del `CHANGELOG.md`. El archivo **no se edita a mano**: se regenera entero en cada versión y se perdería el
+   cambio. Si una línea sobra (por ejemplo, un commit con el tipo equivocado), se saca agregando el hash del commit a un archivo
+   `.cliffignore` en la raíz y se vuelve a generar. El CI tiene que pasar entero; se mergea con **merge commit**.
+2. **Probar con un pre-release:** sobre `main` actualizado, `git tag vX.Y.Z-rc.1 && git push origin vX.Y.Z-rc.1`. En unos 30 minutos
+   aparece en _Releases_ un _pre-release_ con los tres archivos. Probarlos en una máquina sin Python (por ejemplo Windows Sandbox): la
+   app abre, se registra un usuario y se crea un club. Si algo falla, se corrige con un PR y se prueba con `-rc.2`.
+3. **Publicar:** `git checkout main && git pull`, `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. **Verificar** en _Releases_: la versión, sus notas (la sección del changelog) y los tres archivos.
+5. **Limpiar los pre-release:** borrarlos en _Releases_ (ícono de basura) y borrar sus tags:
+   `git push --delete origin vX.Y.Z-rc.1 && git tag -d vX.Y.Z-rc.1`.
+
+### Si el workflow falla
+
+`release.yml` corre en orden y **no publica nada** hasta el último job (`publicar`): si falla antes, no hay nada que deshacer.
+
+| Falla en | Causa típica | Qué hacer |
+| --- | --- | --- |
+| `version` | El tag no coincide con `version` de `pyproject.toml` | Borrar el tag (`git push --delete origin vX.Y.Z && git tag -d vX.Y.Z`), corregir con un PR y volver a taggear |
+| `tests-linux` / `tests-windows` | Un test que falla con Python 3.14 (el que va adentro del paquete) | Corregir con un PR; nuevo `-rc` |
+| `build-windows` / `build-linux` | `flet build`, Inno Setup o el `.deb` | Leer el log del paso que falló; corregir con un PR; nuevo `-rc` |
+| `publicar` | Falta la sección `## [X.Y.Z]` en `CHANGELOG.md` | No se corrió `make changelog`: PR con el changelog, borrar el tag y volver a taggear |
+
+Un tag que **ya publicó** una versión no se reusa: si hay que corregirla, sale la siguiente (`vX.Y.Z+1`, ver "Hotfix" en el PRD).

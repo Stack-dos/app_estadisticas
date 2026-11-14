@@ -4,6 +4,7 @@ Es el unico lugar que conoce las clases concretas (SQLite, PBKDF2): arma los cas
 pasa a las pantallas, que solo dependen de casos de uso y DTOs.
 """
 
+import os
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -153,6 +154,8 @@ def ejecutar() -> None:
     Abre la base, arma las dependencias y la ventana; bloquea hasta que se cierra la ventana.
     """
     logger.info("Iniciando la interfaz grafica")
+    # SQLite crea el archivo de la base, pero no su carpeta (la primera vez, ~/.statspro/ puede no existir)
+    os.makedirs(r.DATOS_DIR, exist_ok=True)
     db = SQLiteManager(r.DB_FILE, r.SCHEMA_SQL, r.VISTA_SQL)
     conexion = db.connect()
     try:

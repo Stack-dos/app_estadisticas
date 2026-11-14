@@ -9,6 +9,7 @@ run_test:
 run_linter_ruf:
 	uv run ruff check .
 	uv run ruff format --check .
+	uv run actionlint
 
 corregir_linter:
 	uv run ruff check --fix . && uv run ruff format .
@@ -26,3 +27,7 @@ docker_test:
 
 static_check:
 	uv run mypy src/ --strict --explicit-package-bases
+
+# CHANGELOG.md desde los commits (US-109). Uso, en el PR develop -> main: make changelog VERSION=0.1.0
+changelog:
+	uvx git-cliff@2.14.2 --tag v$(VERSION) -o CHANGELOG.md

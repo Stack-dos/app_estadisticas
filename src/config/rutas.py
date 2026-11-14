@@ -1,8 +1,12 @@
 """Módulo de configuración de rutas del proyecto.
 
-Define las rutas absolutas a los archivos SQL, la base de datos y los logs,
-derivándolas dinámicamente desde la ubicación de este archivo para que el
-proyecto funcione independientemente del directorio de instalación.
+Dos grupos de rutas:
+
+- Lo que viene con la app (scripts SQL, assets): se deriva de la ubicación de este archivo, así
+  funciona desde el repo y desde la carpeta donde la instale el instalador.
+- Lo que la app escribe (base, logs, sesión): va en `~/.statspro/`, la carpeta del usuario
+  (US-109, AC15). Instalada en `Program Files` o `/opt` la app no puede escribir en su propia
+  carpeta; y así una reinstalación o una actualización no pisan los datos.
 """
 
 import os
@@ -12,11 +16,13 @@ SCHEMA_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "s
 VISTA_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "views.sql")
 SEED_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "seed.sql")
 CLEAR_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "limpieza.sql")
-# Imagenes y letras de la GUI (US-111). `flet build` (US-404) tambien busca los assets en src/assets/
+# Imagenes y letras de la GUI (US-111). `flet build` (US-109) tambien busca los assets en src/assets/
 ASSETS_DIR = os.path.join(RUTA_SRC, "assets")
-RUTA_RAIZ = os.path.dirname(RUTA_SRC)
-DB_FILE = os.path.join(RUTA_RAIZ, "estadisticas.db")
-LOG_DIR = os.path.join(RUTA_RAIZ, "logs")
+
+# Datos del usuario: en Windows, C:\Users\<usuario>\.statspro\; en Linux, /home/<usuario>/.statspro/
+DATOS_DIR = os.path.join(os.path.expanduser("~"), ".statspro")
+DB_FILE = os.path.join(DATOS_DIR, "estadisticas.db")
+LOG_DIR = os.path.join(DATOS_DIR, "logs")
 APP_LOG_FILE = os.path.join(LOG_DIR, "app.log")
-# Sesion recordada ("Recordarme", US-106): fuera del proyecto, en la carpeta del usuario del sistema operativo
-SESSION_FILE = os.path.join(os.path.expanduser("~"), ".statspro", "session.json")
+# Sesion recordada ("Recordarme", US-106)
+SESSION_FILE = os.path.join(DATOS_DIR, "session.json")

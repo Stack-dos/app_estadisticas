@@ -8,7 +8,7 @@ on:
     branches: [main, develop]
 
 # Permisos minimos del GITHUB_TOKEN: los jobs solo pueden LEER el repositorio.
-# Si un job necesita mas (ver "gitleaks"), lo declara el mismo.
+# Si un job necesita mas, lo declara el mismo.
 permissions:
   contents: read
 
@@ -48,6 +48,11 @@ jobs:
 
       - name: Run style check
         uses: ./.github/actions/style/ruff
+
+      # Reusa el uv y el grupo "dev" que instalo el paso anterior. En ubuntu-latest viene shellcheck,
+      # asi que actionlint tambien revisa los scripts de los "run:".
+      - name: Revisar los workflows (actionlint)
+        run: uv run --no-sync actionlint
 
   # mypy corre una sola vez, contra la version de Python mas vieja que se prueba en "tests-linux":
   # si el codigo usa algo que esa version no tiene, lo marca.

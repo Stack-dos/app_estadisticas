@@ -645,7 +645,9 @@ Todos los PR llevan un prefijo en el título (`chore(deps)`, `chore(ci)`, `chore
 
 ---
 
-### 8.12 Detección de secretos: gitleaks (_ya hecho_)
+### 8.12 Detección de secretos: gitleaks (_se hizo y después se sacó a propósito, 2026-11-09_)
+
+> Queda como explicación del concepto: el CI ya no corre gitleaks (decisión de la US-109).
 
 **Qué es.** Un "secreto" es una contraseña, un token o una clave que **nunca** debería estar en el repositorio. Se suben por accidente (un `.env`, una clave pegada en un archivo de prueba) y, una vez en el historial de git, **quedan ahí** aunque se borren después.
 **gitleaks** escanea los commits buscando patrones típicos de secretos.

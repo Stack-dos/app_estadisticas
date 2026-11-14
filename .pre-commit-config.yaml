@@ -25,3 +25,11 @@ repos:
         language: system
         types_or: [python, pyi]
         require_serial: true
+
+      # Revisa los workflows de GitHub Actions (US-109 AC12). Misma idea que ruff: la version sale de uv.lock.
+      - id: actionlint
+        name: actionlint
+        entry: uv run --locked actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        require_serial: true

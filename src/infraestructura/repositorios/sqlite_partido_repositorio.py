@@ -280,8 +280,9 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
 
                 if jugadores_ids:  # Solo validar si la lista no está vacía
                     placeholders = ",".join("?" for _ in jugadores_ids)
+                    # El f-string solo arma los "?"; los valores van aparte, como parametros
                     cursor.execute(
-                        f"SELECT idJugador FROM jugador WHERE idJugador IN ({placeholders})",
+                        f"SELECT idJugador FROM jugador WHERE idJugador IN ({placeholders})",  # noqa: S608
                         tuple(jugadores_ids),
                     )
                     jugadores_existentes_ids = {row[0] for row in cursor.fetchall()}
