@@ -8,6 +8,9 @@ import sqlite3
 
 import pytest
 
+from dominio.entidades.competencia import Competencia
+from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCompetenciaRepositorio
+
 
 def _inscribir(conexion, id_club: int, id_categoria: int, id_competencia: int) -> None:
     conexion.execute(
@@ -88,3 +91,76 @@ def test_borrar_la_competencia_borra_en_cascada_inscripciones_y_categorias(db_co
 
     assert _contar(conexion, "SELECT COUNT(*) FROM inscripcion") == 0
     assert _contar(conexion, "SELECT COUNT(*) FROM competenciaCategoria") == 0
+
+
+# --- Repositorio (US-107, paso 2) ---
+
+
+def _nombres(categorias) -> list[str]:
+    return [c.nombre for c in categorias]
+
+
+def test_repo_habilitar_listar_y_quitar(con_categoria_nueva):
+    repo = SqliteCompetenciaRepositorio(con_categoria_nueva)
+
+    assert repo.habilitar_categoria(1, 2) is True
+    assert _nombres(repo.obtener_categorias_de_competencia(1)) == ["U17", "U21"]
+
+    assert repo.quitar_categoria(1, 2) is True
+    assert _nombres(repo.obtener_categorias_de_competencia(1)) == ["U21"]
+
+
+def test_repo_habilitar_dos_veces_devuelve_false(db_conexion):
+    assert SqliteCompetenciaRepositorio(db_conexion).habilitar_categoria(1, 1) is False
+
+
+def test_repo_quitar_categoria_no_habilitada_devuelve_false(con_categoria_nueva):
+    assert SqliteCompetenciaRepositorio(con_categoria_nueva).quitar_categoria(1, 2) is False
+
+
+def test_repo_quitar_categoria_con_inscriptos_devuelve_false_y_no_la_quita(db_conexion):
+    repo = SqliteCompetenciaRepositorio(db_conexion)
+
+    assert repo.quitar_categoria(1, 1) is False
+    assert _nombres(repo.obtener_categorias_de_competencia(1)) == ["U21"]
+
+
+def test_repo_obtener_categorias_de_competencia_sin_categorias(db_conexion):
+    assert SqliteCompetenciaRepositorio(db_conexion).obtener_categorias_de_competencia(99) == []
+
+
+def test_repo_tiene_inscripciones(con_categoria_nueva):
+    repo = SqliteCompetenciaRepositorio(con_categoria_nueva)
+    repo.habilitar_categoria(1, 2)
+
+    assert repo.tiene_inscripciones(1, 1) is True
+    assert repo.tiene_inscripciones(1, 2) is False
+
+
+@pytest.mark.parametrize("id_categorias", [[1, 2], []], ids=["con-categorias", "sin-categorias"])
+def test_repo_guardar_competencia_con_categorias(con_categoria_nueva, id_categorias):
+    repo = SqliteCompetenciaRepositorio(con_categoria_nueva)
+
+    guardada = repo.guardar_competencia_con_categorias(
+        Competencia(nombre="Asociativo 2027", anio=2027, tipo="ASOCIATIVO"), id_categorias
+    )
+
+    assert guardada is not None and guardada.idCompetencia is not None
+    habilitadas = [c.idCategoria for c in repo.obtener_categorias_de_competencia(guardada.idCompetencia)]
+    assert sorted(habilitadas) == sorted(id_categorias)
+
+
+@pytest.mark.parametrize("id_categorias", [[1, 99], [1, 1]], ids=["categoria-inexistente", "categoria-repetida"])
+def test_repo_guardar_competencia_con_categorias_es_atomica(db_conexion, id_categorias):
+    """Si falla una categoria, no queda ni la competencia ni las categorias que si se habian insertado."""
+    repo = SqliteCompetenciaRepositorio(db_conexion)
+    competencias_antes = _contar(db_conexion, "SELECT COUNT(*) FROM competencia")
+    habilitadas_antes = _contar(db_conexion, "SELECT COUNT(*) FROM competenciaCategoria")
+
+    resultado = repo.guardar_competencia_con_categorias(
+        Competencia(nombre="Torneo Rollback", anio=2027, tipo="ASOCIATIVO"), id_categorias
+    )
+
+    assert resultado is None
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM competencia") == competencias_antes
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM competenciaCategoria") == habilitadas_antes
