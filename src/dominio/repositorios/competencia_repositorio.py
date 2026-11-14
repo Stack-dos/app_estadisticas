@@ -18,6 +18,11 @@ class CompetenciaRepositorio(ABC):
         pass
 
     @abstractmethod
+    def guardar_competencia_con_categorias(self, compe: Competencia, idCategorias: list[int]) -> Competencia | None:
+        "Registra una Competencia y las categorias que juega en una unica transaccion atomica (US-107)"
+        pass
+
+    @abstractmethod
     def buscar_competencia_por_id(self, idCompetencia: int) -> Competencia | None:
         "Busca una Competencia por id"
         pass
@@ -35,6 +40,26 @@ class CompetenciaRepositorio(ABC):
     @abstractmethod
     def obtener_categorias(self) -> list[Categoria]:
         "Devuelve todas las categorias existentes"
+        pass
+
+    @abstractmethod
+    def habilitar_categoria(self, idCompetencia: int, idCategoria: int) -> bool:
+        "Habilita una categoria en una competencia. Devuelve False si ya estaba habilitada o si fallo"
+        pass
+
+    @abstractmethod
+    def obtener_categorias_de_competencia(self, idCompetencia: int) -> list[Categoria]:
+        "Devuelve las categorias que juega una competencia"
+        pass
+
+    @abstractmethod
+    def quitar_categoria(self, idCompetencia: int, idCategoria: int) -> bool:
+        "Quita una categoria de una competencia. Devuelve False si no estaba habilitada o si fallo"
+        pass
+
+    @abstractmethod
+    def tiene_inscripciones(self, idCompetencia: int, idCategoria: int) -> bool:
+        "Indica si hay clubes inscriptos en esa competencia y categoria"
         pass
 
     @abstractmethod
