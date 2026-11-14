@@ -4,6 +4,13 @@ from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCo
 from infraestructura.repositorios.sqlite_jugador_repositorio import SqliteJugadorRepositorio
 
 
+def habilitar_categoria(conexion, id_competencia: int, id_categoria: int = 1) -> None:
+    """La FK compuesta de inscripcion (US-107) exige que la competencia juegue la categoria antes de inscribir."""
+    conexion.execute(
+        "INSERT INTO competenciaCategoria (idCompetencia, idCategoria) VALUES (?, ?)", (id_competencia, id_categoria)
+    )
+
+
 def test_buscar_competencia_por_id(db_conexion):
     """
     Funcion que busca una competencia por su ID
@@ -83,6 +90,7 @@ def test_guardar_inscripcion(db_conexion):
     comp_rep = SqliteCompetenciaRepositorio(db_conexion)
     nueva_compe = Competencia(nombre="Torneo de Prueba", anio=2026, tipo="PROVINCIAL")
     compe_guardada = comp_rep.guardar_competencia(nueva_compe)
+    habilitar_categoria(db_conexion, compe_guardada.idCompetencia)
 
     nueva_inscripcion = Inscripcion(idClub=1, idCategoria=1, idCompetencia=compe_guardada.idCompetencia)
     inscripcion_guardada = comp_rep.guardar_inscripcion(nueva_inscripcion)
@@ -115,6 +123,7 @@ def test_guardar_lista_buena_fe(db_conexion):
     comp_rep = SqliteCompetenciaRepositorio(db_conexion)
     nueva_compe = Competencia(nombre="Torneo Lista Test", anio=2026, tipo="PROVINCIAL")
     compe_guardada = comp_rep.guardar_competencia(nueva_compe)
+    habilitar_categoria(db_conexion, compe_guardada.idCompetencia)
 
     nueva_inscripcion = Inscripcion(idClub=1, idCategoria=1, idCompetencia=compe_guardada.idCompetencia)
     inscripcion_guardada = comp_rep.guardar_inscripcion(nueva_inscripcion)
@@ -139,6 +148,7 @@ def test_obtener_jugadores_lista(db_conexion):
 def test_inscribir_con_lista(db_conexion):
     comp_rep = SqliteCompetenciaRepositorio(db_conexion)
     nueva_compe = comp_rep.guardar_competencia(Competencia(nombre="Torneo Atomico", anio=2026, tipo="PROVINCIAL"))
+    habilitar_categoria(db_conexion, nueva_compe.idCompetencia)
 
     resultado = comp_rep.inscribir_con_lista(
         Inscripcion(idClub=1, idCategoria=1, idCompetencia=nueva_compe.idCompetencia), "2026-03-01"
@@ -156,6 +166,7 @@ def test_inscribir_con_lista_es_atomica(db_conexion):
     """Si falla el guardado de la lista de buena fe, la inscripcion tampoco debe quedar guardada."""
     comp_rep = SqliteCompetenciaRepositorio(db_conexion)
     nueva_compe = comp_rep.guardar_competencia(Competencia(nombre="Torneo Rollback", anio=2026, tipo="PROVINCIAL"))
+    habilitar_categoria(db_conexion, nueva_compe.idCompetencia)
     inscripciones_antes = len(comp_rep.obtener_inscripciones_por_club(1))
 
     # fechaPresentacion es NOT NULL: la 2da insercion (la lista) falla despues de haberse insertado la inscripcion

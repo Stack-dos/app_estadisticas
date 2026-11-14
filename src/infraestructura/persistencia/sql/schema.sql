@@ -60,6 +60,14 @@ CREATE TABLE IF NOT EXISTS categoria (
     idCategoria integer PRIMARY KEY AUTOINCREMENT,
     nombre text NOT NULL
 ) STRICT;
+-- Tabla competenciaCategoria (US-107): las categorias que juega cada competencia (relacion muchos a muchos)
+CREATE TABLE IF NOT EXISTS competenciaCategoria (
+    idCompetencia integer NOT NULL,
+    idCategoria integer NOT NULL,
+    PRIMARY KEY (idCompetencia, idCategoria),
+    FOREIGN KEY (idCompetencia) REFERENCES competencia (idCompetencia) ON DELETE CASCADE on UPDATE CASCADE,
+    FOREIGN KEY (idCategoria) REFERENCES categoria (idCategoria) ON DELETE CASCADE on UPDATE CASCADE
+) STRICT;
 -- Tabla inscripcion
 CREATE TABLE IF NOT EXISTS inscripcion (
     idInscripcion integer PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +76,13 @@ CREATE TABLE IF NOT EXISTS inscripcion (
     idCompetencia integer NOT NULL,
     FOREIGN KEY (idClub) REFERENCES club (idClub) ON DELETE CASCADE on UPDATE CASCADE,
     FOREIGN KEY (idCategoria) REFERENCES categoria (idCategoria) ON DELETE CASCADE on UPDATE CASCADE,
-    FOREIGN KEY (idCompetencia) REFERENCES competencia (idCompetencia) ON DELETE CASCADE on UPDATE CASCADE
+    FOREIGN KEY (idCompetencia) REFERENCES competencia (idCompetencia) ON DELETE CASCADE on UPDATE CASCADE,
+    -- FK compuesta (US-107): solo se inscribe en una categoria que la competencia juega, aunque se saltee el caso de uso.
+    -- NO ACTION y no RESTRICT: NO ACTION se verifica al final de la sentencia, asi borrar una competencia entera
+    -- borra en cascada sus inscripciones y sus categorias; RESTRICT se verifica en el momento y, segun el orden en
+    -- que SQLite recorra las cascadas, frenaria ese borrado. Quitar solo la categoria con inscriptos falla igual.
+    FOREIGN KEY (idCompetencia, idCategoria) REFERENCES competenciaCategoria (idCompetencia, idCategoria)
+        ON DELETE NO ACTION on UPDATE CASCADE
 ) STRICT;
 -- Tabla Lista de buena Fe
 CREATE TABLE IF NOT EXISTS listaBuenaFe (

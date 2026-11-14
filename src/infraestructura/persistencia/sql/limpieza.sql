@@ -13,6 +13,9 @@ DELETE FROM listaBuenaFe;
 -- Borrar Inscripciones
 DELETE FROM inscripcion;
 
+-- Borrar categorias habilitadas por competencia (US-107): despues de las inscripciones, que las referencian
+DELETE FROM competenciaCategoria;
+
 -- 2. Borrar datos de tablas base con filtros específicos del SEED
 -- Borrar partidos
 DELETE FROM partido WHERE fecha IN ('2026-05-21', '2026-06-20');
