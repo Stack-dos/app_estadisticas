@@ -39,6 +39,9 @@ VALUES ('2026-05-21', 'Cancha Atenas', 1, 1, 2),
 -- categoria
 INSERT into categoria (nombre)
 VALUES('U21');
+-- CATEGORIAS QUE JUEGA CADA COMPETENCIA (US-107): sin esto, la FK compuesta rechaza las inscripciones de abajo
+INSERT INTO competenciaCategoria (idCompetencia, idCategoria)
+VALUES (1, 1);
 --INSCRIPCION A COMPETENCIA
 INSERT INTO inscripcion (idCLub, idCategoria, idCompetencia)
 VALUES (1, 1, 1),
