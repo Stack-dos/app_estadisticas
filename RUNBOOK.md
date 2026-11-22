@@ -91,11 +91,15 @@ Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run`
 1. **Crear una cuenta:** en "Crear cuenta", completar nombre, email y contraseña (mínimo 6 caracteres). Al registrarse, la sesión queda iniciada.
 2. **Iniciar sesión:** con el email y la contraseña. Enter en el campo de la contraseña equivale a apretar el botón.
    - **"Recordarme":** si la marcás, al cerrar y volver a abrir la app entrás directo, con el mismo club activo. Si no la marcás, al cerrar la ventana la sesión se pierde.
-3. **Crear clubes y elegir con cuál trabajar:** el botón "Clubes" de la barra superior abre "Mis clubes". Ahí se crea un club (queda vinculado a tu usuario) y "Usar este club"
+3. **Crear clubes y elegir con cuál trabajar:** el destino "Clubes" del menú lateral abre "Mis clubes". Ahí se crea un club (queda vinculado a tu usuario) y "Usar este club"
    lo deja como **club activo**, que se ve siempre en la barra superior ("StatsPro · Atenas").
-4. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
+4. **Gestionar torneos (con club activo):** el destino "Torneos" del menú lateral da acceso a:
+   - **Competencias:** crear categorías, crear competencias eligiendo sus categorías y habilitar o quitar categorías por competencia.
+   - **Inscripciones:** inscribir al club activo en una competencia y categoría habilitada (creando su lista de buena fe).
+   - **Listas de buena fe:** habilitar o quitar jugadores del club activo en cada inscripción.
+5. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
 
-Las pantallas para cargar jugadores, competencias, listas de buena fe y partidos llegan con las US-107 y US-108; los casos de uso ya existen (ver
+Las pantallas para cargar jugadores y partidos llegan con las US-112 y US-108; los casos de uso ya existen (ver
 [docs/info_modulo/03-casos-de-uso.md](docs/info_modulo/03-casos-de-uso.md)).
 
 ---
