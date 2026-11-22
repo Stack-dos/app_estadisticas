@@ -1,42 +1,11 @@
 ---
 name: Bug
-<<<<<<< HEAD
-about: Reportar un error o comportamiento inesperado
-title: "[BUG] - "
-=======
 about: Reportar un error o comportamiento inesperado en el sistema
 title: "[Bug] - "
->>>>>>> 80a8c9eb0d184f16ccdc72196c550e11496b4d95
 labels: bug
 assignees: ""
 ---
 
-<<<<<<< HEAD
-## 🐞 Descripción del Bug
-
-Descripción clara y concisa de cuál es el problema.
-
-## 👣 Pasos para Reproducir
-
-1. Comando ejecutado: `...`
-2. Datos de entrada: `...`
-3. Error observado: `...`
-
-## EXPECTED vs ACTUAL
-
-- **Esperado:** Qué debería haber pasado.
-- **Actual:** Qué pasó realmente (pegar traceback si existe).
-
-## 💻 Contexto
-
-- **SO:** [ej: Windows 11]
-- **Versión de la App:** [ej: v0.1]
-- **Base de Datos:** [ej: local app.db]
-
-## 🛠 Propuesta de Solución (Opcional)
-
-Si tienes una idea de dónde está el fallo o cómo arreglarlo.
-=======
 ## 🐛 Descripción del Bug
 
 > Describe de forma clara y concisa qué comportamiento incorrecto se observó.
@@ -132,4 +101,3 @@ Si tienes una idea de dónde está el fallo o cómo arreglarlo.
 
 - Issue relacionado (US o Épica): #[issue]
 - ADR involucrado (si aplica): ADR-00X
->>>>>>> 80a8c9eb0d184f16ccdc72196c550e11496b4d95
