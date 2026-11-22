@@ -13,18 +13,33 @@ from infraestructura.ui.flet.estilo import LOGO, NOMBRE_APP, TAMANIO_LOGO_MENU
 
 @dataclass(frozen=True)
 class Destino:
-    """Una entrada del menu: a que ruta va, que dice y con que icono (apagado y elegido)."""
+    """Una entrada del menu: a que ruta va, que dice, que icono usa y que sub-rutas agrupa."""
 
     ruta: str
     texto: str
     icono: ft.IconData
     icono_elegido: ft.IconData
+    subrutas: tuple[str, ...] = ()
 
 
 DESTINOS = (
     Destino("/inicio", "Inicio", ft.Icons.HOME_OUTLINED, ft.Icons.HOME),
     Destino("/clubes", "Clubes", ft.Icons.SHIELD_OUTLINED, ft.Icons.SHIELD),
+    Destino(
+        "/competencias",
+        "Torneos",
+        ft.Icons.EMOJI_EVENTS_OUTLINED,
+        ft.Icons.EMOJI_EVENTS,
+        subrutas=("/inscripciones", "/listas"),
+    ),
 )
+
+
+def _indice_destino(ruta_actual: str) -> int | None:
+    for indice, destino in enumerate(DESTINOS):
+        if ruta_actual == destino.ruta or ruta_actual in destino.subrutas:
+            return indice
+    return None
 
 
 def crear_menu_lateral(page: ft.Page, ruta_actual: str) -> ft.NavigationRail:
@@ -46,7 +61,7 @@ def crear_menu_lateral(page: ft.Page, ruta_actual: str) -> ft.NavigationRail:
             page.navigate(rutas[menu.selected_index])
 
     menu = ft.NavigationRail(
-        selected_index=rutas.index(ruta_actual) if ruta_actual in rutas else None,
+        selected_index=_indice_destino(ruta_actual),
         label_type=ft.NavigationRailLabelType.ALL,
         leading=ft.Image(src=LOGO, width=TAMANIO_LOGO_MENU, height=TAMANIO_LOGO_MENU, semantics_label=NOMBRE_APP),
         destinations=[
