@@ -31,12 +31,29 @@ runs:
       run: |
         uv run --locked python -c "import main"
 
+    # xml: lo lee diff-cover (cobertura de las lineas cambiadas) · json: el total para el delta contra la rama base
+    # junit: totales, fallidos y tests mas lentos. Los tres los usa el comentario de resumen de la PR.
     - name: Ejecutar pytest con coverage (minimo ${{ inputs.cobertura-minima }}%)
       shell: bash
       env:
         COBERTURA_MINIMA: ${{ inputs.cobertura-minima }}
       run: |
-        uv run --locked pytest -v --cov=src --cov-report=term --cov-report=html --cov-fail-under="$COBERTURA_MINIMA"
+        uv run --locked pytest -v --cov=src --cov-report=term --cov-report=html \
+          --cov-report=xml:reportes_cobertura/coverage.xml --cov-report=json:reportes_cobertura/coverage.json \
+          --junitxml=reportes_cobertura/junit.xml --cov-fail-under="$COBERTURA_MINIMA"
+
+    # 90 dias (el maximo): la corrida de la rama base es la referencia del delta de cobertura de las PRs
+    - name: Guardar resultados para el resumen de la PR
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: resultados-linux-py${{ inputs.python-version }}
+        path: |
+          reportes_cobertura/coverage.xml
+          reportes_cobertura/coverage.json
+          reportes_cobertura/junit.xml
+        if-no-files-found: warn
+        retention-days: 90
 
     # !cancelled(): se guarda aunque falle un test o la cobertura, que es cuando mas sirve verlo
     - name: Guardar reporte de cobertura (HTML)
