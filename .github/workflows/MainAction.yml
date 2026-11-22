@@ -153,9 +153,12 @@ jobs:
       - name: Instalar dependencias
         run: uv sync --locked
 
-      # -m benchmark pisa el "-m 'not benchmark'" de pyproject.toml (gana el ultimo)
+      # -m benchmark pisa el "-m 'not benchmark'" de pyproject.toml (gana el ultimo).
+      # max-time 0.5: medio segundo por consulta y escala alcanza para cientos de rondas en las rapidas.
       - name: Correr benchmarks
-        run: uv run --no-sync pytest tests/benchmarks -m benchmark --benchmark-only --benchmark-json=bench.json
+        run: |
+          uv run --no-sync pytest tests/benchmarks -m benchmark --benchmark-only --benchmark-max-time=0.5 \
+            --benchmark-json=bench.json
 
       - name: Guardar resultados para el resumen de la PR
         uses: actions/upload-artifact@v7
@@ -230,23 +233,30 @@ jobs:
           RAMA: ${{ github.head_ref }}
           SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Dos archivos: resumen.md (siempre) y benchmark.md (solo si el job benchmark dejo resultados)
         run: |
-          python3 .github/scripts/resumen_pr.py resumen.md
+          python3 .github/scripts/resumen_pr.py resumen.md benchmark.md
           cat resumen.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -f benchmark.md ]; then cat benchmark.md >> "$GITHUB_STEP_SUMMARY"; fi
 
-      # Sticky comment: se edita el comentario que tiene la marca; si no existe, se crea.
-      # Dependabot y las PRs desde forks reciben un token de solo lectura: ahi el resumen queda solo
-      # en la pagina de la corrida (paso anterior).
-      - name: Publicar el comentario en la PR
+      # Sticky comments: cada archivo empieza con su marca (<!-- resumen-ci -->, <!-- resumen-benchmark -->);
+      # se edita el comentario que tiene esa marca y, si no existe, se crea. Dependabot y las PRs desde forks
+      # reciben un token de solo lectura: ahi el resumen queda solo en la pagina de la corrida (paso anterior).
+      - name: Publicar los comentarios en la PR
         if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
-          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | startswith("<!-- resumen-ci -->")) | .id' | head -n 1)
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@resumen.md > /dev/null
-          else
-            gh pr comment "$PR" -R "$REPO" --body-file resumen.md
-          fi
+          comentarios=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | {id, body}')
+          for archivo in resumen.md benchmark.md; do
+            [ -f "$archivo" ] || continue
+            marca=$(head -n 1 "$archivo")
+            # -s junta los objetos en una lista y [0] toma el primero (sin "| head": con pipefail puede romper el paso)
+            id=$(jq -rs --arg m "$marca" 'map(select(.body | startswith($m)))[0].id // empty' <<< "$comentarios")
+            if [ -n "$id" ]; then
+              gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@"$archivo" > /dev/null
+            else
+              gh pr comment "$PR" -R "$REPO" --body-file "$archivo"
+            fi
+          done
 
   # Job agregador: es el UNICO que hay que marcar como "required status check" en GitHub
   # (Settings > Branches). Depende de todos los demas y falla si alguno fallo, se cancelo o se salteo

@@ -1,4 +1,5 @@
-"""Arma el comentario de resumen de la PR (resumen.md) con los resultados que dejaron los jobs del CI.
+"""Arma los dos comentarios de la PR con los resultados que dejaron los jobs del CI:
+resumen.md (todo menos el detalle de benchmarks) y benchmark.md (lo arma reporte_benchmark.py).
 
 Lo corre el job "resumen-pr" de MainAction, después de bajar:
 - resultados/<artifact>/...  los de esta corrida (un subdirectorio por artifact)
@@ -17,11 +18,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+import reporte_benchmark
 from vincular_hu import buscar_issue
 
 MARCA = "<!-- resumen-ci -->"  # el job busca el comentario con esta marca para editarlo en vez de crear otro
 VERSION_REPORTADA = "3.13"  # de la matriz de tests-linux, la que se reporta (cobertura, tests)
-UMBRAL_BENCH = 20.0  # % de aumento de la media a partir del cual un benchmark se marca como más lento
 
 JOBS = {
     "lint": "Estilo (ruff + actionlint)",
@@ -164,42 +165,6 @@ def seccion_mypy(errores: list[str] | None) -> str | None:
     return "\n".join([f"- `{e}`" for e in errores[:20]] + extra)
 
 
-def comparar_benchmarks(actual: dict[str, Any] | None, base: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Media de cada benchmark (en ms) y su cambio porcentual contra la base, si existe."""
-    if not actual:
-        return []
-    medias_base = {b["fullname"]: b["stats"]["mean"] for b in (base or {}).get("benchmarks", [])}
-    filas = []
-    for b in actual.get("benchmarks", []):
-        media, previa = b["stats"]["mean"], medias_base.get(b["fullname"])
-        filas.append(
-            {"nombre": b["name"], "ms": media * 1000, "cambio": None if not previa else (media - previa) / previa * 100}
-        )
-    return filas
-
-
-def seccion_benchmarks(filas: list[dict[str, Any]]) -> str | None:
-    if not filas:
-        return None
-    tabla = ["| Benchmark | Media | vs base |", "|---|---|---|"]
-    for f in filas:
-        if f["cambio"] is None:
-            cambio = "nuevo"
-        else:
-            cambio = f"{f['cambio']:+.1f} %" + (" ⚠️" if f["cambio"] > UMBRAL_BENCH else "")
-        tabla.append(f"| `{f['nombre']}` | {f['ms']:.3g} ms | {cambio} |")
-    return "\n".join(tabla) + (f"\n\n_Informativo: los runners compartidos varían ±{UMBRAL_BENCH:.0f} %._")
-
-
-def resumen_benchmarks(filas: list[dict[str, Any]]) -> str:
-    if not filas:
-        return "sin resultados"
-    lentos = sum(1 for f in filas if f["cambio"] is not None and f["cambio"] > UMBRAL_BENCH)
-    return contar(len(filas), "medido", "medidos") + (
-        f", ⚠️ {contar(lentos, 'más lento', 'más lentos')}" if lentos else ""
-    )
-
-
 def linea_hu(issue: dict[str, Any] | None, cuerpo: str) -> str:
     if issue is None:
         return "⚠️ **HU:** no se encontró. Agregá `Closes #N` al cuerpo de la PR o usá una rama `feature/usNNN-...`"
@@ -237,7 +202,8 @@ def desplegable(titulo: str, contenido: str | None) -> str:
 # ---------------------------------------------------------------- armado
 
 
-def armar() -> str:
+def armar() -> tuple[str, str | None]:
+    """Devuelve (comentario principal, comentario de benchmarks o None si no hubo benchmarks)."""
     env = os.environ
     res, base = Path("resultados"), Path("base")
     tests_dir = f"resultados-linux-py{VERSION_REPORTADA}"
@@ -249,9 +215,8 @@ def armar() -> str:
     ruff = leer_json(res / "resultados-ruff" / "ruff.json")
     ruff_formato = leer_lineas(res / "resultados-ruff" / "ruff-format.txt")
     mypy = errores_mypy(leer_lineas(res / "resultados-mypy" / "mypy.txt"))
-    bench = comparar_benchmarks(
-        leer_json(res / "resultados-benchmark" / "bench.json"), leer_json(base / "resultados-benchmark" / "bench.json")
-    )
+    bench, bench_base = (leer_json(d / "resultados-benchmark" / "bench.json") for d in (res, base))
+    consultas = reporte_benchmark.agrupar(bench, bench_base) if bench else []
     try:
         issue = buscar_issue(env["REPO"], env.get("CUERPO", ""), env.get("RAMA", ""))
     except subprocess.CalledProcessError:
@@ -259,7 +224,7 @@ def armar() -> str:
 
     detalles = {
         "tests-linux": f"py{VERSION_REPORTADA}: {resumen_tests(junit)}",
-        "benchmark": resumen_benchmarks(bench),
+        "benchmark": reporte_benchmark.resumen_corto(consultas),
     }
     if ruff is not None:
         detalles["lint"] = contar(len(ruff), "error", "errores")
@@ -271,7 +236,7 @@ def armar() -> str:
         linea_hu(issue, env.get("CUERPO", "")),
         linea_docs(archivos_cambiados(env["BASE"])),
     ]
-    return "\n".join(
+    principal = "\n".join(
         [
             MARCA,
             "## 📊 Resumen del CI",
@@ -284,14 +249,16 @@ def armar() -> str:
             desplegable("📈 Cobertura de las líneas cambiadas", seccion_diff_cover(diff)),
             desplegable("🧹 Ruff", seccion_ruff(ruff, ruff_formato, env.get("GITHUB_WORKSPACE", ""))),
             desplegable("🔎 mypy", seccion_mypy(mypy)),
-            desplegable("⏱️ Benchmarks", seccion_benchmarks(bench)),
             f"<sub>Commit {env.get('SHA', '')[:7]} · [ver la corrida completa]({env.get('RUN_URL', '')}) · "
             "las anotaciones de ruff y mypy aparecen en la pestaña *Files changed*</sub>",
         ]
     )
+    return principal, reporte_benchmark.armar(bench, bench_base, env["BASE"])
 
 
 if __name__ == "__main__":
-    texto = armar()
-    Path(sys.argv[1] if len(sys.argv) > 1 else "resumen.md").write_text(texto, encoding="utf-8")
-    print(texto)
+    # Uso: resumen_pr.py resumen.md benchmark.md  (benchmark.md no se crea si no hubo benchmarks)
+    principal, benchmarks = armar()
+    Path(sys.argv[1]).write_text(principal, encoding="utf-8")
+    if benchmarks:
+        Path(sys.argv[2]).write_text(benchmarks, encoding="utf-8")
