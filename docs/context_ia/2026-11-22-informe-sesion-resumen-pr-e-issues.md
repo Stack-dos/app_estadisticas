@@ -26,5 +26,15 @@ Rama: `feature/mejora-ci`. Amplía la US-109 (AC16 a AC19 del PRD).
 ## Pendiente
 
 - Probarlo en una PR real (la de esta rama sirve): que aparezca el comentario, los labels y las anotaciones.
-- Elegir qué medir en los benchmarks (`TODO(nico)` en `tests/benchmarks/test_bench_repositorios.py`).
+- Decidir qué índices agregar (o no) a partir del informe de benchmarks (§7.6 de la guía 14).
 - Las vistas del Project (tablero, tabla por hito, roadmap) se crean desde la web: la API no permite crearlas.
+
+## Ampliación: benchmarks de consultas
+
+- El benchmark de ejemplo medía sobre `seed.sql` (11 inserts): no decía nada. Se reemplazó por 19 consultas (lecturas de los
+  cinco repositorios, vistas y dos escrituras) sobre datos de volumen en dos escalas (`temporada` y `x10`), con el
+  `EXPLAIN QUERY PLAN` de cada una capturado con `set_trace_callback`.
+- El reporte va en un **segundo comentario** de la PR (pedido de Nico), con su propia marca; el principal muestra una línea.
+- Hallazgos (detalle en `docs/info_modulo/14-benchmarks.md` §7): `SCAN partido` en los partidos de un club y `SCAN` de
+  `jugadorPartido` en el boxscore de un partido (las dos crecen lineal con cada temporada). Índices candidatos listados en
+  §7.6; **no** se agregaron: es una decisión de diseño del schema.

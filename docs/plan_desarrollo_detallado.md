@@ -1260,16 +1260,23 @@ ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` pr
     reportan son los de **Linux 3.13** (no se combinan las cinco corridas); los benchmarks son **informativos** (no están en `ci-ok`).
   - **AC16 — Resumen de la PR:** el job `resumen-pr` publica y edita un comentario con: el resultado de cada job; cobertura total
     con el delta contra la última corrida de la rama base; cobertura de las líneas cambiadas (diff-cover); tests fallidos y los 5
-    más lentos (`--junitxml`); errores de ruff y mypy; benchmarks contra la base (⚠️ si la media sube más de 20 %); la HU
-    vinculada; y un aviso si cambia `src/` sin cambiar `docs/`. No comenta en las PRs de Dependabot ni de forks (token de solo
+    más lentos (`--junitxml`); errores de ruff y mypy; una línea con el resumen de los benchmarks; la HU vinculada; y un
+    aviso si cambia `src/` sin cambiar `docs/`. No comenta en las PRs de Dependabot ni de forks (token de solo
     lectura): ahí el resumen queda en la página de la corrida. No está en `ci-ok`.
   - **AC17 — Anotaciones y dependency review:** ruff (`--output-format=github`) y mypy (problem matcher) marcan cada error sobre
     la línea del diff; `dependency-review-action` falla si la PR agrega una dependencia con vulnerabilidad moderada o peor
     (está en `ci-ok`).
   - **AC18 — Labels automáticos** (`pr-meta.yml`): por capa según las carpetas (`.github/labeler.yml`), y la épica (`H1-E2`), la
     US (`US-107`) y el milestone de la HU, encontrada por `Closes #N` o por el número de la rama.
-  - **AC19 — Benchmarks:** `pytest-benchmark` en `tests/benchmarks/`, fuera de la suite normal (`-m "not benchmark"` en
-    `pyproject.toml`); el job `benchmark` los corre en cada PR y en cada push a una rama base.
+  - **AC19 — Benchmarks de consultas:** `pytest-benchmark` en `tests/benchmarks/`, fuera de la suite normal (`-m "not
+    benchmark"` en `pyproject.toml`); el job `benchmark` los corre en cada PR y en cada push a una rama base. Miden 19
+    consultas (las lecturas de los cinco repositorios, las vistas de `views.sql` y las dos escrituras transaccionales) sobre
+    datos de volumen en dos escalas (`temporada`: 240 partidos; `x10`: 2.400) y guardan el `EXPLAIN QUERY PLAN` de cada una.
+    El reporte va en un **segundo comentario** editable (`<!-- resumen-benchmark -->`): tabla por repositorio con la mediana
+    en cada escala, el crecimiento entre escalas, el cambio de la mediana contra la base (⚠️ si sube más de 20 %) y los
+    `SCAN` de tabla completa (🆕 si son nuevos respecto de la base); más los planes y las estadísticas completas en
+    desplegables. Informativo: no está en `ci-ok`. Guía e informe de los primeros resultados:
+    `docs/info_modulo/14-benchmarks.md`.
 - **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6); un PR con título `arreglos varios` falla (AC11); un tag `v0.1.0-rc.1` genera un _pre-release_ con el `.exe`, el `.zip` y el `.deb` y sus notas (AC9); un tag que no coincide con `pyproject.toml` falla sin publicar nada (AC9); el binario abre en una máquina limpia (AC14); tests de `config/rutas.py`: la base y los logs apuntan a `~/.statspro/` (AC15).
 
 ---
