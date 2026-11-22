@@ -1,0 +1,43 @@
+name: PRMeta
+
+# Labels de la PR, sin correr los tests:
+# - por capa, segun las carpetas que toca (.github/labeler.yml);
+# - de la HU vinculada: su epica (H1-E2), su US (US-107) y su hito (milestone). Ver .github/scripts/vincular_hu.py.
+# Va aparte de MainAction porque necesita el evento "edited": agregar "Closes #N" al cuerpo vuelve a vincular.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  labels:
+    # Dependabot y las PRs desde forks reciben un token de solo lectura: no pueden poner labels
+    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write # crear los labels US-NNN la primera vez
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      # sync-labels false (el default): no saca labels que la PR ya tenga, como los de la HU
+      - name: Labels por capa
+        uses: actions/labeler@v7.0.0
+
+      - name: Labels y milestone de la HU vinculada
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          CUERPO: ${{ github.event.pull_request.body }}
+          RAMA: ${{ github.head_ref }}
+        run: python3 .github/scripts/vincular_hu.py

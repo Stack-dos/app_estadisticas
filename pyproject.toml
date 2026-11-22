@@ -25,6 +25,9 @@ dev = [
     "mypy==2.3.1",
     "pre-commit>=4.6.2",
     "actionlint-py==1.7.12.25",
+    # Resumen de la PR en el CI: cobertura de las lineas cambiadas y benchmarks (ver benchmarks/)
+    "diff-cover==11.0.4",
+    "pytest-benchmark==5.3.1",
 ]
 
 # Empaquetado con "flet build windows|linux" (US-109). La version del paquete sale de [project].version
@@ -63,6 +66,8 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF", "S"]
 [tool.ruff.lint.per-file-ignores]
 # En los tests, assert es la herramienta (S101) y las contraseñas son datos de prueba (S105/S106)
 "tests/**" = ["S101", "S105", "S106"]
+# Scripts del CI: llaman a gh/git sin shell, y a los argumentos solo llegan numeros y "US-NNN" sacados con regex
+".github/scripts/**" = ["S603", "S607"]
 
 [tool.ruff.format]
 docstring-code-format = true
@@ -78,6 +83,9 @@ explicit_package_bases = true
 # pythonpath = src: los tests importan dominio, aplicacion... directo
 pythonpath = ["src"]
 testpaths = ["tests"]
+# Los benchmarks (tests/benchmarks/) no corren con la suite normal: son lentos y su resultado depende de la maquina.
+# Se corren aparte con "-m benchmark" (el ultimo -m gana): ver RUNBOOK.md y el job "benchmark" del CI.
+addopts = ["-m", "not benchmark"]
 log_cli = true
 log_cli_level = "INFO"
 
