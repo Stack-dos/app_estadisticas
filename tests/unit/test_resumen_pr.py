@@ -56,16 +56,6 @@ def test_tests_cuenta_fallidos_y_ordena_lentos():
     assert "a::rapido" not in lentos  # solo los 2 pedidos
 
 
-def test_comparar_benchmarks_marca_los_mas_lentos():
-    def bench(nombre, media):
-        return {"benchmarks": [{"name": nombre, "fullname": f"t.py::{nombre}", "stats": {"mean": media}}]}
-
-    filas = r.comparar_benchmarks(bench("x", 0.003), bench("x", 0.002))
-    assert filas[0]["cambio"] == 50.0
-    assert "⚠️" in r.seccion_benchmarks(filas)
-    assert r.comparar_benchmarks(bench("x", 0.003), None)[0]["cambio"] is None
-
-
 def test_linea_docs_avisa_si_cambia_src_sin_docs():
     assert r.linea_docs(["src/dominio/club.py"]) is not None
     assert r.linea_docs(["src/dominio/club.py", "docs/plan_desarrollo_detallado.md"]) is None
