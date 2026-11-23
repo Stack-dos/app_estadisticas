@@ -370,6 +370,17 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 | M      | 3–5 días hábiles     |
 | L      | 6–10 días hábiles    |
 
+**Seguimiento en GitHub (desde el 2026-11-22).** Este documento es la fuente de verdad; las issues lo reflejan:
+
+- **Una issue por hito, épica e historia**, con el título `[H1]`, `[H1-E2]` o `[US-107]` y el texto de su sección de este PRD.
+  Jerarquía con **sub-issues** (hito → épica → historia) y **milestone** = hito (`M1 - v0.1` … `M4 - v1.0`).
+- **Labels:** tipo (`hito`, `epica`, `historia`, `tarea`, `bug`), épica (`H1-E1` … `H4-E4`), capa (`capa:dominio`,
+  `capa:aplicacion`, `capa:infraestructura`, `capa:ui`) y `tests`, `ci`, `docs`, `dependencias`. Los de capa y los `US-NNN`
+  los ponen solos los workflows en las PRs (US-109 AC18).
+- **Project "StatsPro – Roadmap"** (de la organización): campos _Status_ (Backlog / Todo / En curso / En review / Hecho),
+  _Prioridad_ y _Esfuerzo_ con los valores de las tablas de arriba.
+- Si cambia una historia acá (alcance, AC, estado), se actualiza su issue.
+
 ---
 
 ## 6. Reglas de Negocio Consolidadas
@@ -818,7 +829,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 #### US-105 — Interfaz Gráfica Base (Flet) y Retiro de la CLI
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, ADR-002 · **Estado:** 🔧 Implementada, falta la prueba manual guiada y el PR
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, ADR-002 · **Estado:** ✅ Hecha (PR #48)
 
 **Objetivo Funcional:** reemplazar la CLI por una aplicación de escritorio Flet como única interfaz del sistema, con su composition root, su navegación y el acceso de usuarios (registro, inicio y cierre de sesión), y retirar todo el código de la CLI.
 
@@ -877,7 +888,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 #### US-106 — Sesión Persistente ("Recordarme") y Club Activo
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-105 · **Estado:** 🔧 Implementada, falta la prueba manual guiada y el PR
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-105 · **Estado:** ✅ Hecha (PR #49)
 
 **Objetivo Funcional:** que la app recuerde la sesión entre una apertura y la siguiente cuando el usuario lo pide, y que el entrenador trabaje siempre en el contexto de un club activo elegido por él.
 
@@ -955,7 +966,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 #### US-111 — Base Visual de la GUI (tema, página y formularios)
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08 · **Estado:** 🔧 Implementada (2026-11-09), falta la prueba manual guiada y el PR
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08 · **Estado:** ✅ Hecha (PR #50)
 
 **Objetivo Funcional:** definir **una sola vez** cómo se ven las pantallas (colores, tipografía, espaciados, ancho del contenido, cómo se arma un formulario) en un tema y unos pocos componentes compartidos, y aplicarlo a las pantallas que ya existen, para que todas las que vienen (US-107, US-108, US-205, US-301...) nazcan acomodadas y parejas.
 
@@ -1014,7 +1025,7 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 
 #### US-107 — Competencias, Inscripciones y Listas de Buena Fe en Pantalla
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-111
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-111 · **Estado:** 🔧 En review (PR #52)
 
 > **Dividida el 2026-11-08.** La US-107 original creció con las categorías por competencia y se partió en dos: esta, con todo lo del torneo (competencias, categorías, inscripciones y listas de buena fe), y la **US-112**, con jugadores y partidos. Esta va primero porque crea `tabla_datos.py` y el guard `requiere_club_activo`, que la US-112 reusa.
 
@@ -1192,7 +1203,7 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 
 #### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI) · **Estado:** 🔧 Implementada (2026-11-09), probada con el pre-release `v0.1.0-rc.2`; falta la prueba en máquina limpia (AC14) y el PR
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI) · **Estado:** ✅ Hecha (PR #51), probada con el pre-release `v0.1.0-rc.2`
 - **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto; y que **publicar una versión** (desde la v0.1) sea un proceso automático y repetible: tag → tests → binarios → GitHub Release con changelog.
 
 > **Ampliada (2026-11-08):** se le suma todo el **release** de escritorio (Windows y Linux), que antes era de la US-404, para que la
@@ -1252,6 +1263,28 @@ ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` pr
   - **AC13 — SAST ✅ (2026-11-09):** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
   - **AC14 — Binario probado:** antes de publicar la v0.1, el instalador `.exe`, el `.zip` portable y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia, como Windows Sandbox): la app arranca, se registra un usuario y se crea un club.
   - **AC15 — Datos fuera de la carpeta de instalación (nuevo, 2026-11-09):** la base (`estadisticas.db`) y los logs viven en `~/.statspro/` (junto a `session.json`), con la app instalada y también en desarrollo; la carpeta se crea si no existe. La app instalada nunca escribe en su propia carpeta. ✅ (2026-11-09: `config/rutas.py` con `DATOS_DIR`; `ejecutar()` crea la carpeta antes de abrir la base; `tests/unit/test_rutas.py`.)
+  - **Ampliación (2026-11-22, rama `feature/mejora-ci`): resumen de la PR y labels.** Decisiones: **un solo comentario**
+    editable (tabla de semáforo arriba y un desplegable por tema), no uno por herramienta; la cobertura y los tests que se
+    reportan son los de **Linux 3.13** (no se combinan las cinco corridas); los benchmarks son **informativos** (no están en `ci-ok`).
+  - **AC16 — Resumen de la PR:** el job `resumen-pr` publica y edita un comentario con: el resultado de cada job; cobertura total
+    con el delta contra la última corrida de la rama base; cobertura de las líneas cambiadas (diff-cover); tests fallidos y los 5
+    más lentos (`--junitxml`); errores de ruff y mypy; una línea con el resumen de los benchmarks; la HU vinculada; y un
+    aviso si cambia `src/` sin cambiar `docs/`. No comenta en las PRs de Dependabot ni de forks (token de solo
+    lectura): ahí el resumen queda en la página de la corrida. No está en `ci-ok`.
+  - **AC17 — Anotaciones y dependency review:** ruff (`--output-format=github`) y mypy (problem matcher) marcan cada error sobre
+    la línea del diff; `dependency-review-action` falla si la PR agrega una dependencia con vulnerabilidad moderada o peor
+    (está en `ci-ok`).
+  - **AC18 — Labels automáticos** (`pr-meta.yml`): por capa según las carpetas (`.github/labeler.yml`), y la épica (`H1-E2`), la
+    US (`US-107`) y el milestone de la HU, encontrada por `Closes #N` o por el número de la rama.
+  - **AC19 — Benchmarks de consultas:** `pytest-benchmark` en `tests/benchmarks/`, fuera de la suite normal (`-m "not
+    benchmark"` en `pyproject.toml`); el job `benchmark` los corre en cada PR y en cada push a una rama base. Miden 19
+    consultas (las lecturas de los cinco repositorios, las vistas de `views.sql` y las dos escrituras transaccionales) sobre
+    datos de volumen en dos escalas (`temporada`: 240 partidos; `x10`: 2.400) y guardan el `EXPLAIN QUERY PLAN` de cada una.
+    El reporte va en un **segundo comentario** editable (`<!-- resumen-benchmark -->`): tabla por repositorio con la mediana
+    en cada escala, el crecimiento entre escalas, el cambio de la mediana contra la base (⚠️ si sube más de 20 %) y los
+    `SCAN` de tabla completa (🆕 si son nuevos respecto de la base); más los planes y las estadísticas completas en
+    desplegables. Informativo: no está en `ci-ok`. Guía e informe de los primeros resultados:
+    `docs/info_modulo/14-benchmarks.md`.
 - **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6); un PR con título `arreglos varios` falla (AC11); un tag `v0.1.0-rc.1` genera un _pre-release_ con el `.exe`, el `.zip` y el `.deb` y sus notas (AC9); un tag que no coincide con `pyproject.toml` falla sin publicar nada (AC9); el binario abre en una máquina limpia (AC14); tests de `config/rutas.py`: la base y los logs apuntan a `~/.statspro/` (AC15).
 
 ---

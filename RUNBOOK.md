@@ -174,6 +174,10 @@ uv run ruff format .                            # formatea el código           
 uv run actionlint                               # revisa los workflows de .github/workflows/                 (make run_linter_ruf)
 uv run mypy src/ --strict --explicit-package-bases   # revisión de tipos                                     (make static_check)
 
+# Benchmarks de consultas (tests/benchmarks/): la suite normal los saltea; se corren aparte (guía: docs/info_modulo/14-benchmarks.md)
+uv run pytest tests/benchmarks -m benchmark --benchmark-only
+uv run pytest tests/benchmarks -m benchmark --benchmark-only -k partido   # solo los de un repositorio
+
 # Vulnerabilidades conocidas en las dependencias: ver el comando de la sección 8
 ```
 
@@ -184,6 +188,25 @@ Aparte, `.github/workflows/titulo-pr.yml` exige que el **título del PR** siga C
 `docs: ...`): al hacer _squash_, ese título es el commit que llega a la rama y de ahí sale el changelog. Si falla, se corrige el
 título del PR (el chequeo se vuelve a correr solo); no hace falta otro push.
 En Linux la cobertura mínima es **85 %** y el reporte HTML queda para descargar (pestaña _Actions_ → la corrida → sección _Artifacts_). Además, [Dependabot](.github/dependabot.yml) abre PR cuando hay versiones nuevas de las dependencias.
+
+### Qué deja el CI en cada PR
+
+- **Un comentario de resumen** (job `resumen-pr`, armado por `.github/scripts/resumen_pr.py`), que se **edita** en cada push en
+  vez de sumar comentarios: semáforo de cada job, cobertura total con el **delta contra la rama base**, cobertura de las **líneas
+  cambiadas** (diff-cover), tests fallidos y los más lentos, errores de ruff y mypy, la **HU vinculada** y un aviso si cambió
+  `src/` sin cambiar `docs/`. En las PRs de Dependabot queda solo en la página de la corrida (su token no puede comentar).
+- **Un segundo comentario con los benchmarks de consultas**, que también se edita en cada push: tiempos en dos escalas de
+  datos, crecimiento, comparación con la rama base y plan de ejecución de cada consulta. Cómo leerlo y primeros resultados:
+  [docs/info_modulo/14-benchmarks.md](docs/info_modulo/14-benchmarks.md).
+- **Anotaciones en _Files changed_:** cada error de ruff y de mypy aparece sobre la línea del diff.
+- **Dependency review:** falla si la PR agrega una dependencia con una vulnerabilidad conocida (moderada o peor).
+- **Labels automáticos** (`.github/workflows/pr-meta.yml`): por capa según las carpetas que toca (`.github/labeler.yml`), y la
+  épica, la US y el hito (milestone) de la HU. La HU se busca por `Closes #N` en el cuerpo o, si no está, por el número de la
+  rama (`feature/us107-...` → la issue `[US-107] ...`).
+
+El delta se calcula contra la última corrida de un push a la rama base: por eso `MainAction` también corre en los push a las
+ramas de integración (`feature/epica*`, `feature/hito*`). Si la base nunca corrió (o sus artifacts vencieron, a los 90 días), el
+resumen lo dice y muestra la cobertura sin delta.
 
 ### Reglas del repositorio en GitHub
 
