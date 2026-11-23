@@ -1096,12 +1096,16 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 - **Casos de uso nuevos:** `ObtenerBoxscorePartidoUseCase` (devuelve una lista de `BoxscoreFilaDTO`) y `BuscarJugadoresPorNombreUseCase` (usa `JugadorRepositorio.buscar_por_nombre`, nuevo: busca por apellido o nombre en todos los clubes, sin distinguir mayúsculas). Sin él no hay forma de elegir en pantalla a un jugador que todavía no está en el club activo, ni de avisar que un jugador ya existe antes de darlo de alta.
 - **Repositorio extendido:** `JugadorRepositorio.buscar_por_nombre(texto)` y su versión SQLite.
 - **Repositorio:** método nuevo `PartidoRepositorio.boxscore_por_partido(id_partido)`, que lee `v_boxscore_completo` (mismo patrón que `resumen_por_club` con `v_partidos_resumen`).
+- **Edición y baja segura de jugadores (ampliación 2026-11-23):**
+  - **Repositorio:** `JugadorRepositorio` suma `actualizar(jugador)`, `jugador_en_uso(id_jugador)` y `eliminar(id_jugador)`.
+  - **Casos de uso nuevos:** `EditarJugadorUseCase` (`EditarJugadorDTO`: corrige nombre, apellido y año de nacimiento validando reglas de dominio) y `EliminarJugadorUseCase` (elimina el jugador si no tiene partidos cargados ni figura en listas de buena fe; en caso contrario lanza `JugadorEnUsoError`).
+  - **Excepción nueva** (`ErrorDeDominio`): `JugadorEnUsoError`.
 
 **Capa de Infraestructura (UI):**
 
 - Usa `tabla_datos.py`, `requiere_club_activo` (US-107), `crear_pagina`, `crear_vista_interna` y `crear_formulario` (US-111), y suma «Jugadores» y «Partidos» a `DESTINOS` del menú lateral.
 - **Pantallas** (`screens/`):
-  - `JugadoresScreen` — alta (`RegistrarJugadorUseCase`; antes de guardar muestra los jugadores con el mismo nombre, para vincular uno existente en vez de duplicarlo), listado del club activo (`ListarJugadoresClubUseCase`), buscar por nombre un jugador que todavía no está en el club (`BuscarJugadoresPorNombreUseCase`) para vincularlo al club activo (`VincularJugadorAClubUseCase`), y dar de baja (`DesvincularJugadorDeClubUseCase`).
+  - `JugadoresScreen` — alta (`RegistrarJugadorUseCase`; antes de guardar muestra los jugadores con el mismo nombre, para vincular uno existente en vez de duplicarlo), listado del club activo (`ListarJugadoresClubUseCase`), buscar por nombre un jugador que todavía no está en el club (`BuscarJugadoresPorNombreUseCase`) para vincularlo al club activo (`VincularJugadorAClubUseCase`), editar sus datos (`EditarJugadorUseCase`), dar de baja del club (`DesvincularJugadorDeClubUseCase` con confirmación) y eliminar de forma segura (`EliminarJugadorUseCase` con confirmación).
   - `PartidosScreen` — listado de partidos del club activo (`ListarPartidosPorClubUseCase`, con nombres desde `v_partidos_resumen`) y detalle con el boxscore (`ObtenerBoxscorePartidoUseCase`). Dos desplegables filtran el listado (2026-11-08): **Competencia** (solo aquellas en las que el club activo está inscripto, de `ListarInscripcionesClubUseCase`) y **Categoría** (solo las inscriptas en la competencia elegida); los dos arrancan en «Todas». El filtro se aplica sobre la lista ya cargada: los partidos de un club son pocos y no hace falta otra consulta. Desde la US-108, si el partido tiene puntos por cuarto, el detalle los muestra en una línea arriba del boxscore; si no, no muestra nada.
 
 **Criterios de Aceptación:**
