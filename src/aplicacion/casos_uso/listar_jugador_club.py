@@ -24,6 +24,8 @@ class ListarJugadoresClubUseCase:
                 nombre_completo=j.nombre_completo,
                 id=id_persistido(j.idJugador, "Jugador"),
                 anioNacimiento=j.anioNacimiento,
+                nombre=j.nombre,
+                apellido=j.apellido,
             )
             for j in lista_jugadores
         ]

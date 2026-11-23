@@ -31,6 +31,7 @@ class ListarPartidosPorClubUseCase:
                 anioCompetencia=p.anioCompetencia,
                 clubLocal=p.clubLocal,
                 clubVisitante=p.clubVisitante,
+                categoria=p.categoria,
             )
             for p in self.repo.resumen_por_club(idClub)
         ]
