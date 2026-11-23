@@ -7,13 +7,17 @@ import pytest
 from ayudantes_flet import textos
 
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
+from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
+from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeClubUseCase
+from aplicacion.casos_uso.editar_jugador import EditarJugadorUseCase
 from aplicacion.casos_uso.eliminar_categoria import EliminarCategoriaUseCase
 from aplicacion.casos_uso.eliminar_competencia import EliminarCompetenciaUseCase
 from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
+from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
 from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCategoriaEnCompetenciaUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
@@ -24,10 +28,14 @@ from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesCl
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
 from aplicacion.casos_uso.listar_lista_buena_fe import ListarListaBuenaFeUseCase
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
+from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
+from aplicacion.casos_uso.partidos_por_club import ListarPartidosPorClubUseCase
 from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeCompetenciaUseCase
 from aplicacion.casos_uso.quitar_jugador_lista import QuitarJugadorDeListaBuenaFeUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
+from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
 from aplicacion.casos_uso.vaciar_lista_buena_fe import VaciarListaBuenaFeUseCase
+from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.dtos.auth_dto import UsuarioDTO
 from aplicacion.dtos.club_dto import ClubDTO
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
@@ -51,13 +59,15 @@ def test_sin_sesion_las_rutas_publicas_se_respetan(ruta):
 
 @pytest.mark.parametrize(
     "ruta",
-    ["/", "/inicio", "/clubes", "/competencias", "/inscripciones", "/listas", "/no-existe"],
+    ["/", "/inicio", "/clubes", "/competencias", "/inscripciones", "/listas", "/jugadores", "/partidos", "/no-existe"],
 )
 def test_sin_sesion_cualquier_otra_ruta_va_al_login(ruta):
     assert resolver_ruta(ruta, autenticado=False) == "/login"
 
 
-@pytest.mark.parametrize("ruta", ["/inicio", "/clubes", "/competencias", "/inscripciones", "/listas"])
+@pytest.mark.parametrize(
+    "ruta", ["/inicio", "/clubes", "/competencias", "/inscripciones", "/listas", "/jugadores", "/partidos"]
+)
 def test_con_sesion_y_club_las_rutas_internas_se_respetan(ruta):
     assert resolver_ruta(ruta, autenticado=True, tiene_club=True) == ruta
 
@@ -82,7 +92,19 @@ def test_con_sesion_cualquier_otra_ruta_va_al_inicio(ruta):
 @pytest.mark.parametrize("autenticado", [False, True])
 @pytest.mark.parametrize(
     "ruta",
-    ["/", "/login", "/registro", "/inicio", "/clubes", "/competencias", "/inscripciones", "/listas", "/no-existe"],
+    [
+        "/",
+        "/login",
+        "/registro",
+        "/inicio",
+        "/clubes",
+        "/competencias",
+        "/inscripciones",
+        "/listas",
+        "/jugadores",
+        "/partidos",
+        "/no-existe",
+    ],
 )
 def test_el_destino_es_estable_y_no_hay_redirecciones_circulares(ruta, autenticado, tiene_club):
     destino = resolver_ruta(ruta, autenticado, tiene_club=tiene_club)
@@ -125,6 +147,14 @@ def deps():
         vaciar_lista_uc=MagicMock(spec=VaciarListaBuenaFeUseCase),
         listar_lista_uc=MagicMock(spec=ListarListaBuenaFeUseCase, **{"ejecutar.return_value": []}),
         listar_jugadores_club_uc=MagicMock(spec=ListarJugadoresClubUseCase, **{"ejecutar.return_value": []}),
+        registrar_jugador_uc=MagicMock(spec=RegistrarJugadorUseCase),
+        vincular_jugador_uc=MagicMock(spec=VincularJugadorAClubUseCase),
+        desvincular_jugador_uc=MagicMock(spec=DesvincularJugadorDeClubUseCase),
+        buscar_jugadores_uc=MagicMock(spec=BuscarJugadoresPorNombreUseCase, **{"ejecutar.return_value": []}),
+        editar_jugador_uc=MagicMock(spec=EditarJugadorUseCase),
+        eliminar_jugador_uc=MagicMock(spec=EliminarJugadorUseCase),
+        listar_partidos_uc=MagicMock(spec=ListarPartidosPorClubUseCase, **{"ejecutar.return_value": []}),
+        obtener_boxscore_uc=MagicMock(spec=ObtenerBoxscorePartidoUseCase, **{"ejecutar.return_value": []}),
     )
 
 
