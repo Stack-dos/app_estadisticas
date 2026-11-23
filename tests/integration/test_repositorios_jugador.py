@@ -1,7 +1,8 @@
 import pytest
 
+from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
 from dominio.entidades.jugador import Jugador, JugadorClub
-from dominio.exceptions import VinculoActivoExistenteError
+from dominio.exceptions import JugadorEnUsoError, VinculoActivoExistenteError
 from infraestructura.repositorios.sqlite_jugador_repositorio import SqliteJugadorRepositorio
 
 
@@ -180,3 +181,57 @@ def test_cerrar_vinculo_con_fecha_anterior_al_inicio_lo_rechaza_la_base_y_sigue_
 
     assert jugador_rep.cerrar_vinculo(jugador.idJugador, "2025-12-31") is None
     assert jugador_rep.club_activo(jugador.idJugador).idClub == 1
+
+
+def test_buscar_por_nombre_busca_en_todos_los_clubes_sin_distinguir_mayusculas_ni_tildes(db_conexion):
+    jugador_rep = SqliteJugadorRepositorio(db_conexion)
+    sin_club = jugador_rep.guardar(Jugador(nombre="Martín", apellido="Pérez", anioNacimiento=2002))
+    en_otro_club = jugador_rep.guardar(Jugador(nombre="Mateo", apellido="Perez", anioNacimiento=2001))
+    jugador_rep.link_to_club(JugadorClub("2025-01-01", None, idJugador=en_otro_club.idJugador, idClub=2))
+
+    # Busca sin tildes ni mayusculas y encuentra tanto al que tiene tildes como al vinculado en otro club
+    ids_perez = [j.idJugador for j in jugador_rep.buscar_por_nombre("perez")]
+    assert sin_club.idJugador in ids_perez
+    assert en_otro_club.idJugador in ids_perez
+
+    # Busca con tildes contra el guardado sin tildes y por nombre + apellido
+    assert [j.idJugador for j in jugador_rep.buscar_por_nombre("MARTÍN")] == [sin_club.idJugador]
+    assert [j.idJugador for j in jugador_rep.buscar_por_nombre("mateo pérez")] == [en_otro_club.idJugador]
+    assert jugador_rep.buscar_por_nombre("   ") == []
+
+
+def test_actualizar_jugador_modifica_los_datos_en_la_base(db_conexion):
+    jugador_rep = SqliteJugadorRepositorio(db_conexion)
+    guardado = jugador_rep.guardar(Jugador(nombre="Mratin", apellido="Preez", anioNacimiento=2000))
+
+    actualizado = jugador_rep.actualizar(
+        Jugador(nombre="Martín", apellido="Pérez", anioNacimiento=2001, idJugador=guardado.idJugador)
+    )
+
+    assert actualizado == Jugador(nombre="Martín", apellido="Pérez", anioNacimiento=2001, idJugador=guardado.idJugador)
+    desde_db = jugador_rep.buscar_por_id(guardado.idJugador)
+    assert desde_db == actualizado
+
+
+def test_eliminar_jugador_sin_uso_borra_jugador_y_sus_vinculos_de_club(db_conexion):
+    jugador_rep = SqliteJugadorRepositorio(db_conexion)
+    duplicado = jugador_rep.guardar(Jugador(nombre="Duplicado", apellido="Error", anioNacimiento=2003))
+    jugador_rep.link_to_club(JugadorClub("2026-01-01", None, idJugador=duplicado.idJugador, idClub=1))
+
+    assert jugador_rep.jugador_en_uso(duplicado.idJugador) is False
+    assert EliminarJugadorUseCase(jugador_rep).ejecutar(duplicado.idJugador) is True
+    assert jugador_rep.buscar_por_id(duplicado.idJugador) is None
+    assert duplicado.idJugador not in [j.idJugador for j in jugador_rep.buscar_por_club(1)]
+
+
+def test_eliminar_jugador_con_partido_o_lista_en_seed_es_rechazado(db_conexion):
+    """En seed.sql, el jugador 1 (pepe argento) tiene partido cargado y lista; el jugador 3 esta solo en lista."""
+    jugador_rep = SqliteJugadorRepositorio(db_conexion)
+    uc = EliminarJugadorUseCase(jugador_rep)
+
+    with pytest.raises(JugadorEnUsoError):
+        uc.ejecutar(1)
+    with pytest.raises(JugadorEnUsoError):
+        uc.ejecutar(3)
+    assert jugador_rep.buscar_por_id(1) is not None
+    assert jugador_rep.buscar_por_id(3) is not None
