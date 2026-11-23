@@ -164,3 +164,47 @@ def test_repo_guardar_competencia_con_categorias_es_atomica(db_conexion, id_cate
     assert resultado is None
     assert _contar(db_conexion, "SELECT COUNT(*) FROM competencia") == competencias_antes
     assert _contar(db_conexion, "SELECT COUNT(*) FROM competenciaCategoria") == habilitadas_antes
+
+
+# --- Bajas y consultas de uso en repositorio (US-107) ---
+
+
+def test_repo_consultas_de_uso_y_bajas(con_categoria_nueva):
+    repo = SqliteCompetenciaRepositorio(con_categoria_nueva)
+    assert repo.competencia_tiene_inscripciones(1) is True
+    assert repo.competencia_tiene_partidos(1) is True
+    assert repo.categoria_en_uso(1) is True
+    assert repo.categoria_en_uso(2) is False
+    assert repo.inscripcion_tiene_partidos(1) is True
+
+    # Categoria 2 sin uso se elimina; competencia nueva sin inscripciones/partidos tambien
+    assert repo.eliminar_categoria(2) is True
+    assert repo.eliminar_categoria(2) is False
+
+    nueva = repo.guardar_competencia_con_categorias(Competencia("Torneo Corto", 2026), [])
+    assert nueva is not None and nueva.idCompetencia is not None
+    assert repo.competencia_tiene_inscripciones(nueva.idCompetencia) is False
+    assert repo.competencia_tiene_partidos(nueva.idCompetencia) is False
+    assert repo.eliminar_competencia(nueva.idCompetencia) is True
+
+
+def test_repo_eliminar_inscripcion_y_vaciar_lista(db_conexion_sin_seed):
+    conexion = db_conexion_sin_seed
+    conexion.execute("INSERT INTO club (nombre) VALUES ('Atenas')")
+    conexion.execute("INSERT INTO jugador (nombre, apellido) VALUES ('Manu', 'Ginobili')")
+    conexion.execute("INSERT INTO categoria (nombre) VALUES ('U21')")
+    conexion.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026', 2026)")
+    conexion.execute("INSERT INTO competenciaCategoria (idCompetencia, idCategoria) VALUES (1, 1)")
+    conexion.execute("INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (1, 1, 1)")
+    conexion.execute("INSERT INTO listaBuenaFe (fechaPresentacion, idInscripcion) VALUES ('2026-03-01', 1)")
+    conexion.execute("INSERT INTO jugadorListaBuenaFe (idJugador, idListaBuenaFe) VALUES (1, 1)")
+    conexion.commit()
+
+    repo = SqliteCompetenciaRepositorio(conexion)
+    assert repo.inscripcion_tiene_partidos(1) is False
+    assert repo.vaciar_lista_buena_fe(1) is True
+    assert _contar(conexion, "SELECT COUNT(*) FROM jugadorListaBuenaFe") == 0
+
+    assert repo.eliminar_inscripcion(1) is True
+    assert _contar(conexion, "SELECT COUNT(*) FROM inscripcion") == 0
+    assert _contar(conexion, "SELECT COUNT(*) FROM listaBuenaFe") == 0

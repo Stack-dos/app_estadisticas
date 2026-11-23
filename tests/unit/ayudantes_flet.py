@@ -10,7 +10,20 @@ from collections.abc import Iterator
 import flet as ft
 
 # Atributos donde un control de Flet guarda a sus hijos. `content` de un boton puede ser un str: se ignora.
-_HIJOS = ("appbar", "controls", "content", "leading", "title", "subtitle", "trailing", "actions")
+_HIJOS = (
+    "appbar",
+    "controls",
+    "content",
+    "leading",
+    "title",
+    "subtitle",
+    "trailing",
+    "actions",
+    "columns",
+    "rows",
+    "cells",
+    "label",
+)
 
 
 def controles(raiz: ft.BaseControl) -> Iterator[ft.BaseControl]:
@@ -35,6 +48,10 @@ def boton(vista: ft.View, texto: str) -> ft.Button | ft.TextButton:
 
 def casilla(vista: ft.View, label: str) -> ft.Checkbox:
     return next(c for c in controles(vista) if isinstance(c, ft.Checkbox) and c.label == label)
+
+
+def desplegable(vista: ft.View, label: str) -> ft.Dropdown:
+    return next(c for c in controles(vista) if isinstance(c, ft.Dropdown) and c.label == label)
 
 
 def textos(vista: ft.View) -> list[str]:

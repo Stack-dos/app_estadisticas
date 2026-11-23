@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import flet as ft
 import pytest
-from ayudantes_flet import boton, campo, etiqueta_error, por_clave
+from ayudantes_flet import boton, campo, etiqueta_error, por_clave, textos
 
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
@@ -192,3 +192,13 @@ def test_sin_sesion_no_se_puede_construir(page, crear_club_uc, listar_clubes_uc,
         crear_clubes_view(
             page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, SessionManager(MagicMock(spec=SesionAlmacen))
         )
+
+
+def test_muestra_el_aviso_cuando_se_pasa_por_guard_de_club_activo(
+    page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, sesion
+):
+    vista = crear_clubes_view(
+        page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, sesion, aviso="Elegí un club para seguir."
+    )
+
+    assert "Elegí un club para seguir." in textos(vista)

@@ -11,6 +11,7 @@ from dominio.entidades.club import Club
 from dominio.entidades.competencia import Categoria, Competencia, Inscripcion, ListaBuenaFe
 from dominio.exceptions import (
     CategoriaNoEncontradaError,
+    CategoriaNoHabilitadaError,
     ClubNoEncontradoError,
     CompetenciaNoEncontradaError,
     InscripcionDuplicadaError,
@@ -33,18 +34,50 @@ def repo_club():
 
 
 def test_crear_competencia_devuelve_el_dto_con_el_id_asignado(repo_competencia):
-    repo_competencia.guardar_competencia.return_value = Competencia("Liga", 2026, "PROVINCIAL", idCompetencia=4)
+    repo_competencia.guardar_competencia_con_categorias.return_value = Competencia(
+        "Liga", 2026, "PROVINCIAL", idCompetencia=4
+    )
 
     resultado = CrearCompetenciaUseCase(repo_competencia).ejecutar(
         CrearCompetenciaDTO(nombre="Liga", anio=2026, tipo="PROVINCIAL")
     )
 
     assert resultado == CompetenciaDTO(idCompetencia=4, nombre="Liga", anio=2026, tipo="PROVINCIAL")
-    repo_competencia.guardar_competencia.assert_called_once_with(compe=Competencia("Liga", 2026, "PROVINCIAL"))
+    repo_competencia.guardar_competencia_con_categorias.assert_called_once_with(
+        compe=Competencia("Liga", 2026, "PROVINCIAL"), idCategorias=[]
+    )
+
+
+def test_crear_competencia_con_categorias_las_valida_y_deduplica(repo_competencia):
+    repo_competencia.obtener_categorias.return_value = [
+        Categoria("U17", idCategoria=1),
+        Categoria("U21", idCategoria=2),
+    ]
+    repo_competencia.guardar_competencia_con_categorias.return_value = Competencia("Liga", 2026, idCompetencia=4)
+
+    resultado = CrearCompetenciaUseCase(repo_competencia).ejecutar(
+        CrearCompetenciaDTO(nombre="Liga", anio=2026, idCategorias=[1, 2, 1])
+    )
+
+    assert resultado is not None
+    repo_competencia.guardar_competencia_con_categorias.assert_called_once_with(
+        compe=Competencia("Liga", 2026), idCategorias=[1, 2]
+    )
+
+
+def test_crear_competencia_con_categoria_inexistente_lanza_excepcion(repo_competencia):
+    repo_competencia.obtener_categorias.return_value = [Categoria("U17", idCategoria=1)]
+
+    with pytest.raises(CategoriaNoEncontradaError, match="idCategoria=99"):
+        CrearCompetenciaUseCase(repo_competencia).ejecutar(
+            CrearCompetenciaDTO(nombre="Liga", anio=2026, idCategorias=[1, 99])
+        )
+
+    repo_competencia.guardar_competencia_con_categorias.assert_not_called()
 
 
 def test_crear_competencia_sin_tipo_es_valido(repo_competencia):
-    repo_competencia.guardar_competencia.return_value = Competencia("Liga", 2026, idCompetencia=4)
+    repo_competencia.guardar_competencia_con_categorias.return_value = Competencia("Liga", 2026, idCompetencia=4)
 
     resultado = CrearCompetenciaUseCase(repo_competencia).ejecutar(CrearCompetenciaDTO(nombre="Liga", anio=2026))
 
@@ -53,7 +86,7 @@ def test_crear_competencia_sin_tipo_es_valido(repo_competencia):
 
 
 def test_crear_competencia_devuelve_none_si_el_repositorio_no_pudo_guardar(repo_competencia):
-    repo_competencia.guardar_competencia.return_value = None
+    repo_competencia.guardar_competencia_con_categorias.return_value = None
 
     assert CrearCompetenciaUseCase(repo_competencia).ejecutar(CrearCompetenciaDTO("Liga", 2026)) is None
 
@@ -63,7 +96,7 @@ def test_crear_competencia_con_anio_invalido_lanza_value_error_y_no_guarda(repo_
     with pytest.raises(ValueError, match="1900"):
         CrearCompetenciaUseCase(repo_competencia).ejecutar(CrearCompetenciaDTO("Liga", anio))
 
-    repo_competencia.guardar_competencia.assert_not_called()
+    repo_competencia.guardar_competencia_con_categorias.assert_not_called()
 
 
 # ------------------------------------------------------------------ InscribirClubEnCompetencia
@@ -76,16 +109,19 @@ def _dto_inscripcion(**overrides) -> InscribirClubDTO:
 
 def _preparar_inscripcion(repo_competencia, repo_club, **overrides):
     """Configura los mocks para el camino feliz; cada test pisa (override) lo que quiere romper."""
+    categorias_catalogo = [Categoria("U17", idCategoria=1), Categoria("U21", idCategoria=2)]
     config = {
         "club": Club("Atenas", idClub=1),
         "competencia": Competencia("Liga", 2026, idCompetencia=3),
-        "categorias": [Categoria("U17", idCategoria=1), Categoria("U21", idCategoria=2)],
+        "categorias": categorias_catalogo,
+        "categorias_habilitadas": categorias_catalogo,
         "inscripciones_del_club": [],
         **overrides,
     }
     repo_club.buscar_por_id.return_value = config["club"]
     repo_competencia.buscar_competencia_por_id.return_value = config["competencia"]
     repo_competencia.obtener_categorias.return_value = config["categorias"]
+    repo_competencia.obtener_categorias_de_competencia.return_value = config["categorias_habilitadas"]
     repo_competencia.obtener_inscripciones_por_club.return_value = config["inscripciones_del_club"]
 
 
@@ -119,6 +155,12 @@ def test_inscribir_club_devuelve_la_inscripcion_con_el_id_de_su_lista(repo_compe
             CategoriaNoEncontradaError,
             "idCategoria=2",
             id="categoria-inexistente",
+        ),
+        pytest.param(
+            {"categorias_habilitadas": [Categoria("U17", idCategoria=1)]},
+            CategoriaNoHabilitadaError,
+            "no esta habilitada",
+            id="categoria-no-habilitada-en-competencia",
         ),
         pytest.param(
             {"inscripciones_del_club": [Inscripcion(1, 2, 3, idInscripcion=99)]},
