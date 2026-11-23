@@ -578,3 +578,88 @@ class SqliteCompetenciaRepositorio(CompetenciaRepositorio):
             logger.error(f"Error al quitar jugador de la lista: {e}", exc_info=True)
             return False
         return cursor.rowcount > 0
+
+    def competencia_tiene_inscripciones(self, idCompetencia: int) -> bool:
+        """Indica si una competencia tiene al menos una inscripcion en cualquier categoria."""
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT EXISTS (SELECT 1 FROM inscripcion WHERE idCompetencia = ?);", (idCompetencia,))
+        return bool(cursor.fetchone()[0])
+
+    def competencia_tiene_partidos(self, idCompetencia: int) -> bool:
+        """Indica si una competencia tiene al menos un partido cargado."""
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT EXISTS (SELECT 1 FROM partido WHERE idCompetencia = ?);", (idCompetencia,))
+        return bool(cursor.fetchone()[0])
+
+    def eliminar_competencia(self, idCompetencia: int) -> bool:
+        """Elimina una competencia de la base de datos."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM competencia WHERE idCompetencia = ?;", (idCompetencia,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al eliminar competencia: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
+
+    def categoria_en_uso(self, idCategoria: int) -> bool:
+        """Indica si una categoria esta habilitada en alguna competencia o tiene inscripciones."""
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT EXISTS (SELECT 1 FROM competenciaCategoria WHERE idCategoria = ?)
+                OR EXISTS (SELECT 1 FROM inscripcion WHERE idCategoria = ?);
+            """,
+            (idCategoria, idCategoria),
+        )
+        return bool(cursor.fetchone()[0])
+
+    def eliminar_categoria(self, idCategoria: int) -> bool:
+        """Elimina una categoria del catalogo."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM categoria WHERE idCategoria = ?;", (idCategoria,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al eliminar categoria: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
+
+    def inscripcion_tiene_partidos(self, idInscripcion: int) -> bool:
+        """Indica si el club de la inscripcion ya jugo partidos en la competencia de la inscripcion."""
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM inscripcion i
+                JOIN partido p ON p.idCompetencia = i.idCompetencia
+                WHERE i.idInscripcion = ?
+                  AND (p.idClubLocal = i.idClub OR p.idClubVisitante = i.idClub)
+            );
+            """,
+            (idInscripcion,),
+        )
+        return bool(cursor.fetchone()[0])
+
+    def eliminar_inscripcion(self, idInscripcion: int) -> bool:
+        """Elimina una inscripcion y en cascada su lista de buena fe."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM inscripcion WHERE idInscripcion = ?;", (idInscripcion,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al eliminar inscripcion: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
+
+    def vaciar_lista_buena_fe(self, idListaBuenaFe: int) -> bool:
+        """Quita todos los jugadores habilitados de una lista de buena fe."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM jugadorListaBuenaFe WHERE idListaBuenaFe = ?;", (idListaBuenaFe,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al vaciar lista de buena fe: {e}", exc_info=True)
+            return False
+        return True
