@@ -141,3 +141,21 @@ class CategoriaConInscripcionesError(ErrorDeDominio):
     """Se lanza cuando se quita de una competencia una categoria que tiene clubes inscriptos (US-107)."""
 
     pass
+
+
+class CompetenciaEnUsoError(ErrorDeDominio):
+    """Se lanza cuando se intenta eliminar una competencia que tiene inscripciones o partidos (US-107)."""
+
+    pass
+
+
+class CategoriaEnUsoError(ErrorDeDominio):
+    """Se lanza cuando se intenta eliminar una categoria que esta habilitada o en uso (US-107)."""
+
+    pass
+
+
+class InscripcionEnUsoError(ErrorDeDominio):
+    """Se lanza cuando se intenta dar de baja una inscripcion de un club con partidos cargados (US-107)."""
+
+    pass
