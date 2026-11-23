@@ -5,6 +5,7 @@ from dominio.entidades.jugador import Jugador, JugadorClub
 from dominio.exceptions import VinculoActivoExistenteError
 from dominio.repositorios.jugador_repositorio import JugadorRepositorio
 from infraestructura.logger import get_logger
+from utils import normalizar_texto
 
 logger = get_logger(__name__)
 
@@ -87,6 +88,33 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
             resultado.append(j_aux)
         return resultado
 
+    def buscar_por_nombre(self, texto: str) -> list[Jugador]:
+        """
+        Busca jugadores por nombre o apellido en toda la base (sin filtrar por club).
+
+        La comparacion ignora mayusculas y tildes tanto en el texto buscado como en los datos
+        guardados, y exige que todas las palabras buscadas aparezcan en el nombre completo.
+
+        Args:
+            texto (str): Nombre, apellido o fragmento a buscar.
+
+        Returns:
+            list[Jugador]: Jugadores coincidentes ordenados por apellido y nombre.
+        """
+        terminos = normalizar_texto(texto).split()
+        if not terminos:
+            return []
+
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT idJugador, nombre, apellido, anioNacimiento FROM jugador ORDER BY apellido, nombre;")
+        coincidencias: list[Jugador] = []
+        for row in cursor.fetchall():
+            jugador = self._row_to_entity(row)
+            nombre_normalizado = normalizar_texto(jugador.nombre_completo)
+            if all(termino in nombre_normalizado for termino in terminos):
+                coincidencias.append(jugador)
+        return coincidencias
+
     def guardar(self, jugador: Jugador) -> Jugador | None:
         """Funcion que se encarga de guardar un jugador en la BD
 
@@ -122,6 +150,59 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
             logger.critical(f"""Jugador guardado (idJugador={id_jugador})
                                 pero no se pudo reconstruir el objeto de retorno: {e}""")
             raise
+
+    def actualizar(self, jugador: Jugador) -> Jugador | None:
+        """Actualiza nombre, apellido y anioNacimiento de un jugador existente.
+
+        Args:
+            jugador (Jugador): Entidad con `idJugador` asignado y los nuevos datos validados.
+
+        Returns:
+            Jugador | None: El jugador actualizado o None si no existe o falla SQLite.
+        """
+        if jugador.idJugador is None:
+            return None
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute(
+                "UPDATE jugador SET nombre = ?, apellido = ?, anioNacimiento = ? WHERE idJugador = ?;",
+                (jugador.nombre, jugador.apellido, jugador.anioNacimiento, jugador.idJugador),
+            )
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al actualizar Jugador: {e}", exc_info=True)
+            return None
+        if cursor.rowcount == 0:
+            return None
+        return Jugador(
+            nombre=jugador.nombre,
+            apellido=jugador.apellido,
+            anioNacimiento=jugador.anioNacimiento,
+            idJugador=jugador.idJugador,
+        )
+
+    def jugador_en_uso(self, id_jugador: int) -> bool:
+        """Indica si el jugador tiene estadisticas de partidos o esta en alguna lista de buena fe."""
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT EXISTS (SELECT 1 FROM jugadorPartido WHERE idJugador = ?)
+                OR EXISTS (SELECT 1 FROM jugadorListaBuenaFe WHERE idJugador = ?);
+            """,
+            (id_jugador, id_jugador),
+        )
+        return bool(cursor.fetchone()[0])
+
+    def eliminar(self, id_jugador: int) -> bool:
+        """Elimina un jugador de la base de datos (y en cascada sus vinculos sin actividad)."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM jugador WHERE idJugador = ?;", (id_jugador,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al eliminar Jugador: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
 
     def link_to_club(self, jc: JugadorClub) -> JugadorClub | None:
         """
