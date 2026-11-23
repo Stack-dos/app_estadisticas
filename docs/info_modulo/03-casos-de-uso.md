@@ -613,6 +613,10 @@ siguientes ya están implementados y testeados; la columna "Pantalla" indica qu�
 | `QuitarCategoriaDeCompetenciaUseCase`    | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si hay clubes inscriptos)                |
 | `CrearCompetenciaUseCase`                | `CompetenciasScreen` (US-107)  | ✅ Extendido y en la GUI (US-107): recibe las categorías al crear      |
 | `InscribirClubEnCompetenciaUseCase`      | `InscripcionesScreen` (US-107) | ✅ Extendido y en la GUI (US-107): rechaza una categoría no habilitada |
+| `EliminarCompetenciaUseCase`             | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si tiene inscripciones o partidos)       |
+| `EliminarCategoriaUseCase`               | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si está en uso en alguna competencia)    |
+| `EliminarInscripcionUseCase`             | `InscripcionesScreen` / `ListaBuenaFeScreen` (US-107) | ✅ En la GUI (US-107; borra también su lista 1:1 si no hay partidos) |
+| `VaciarListaBuenaFeUseCase`              | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107; quita todos los jugadores de la lista)           |
 
 Cómo abrir la aplicación y qué se puede hacer hoy: [RUNBOOK](../../RUNBOOK.md). Cómo está armada la GUI:
 [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).

@@ -94,9 +94,9 @@ Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run`
 3. **Crear clubes y elegir con cuál trabajar:** el destino "Clubes" del menú lateral abre "Mis clubes". Ahí se crea un club (queda vinculado a tu usuario) y "Usar este club"
    lo deja como **club activo**, que se ve siempre en la barra superior ("StatsPro · Atenas").
 4. **Gestionar torneos (con club activo):** el destino "Torneos" del menú lateral da acceso a:
-   - **Competencias:** crear categorías, crear competencias eligiendo sus categorías y habilitar o quitar categorías por competencia.
-   - **Inscripciones:** inscribir al club activo en una competencia y categoría habilitada (creando su lista de buena fe).
-   - **Listas de buena fe:** habilitar o quitar jugadores del club activo en cada inscripción.
+   - **Competencias:** crear categorías, crear competencias eligiendo sus categorías, habilitar o quitar categorías por competencia, filtrar por año o categoría y eliminar competencias/categorías sin uso.
+   - **Inscripciones:** inscribir al club activo en una competencia y categoría habilitada (creando su lista de buena fe), filtrar por año o categoría y dar de baja inscripciones sin partidos cargados.
+   - **Listas de buena fe:** habilitar o quitar jugadores del club activo en cada inscripción, vaciar la lista o dar de baja la inscripción.
 5. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
 
 Las pantallas para cargar jugadores y partidos llegan con las US-112 y US-108; los casos de uso ya existen (ver
