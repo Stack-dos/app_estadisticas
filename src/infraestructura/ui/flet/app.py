@@ -18,6 +18,9 @@ from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
+from aplicacion.casos_uso.eliminar_categoria import EliminarCategoriaUseCase
+from aplicacion.casos_uso.eliminar_competencia import EliminarCompetenciaUseCase
+from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
 from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCategoriaEnCompetenciaUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
@@ -32,6 +35,7 @@ from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeC
 from aplicacion.casos_uso.quitar_jugador_lista import QuitarJugadorDeListaBuenaFeUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
 from aplicacion.casos_uso.restaurar_sesion import RestaurarSesionUseCase
+from aplicacion.casos_uso.vaciar_lista_buena_fe import VaciarListaBuenaFeUseCase
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.servicios.password_hasher import PasswordHasher
@@ -87,10 +91,14 @@ class Dependencias:
     habilitar_categoria_uc: HabilitarCategoriaEnCompetenciaUseCase
     listar_categorias_comp_uc: ListarCategoriasDeCompetenciaUseCase
     quitar_categoria_uc: QuitarCategoriaDeCompetenciaUseCase
+    eliminar_competencia_uc: EliminarCompetenciaUseCase
+    eliminar_categoria_uc: EliminarCategoriaUseCase
     inscribir_club_uc: InscribirClubEnCompetenciaUseCase
     listar_inscripciones_uc: ListarInscripcionesClubUseCase
+    eliminar_inscripcion_uc: EliminarInscripcionUseCase
     agregar_jugador_lista_uc: AgregarJugadorAListaBuenaFeUseCase
     quitar_jugador_lista_uc: QuitarJugadorDeListaBuenaFeUseCase
+    vaciar_lista_uc: VaciarListaBuenaFeUseCase
     listar_lista_uc: ListarListaBuenaFeUseCase
     listar_jugadores_club_uc: ListarJugadoresClubUseCase
 
@@ -136,10 +144,14 @@ def construir_dependencias(
         habilitar_categoria_uc=HabilitarCategoriaEnCompetenciaUseCase(repo_competencia),
         listar_categorias_comp_uc=ListarCategoriasDeCompetenciaUseCase(repo_competencia),
         quitar_categoria_uc=QuitarCategoriaDeCompetenciaUseCase(repo_competencia),
+        eliminar_competencia_uc=EliminarCompetenciaUseCase(repo_competencia),
+        eliminar_categoria_uc=EliminarCategoriaUseCase(repo_competencia),
         inscribir_club_uc=InscribirClubEnCompetenciaUseCase(repo_competencia, repo_club),
         listar_inscripciones_uc=ListarInscripcionesClubUseCase(repo_competencia),
+        eliminar_inscripcion_uc=EliminarInscripcionUseCase(repo_competencia),
         agregar_jugador_lista_uc=AgregarJugadorAListaBuenaFeUseCase(repo_competencia, repo_jugador),
         quitar_jugador_lista_uc=QuitarJugadorDeListaBuenaFeUseCase(repo_competencia),
+        vaciar_lista_uc=VaciarListaBuenaFeUseCase(repo_competencia),
         listar_lista_uc=ListarListaBuenaFeUseCase(repo_competencia, repo_jugador),
         listar_jugadores_club_uc=ListarJugadoresClubUseCase(repo_jugador),
     )
@@ -222,6 +234,8 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.habilitar_categoria_uc,
             deps.listar_categorias_comp_uc,
             deps.quitar_categoria_uc,
+            deps.eliminar_competencia_uc,
+            deps.eliminar_categoria_uc,
             deps.sesion,
         ),
         RUTA_INSCRIPCIONES: lambda: crear_inscripciones_view(
@@ -231,6 +245,7 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.listar_competencias_uc,
             deps.listar_categorias_uc,
             deps.listar_categorias_comp_uc,
+            deps.eliminar_inscripcion_uc,
             deps.sesion,
         ),
         RUTA_LISTAS: lambda: crear_lista_buena_fe_view(
@@ -242,6 +257,8 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.listar_jugadores_club_uc,
             deps.agregar_jugador_lista_uc,
             deps.quitar_jugador_lista_uc,
+            deps.vaciar_lista_uc,
+            deps.eliminar_inscripcion_uc,
             deps.sesion,
         ),
     }
