@@ -91,11 +91,15 @@ Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run`
 1. **Crear una cuenta:** en "Crear cuenta", completar nombre, email y contraseña (mínimo 6 caracteres). Al registrarse, la sesión queda iniciada.
 2. **Iniciar sesión:** con el email y la contraseña. Enter en el campo de la contraseña equivale a apretar el botón.
    - **"Recordarme":** si la marcás, al cerrar y volver a abrir la app entrás directo, con el mismo club activo. Si no la marcás, al cerrar la ventana la sesión se pierde.
-3. **Crear clubes y elegir con cuál trabajar:** el botón "Clubes" de la barra superior abre "Mis clubes". Ahí se crea un club (queda vinculado a tu usuario) y "Usar este club"
+3. **Crear clubes y elegir con cuál trabajar:** el destino "Clubes" del menú lateral abre "Mis clubes". Ahí se crea un club (queda vinculado a tu usuario) y "Usar este club"
    lo deja como **club activo**, que se ve siempre en la barra superior ("StatsPro · Atenas").
-4. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
+4. **Gestionar torneos (con club activo):** el destino "Torneos" del menú lateral da acceso a:
+   - **Competencias:** crear categorías, crear competencias eligiendo sus categorías, habilitar o quitar categorías por competencia, filtrar por año o categoría y eliminar competencias/categorías sin uso.
+   - **Inscripciones:** inscribir al club activo en una competencia y categoría habilitada (creando su lista de buena fe), filtrar por año o categoría y dar de baja inscripciones sin partidos cargados.
+   - **Listas de buena fe:** habilitar o quitar jugadores del club activo en cada inscripción, vaciar la lista o dar de baja la inscripción.
+5. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
 
-Las pantallas para cargar jugadores, competencias, listas de buena fe y partidos llegan con las US-107 y US-108; los casos de uso ya existen (ver
+Las pantallas para cargar jugadores y partidos llegan con las US-112 y US-108; los casos de uso ya existen (ver
 [docs/info_modulo/03-casos-de-uso.md](docs/info_modulo/03-casos-de-uso.md)).
 
 ---
@@ -170,6 +174,10 @@ uv run ruff format .                            # formatea el código           
 uv run actionlint                               # revisa los workflows de .github/workflows/                 (make run_linter_ruf)
 uv run mypy src/ --strict --explicit-package-bases   # revisión de tipos                                     (make static_check)
 
+# Benchmarks de consultas (tests/benchmarks/): la suite normal los saltea; se corren aparte (guía: docs/info_modulo/14-benchmarks.md)
+uv run pytest tests/benchmarks -m benchmark --benchmark-only
+uv run pytest tests/benchmarks -m benchmark --benchmark-only -k partido   # solo los de un repositorio
+
 # Vulnerabilidades conocidas en las dependencias: ver el comando de la sección 8
 ```
 
@@ -180,6 +188,25 @@ Aparte, `.github/workflows/titulo-pr.yml` exige que el **título del PR** siga C
 `docs: ...`): al hacer _squash_, ese título es el commit que llega a la rama y de ahí sale el changelog. Si falla, se corrige el
 título del PR (el chequeo se vuelve a correr solo); no hace falta otro push.
 En Linux la cobertura mínima es **85 %** y el reporte HTML queda para descargar (pestaña _Actions_ → la corrida → sección _Artifacts_). Además, [Dependabot](.github/dependabot.yml) abre PR cuando hay versiones nuevas de las dependencias.
+
+### Qué deja el CI en cada PR
+
+- **Un comentario de resumen** (job `resumen-pr`, armado por `.github/scripts/resumen_pr.py`), que se **edita** en cada push en
+  vez de sumar comentarios: semáforo de cada job, cobertura total con el **delta contra la rama base**, cobertura de las **líneas
+  cambiadas** (diff-cover), tests fallidos y los más lentos, errores de ruff y mypy, la **HU vinculada** y un aviso si cambió
+  `src/` sin cambiar `docs/`. En las PRs de Dependabot queda solo en la página de la corrida (su token no puede comentar).
+- **Un segundo comentario con los benchmarks de consultas**, que también se edita en cada push: tiempos en dos escalas de
+  datos, crecimiento, comparación con la rama base y plan de ejecución de cada consulta. Cómo leerlo y primeros resultados:
+  [docs/info_modulo/14-benchmarks.md](docs/info_modulo/14-benchmarks.md).
+- **Anotaciones en _Files changed_:** cada error de ruff y de mypy aparece sobre la línea del diff.
+- **Dependency review:** falla si la PR agrega una dependencia con una vulnerabilidad conocida (moderada o peor).
+- **Labels automáticos** (`.github/workflows/pr-meta.yml`): por capa según las carpetas que toca (`.github/labeler.yml`), y la
+  épica, la US y el hito (milestone) de la HU. La HU se busca por `Closes #N` en el cuerpo o, si no está, por el número de la
+  rama (`feature/us107-...` → la issue `[US-107] ...`).
+
+El delta se calcula contra la última corrida de un push a la rama base: por eso `MainAction` también corre en los push a las
+ramas de integración (`feature/epica*`, `feature/hito*`). Si la base nunca corrió (o sus artifacts vencieron, a los 90 días), el
+resumen lo dice y muestra la cobertura sin delta.
 
 ### Reglas del repositorio en GitHub
 

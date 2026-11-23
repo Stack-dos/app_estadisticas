@@ -2,6 +2,7 @@ from aplicacion.dtos.competencia_dto import InscribirClubDTO, InscripcionDTO
 from dominio.entidades.competencia import Inscripcion
 from dominio.exceptions import (
     CategoriaNoEncontradaError,
+    CategoriaNoHabilitadaError,
     ClubNoEncontradoError,
     CompetenciaNoEncontradaError,
     InscripcionDuplicadaError,
@@ -34,6 +35,7 @@ class InscribirClubEnCompetenciaUseCase:
             ClubNoEncontradoError: Si el club no existe.
             CompetenciaNoEncontradaError: Si la competencia no existe.
             CategoriaNoEncontradaError: Si la categoria no existe.
+            CategoriaNoHabilitadaError: Si la categoria no esta habilitada en la competencia.
             InscripcionDuplicadaError: Si el club ya esta inscripto en esa competencia y categoria.
 
         Returns:
@@ -48,6 +50,13 @@ class InscribirClubEnCompetenciaUseCase:
         categorias = self.repo_competencia.obtener_categorias()
         if not any(c.idCategoria == dto.idCategoria for c in categorias):
             raise CategoriaNoEncontradaError(f"No existe una categoria con idCategoria={dto.idCategoria}")
+
+        habilitadas = self.repo_competencia.obtener_categorias_de_competencia(dto.idCompetencia)
+        if not any(c.idCategoria == dto.idCategoria for c in habilitadas):
+            raise CategoriaNoHabilitadaError(
+                f"La categoria (idCategoria={dto.idCategoria}) no esta habilitada en la competencia "
+                f"(idCompetencia={dto.idCompetencia})"
+            )
 
         # La tabla inscripcion no tiene UNIQUE(club, categoria, competencia): la regla se valida acá.
         inscripciones = self.repo_competencia.obtener_inscripciones_por_club(dto.idClub)

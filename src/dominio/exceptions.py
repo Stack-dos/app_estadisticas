@@ -123,3 +123,39 @@ class VinculoActivoExistenteError(ErrorDeDominio):
     """Se lanza cuando se intenta registrar un jugador en un club nuevo cuando todavia tiene un club."""
 
     pass
+
+
+class CategoriaNoHabilitadaError(ErrorDeDominio):
+    """Se lanza cuando se inscribe a un club en una categoria que la competencia no juega (US-107)."""
+
+    pass
+
+
+class CategoriaYaHabilitadaError(ErrorDeDominio):
+    """Se lanza cuando se habilita en una competencia una categoria que ya juega (US-107)."""
+
+    pass
+
+
+class CategoriaConInscripcionesError(ErrorDeDominio):
+    """Se lanza cuando se quita de una competencia una categoria que tiene clubes inscriptos (US-107)."""
+
+    pass
+
+
+class CompetenciaEnUsoError(ErrorDeDominio):
+    """Se lanza cuando se intenta eliminar una competencia que tiene inscripciones o partidos (US-107)."""
+
+    pass
+
+
+class CategoriaEnUsoError(ErrorDeDominio):
+    """Se lanza cuando se intenta eliminar una categoria que esta habilitada o en uso (US-107)."""
+
+    pass
+
+
+class InscripcionEnUsoError(ErrorDeDominio):
+    """Se lanza cuando se intenta dar de baja una inscripcion de un club con partidos cargados (US-107)."""
+
+    pass

@@ -20,20 +20,27 @@ from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
 from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeClubUseCase
+from aplicacion.casos_uso.eliminar_categoria import EliminarCategoriaUseCase
+from aplicacion.casos_uso.eliminar_competencia import EliminarCompetenciaUseCase
+from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
+from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCategoriaEnCompetenciaUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
+from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
 from aplicacion.casos_uso.listar_lista_buena_fe import ListarListaBuenaFeUseCase
 from aplicacion.casos_uso.partidos_por_club import ListarPartidosPorClubUseCase
+from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeCompetenciaUseCase
 from aplicacion.casos_uso.quitar_jugador_lista import QuitarJugadorDeListaBuenaFeUseCase
 from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
+from aplicacion.casos_uso.vaciar_lista_buena_fe import VaciarListaBuenaFeUseCase
 from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.dtos.categoria_dto import CrearCategoriaDTO
 from aplicacion.dtos.club_dto import CrearClubDTO, DesvincularJugadorDTO, VincularJugadorClubDTO
-from aplicacion.dtos.competencia_dto import CrearCompetenciaDTO, InscribirClubDTO
+from aplicacion.dtos.competencia_dto import CategoriaCompetenciaDTO, CrearCompetenciaDTO, InscribirClubDTO
 from aplicacion.dtos.jugador_dto import CrearJugadorDTO
 from aplicacion.dtos.lista_buena_fe_dto import AgregarJugadorListaDTO, QuitarJugadorListaDTO
 from dominio.exceptions import ErrorDeDominio
@@ -75,6 +82,13 @@ def _casos_de_uso(conexion: sqlite3.Connection) -> SimpleNamespace:
         listar_lista=ListarListaBuenaFeUseCase(competencia, jugador),
         quitar_de_lista=QuitarJugadorDeListaBuenaFeUseCase(competencia),
         listar_partidos=ListarPartidosPorClubUseCase(SqlitePartidoRepositorio(conexion)),
+        habilitar_categoria=HabilitarCategoriaEnCompetenciaUseCase(competencia),
+        listar_categorias_comp=ListarCategoriasDeCompetenciaUseCase(competencia),
+        quitar_categoria_comp=QuitarCategoriaDeCompetenciaUseCase(competencia),
+        eliminar_competencia=EliminarCompetenciaUseCase(competencia),
+        eliminar_categoria=EliminarCategoriaUseCase(competencia),
+        eliminar_inscripcion=EliminarInscripcionUseCase(competencia),
+        vaciar_lista=VaciarListaBuenaFeUseCase(competencia),
     )
 
 
@@ -107,6 +121,7 @@ def _inscribir_club_1(uc: SimpleNamespace) -> None:
     uc.registrar_jugador.ejecutar(CrearJugadorDTO(nombre="A", apellido="B", anioNacimiento=1990))
     uc.crear_competencia.ejecutar(CrearCompetenciaDTO(nombre="Liga", anio=2026))
     uc.crear_categoria.ejecutar(CrearCategoriaDTO(nombre="U21"))
+    uc.habilitar_categoria.ejecutar(CategoriaCompetenciaDTO(idCompetencia=1, idCategoria=1))
     uc.inscribir.ejecutar(InscribirClubDTO(idClub=1, idCategoria=1, idCompetencia=1, fechaPresentacion="2026-03-01"))
 
 
@@ -142,6 +157,8 @@ def test_flujo_completo_de_punta_a_punta(uc):
     assert [c.nombre for c in uc.listar_categorias.ejecutar()] == ["U21"]
     assert [c.nombre for c in uc.listar_competencias.ejecutar()] == ["Liga"]
 
+    uc.habilitar_categoria.ejecutar(CategoriaCompetenciaDTO(idCompetencia=1, idCategoria=1))
+    assert [c.nombre for c in uc.listar_categorias_comp.ejecutar(1)] == ["U21"]
     inscripcion = uc.inscribir.ejecutar(
         InscribirClubDTO(idClub=1, idCategoria=1, idCompetencia=1, fechaPresentacion="2026-03-01")
     )
@@ -281,6 +298,42 @@ def _sin_preparacion(uc: SimpleNamespace) -> None:
             lambda uc: uc.quitar_de_lista.ejecutar(QuitarJugadorListaDTO(idInscripcion=1, idJugador=1)),
             "no esta en la lista de buena fe",
             id="quitar de la lista a quien no esta",
+        ),
+        pytest.param(
+            _inscribir_club_1,
+            lambda uc: uc.quitar_categoria_comp.ejecutar(CategoriaCompetenciaDTO(idCompetencia=1, idCategoria=1)),
+            "tiene clubes inscriptos",
+            id="quitar categoria con clubes inscriptos",
+        ),
+        pytest.param(
+            _inscribir_club_1,
+            lambda uc: uc.habilitar_categoria.ejecutar(CategoriaCompetenciaDTO(idCompetencia=1, idCategoria=1)),
+            "ya esta habilitada",
+            id="habilitar categoria duplicada en competencia",
+        ),
+        pytest.param(
+            lambda uc: (
+                uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT),
+                uc.crear_competencia.ejecutar(CrearCompetenciaDTO(nombre="Liga", anio=2026)),
+                uc.crear_categoria.ejecutar(CrearCategoriaDTO(nombre="U21")),
+            ),
+            lambda uc: uc.inscribir.ejecutar(
+                InscribirClubDTO(idClub=1, idCategoria=1, idCompetencia=1, fechaPresentacion="2026-03-01")
+            ),
+            "no esta habilitada",
+            id="inscribir en categoria no habilitada",
+        ),
+        pytest.param(
+            _inscribir_club_1,
+            lambda uc: uc.eliminar_competencia.ejecutar(1),
+            "tiene clubes inscriptos",
+            id="eliminar competencia con inscripciones",
+        ),
+        pytest.param(
+            _inscribir_club_1,
+            lambda uc: uc.eliminar_categoria.ejecutar(1),
+            "esta en uso",
+            id="eliminar categoria en uso",
         ),
     ],
 )

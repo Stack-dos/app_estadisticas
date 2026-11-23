@@ -15,7 +15,7 @@ from aplicacion.servicios.session_manager import SessionManager
 from infraestructura.ui.flet.components.formulario import crear_formulario
 from infraestructura.ui.flet.components.pagina import crear_pagina, crear_vista_interna
 from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostrando_errores
-from infraestructura.ui.flet.estilo import ESPACIO
+from infraestructura.ui.flet.estilo import ESPACIO, RADIO
 
 SIN_CLUBES = "Todavía no tenés clubes. Creá el primero."
 EN_USO = "✓ En uso"
@@ -28,6 +28,8 @@ def crear_clubes_view(
     listar_clubes_uc: ListarClubesUsuarioUseCase,
     cambiar_club_uc: CambiarClubActivoUseCase,
     sesion: SessionManager,
+    *,
+    aviso: str | None = None,
 ) -> ft.View:
     """
     Arma la pantalla de clubes. Solo se construye con sesion iniciada (lo garantiza la ruta protegida).
@@ -38,6 +40,7 @@ def crear_clubes_view(
         listar_clubes_uc (ListarClubesUsuarioUseCase): Los clubes del usuario ("mis clubes").
         cambiar_club_uc (CambiarClubActivoUseCase): Valida que el club elegido sea del usuario.
         sesion (SessionManager): De ahi sale el usuario; guarda el club activo elegido.
+        aviso (str | None): Aviso opcional mostrado cuando otra pantalla redirigio por falta de club activo.
 
     Returns:
         ft.View: La pantalla, para la ruta "/clubes".
@@ -97,5 +100,16 @@ def crear_clubes_view(
         ],
         spacing=ESPACIO,
     )
-    contenido = crear_pagina("Mis clubes", [lista], lateral=alta)
+    controles_principales: list[ft.Control] = []
+    if aviso:
+        controles_principales.append(
+            ft.Container(
+                content=ft.Text(aviso, color=ft.Colors.ON_SECONDARY_CONTAINER),
+                bgcolor=ft.Colors.SECONDARY_CONTAINER,
+                padding=ESPACIO,
+                border_radius=RADIO,
+            )
+        )
+    controles_principales.append(lista)
+    contenido = crear_pagina("Mis clubes", controles_principales, lateral=alta)
     return crear_vista_interna(page, sesion, "/clubes", contenido)

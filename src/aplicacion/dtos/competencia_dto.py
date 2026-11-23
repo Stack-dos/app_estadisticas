@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -8,6 +8,15 @@ class CrearCompetenciaDTO:
     nombre: str
     anio: int
     tipo: str | None = None
+    idCategorias: list[int] = field(default_factory=list)
+
+
+@dataclass
+class CategoriaCompetenciaDTO:
+    "Entra y sale de Habilitar/QuitarCategoriaEnCompetenciaUseCase"
+
+    idCompetencia: int
+    idCategoria: int
 
 
 @dataclass

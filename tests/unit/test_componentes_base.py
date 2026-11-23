@@ -150,3 +150,11 @@ def test_elegir_un_destino_navega_a_su_ruta(page, destino):
     menu.on_change()
 
     page.navigate.assert_called_once_with(destino.ruta)
+
+
+@pytest.mark.parametrize("ruta", ["/competencias", "/inscripciones", "/listas"])
+def test_las_subrutas_de_torneos_marcan_el_destino_torneos(page, ruta):
+    menu = crear_menu_lateral(page, ruta)
+
+    assert menu.selected_index is not None
+    assert DESTINOS[menu.selected_index].texto == "Torneos"

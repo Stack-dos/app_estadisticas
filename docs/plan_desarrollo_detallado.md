@@ -45,13 +45,10 @@
 11. [Hito 3 — Visualización Pro y Reporting (v0.3)](#11-hito-3--visualización-pro-y-reporting-v03)
 12. [Hito 4 — Interfaz Multiplataforma y Entrega (v1.0)](#12-hito-4--interfaz-multiplataforma-y-entrega-v10)
 13. [Definición de "Hecho" (DoD)](#13-definición-de-hecho-dod)
-14. [Catálogo Técnico de Criticidad](#14-catálogo-técnico-de-criticidad)
-15. [Proceso de Liberación de Versiones](#15-proceso-de-liberación-de-versiones)
-16. [Roadmap Futuro (Hitos 5–9, visión de producto)](#16-roadmap-futuro-hitos-59-visión-de-producto)
-17. [Estructura de Repositorios](#17-estructura-de-repositorios)
-18. [ADRs Pendientes — tabla de bloqueo por hito](#18-adrs-pendientes--tabla-de-bloqueo-por-hito)
-19. [Convenciones rápidas](#19-convenciones-rápidas)
-20. [Estado real del código vs. plan (hallazgos)](#20-estado-real-del-código-vs-plan-hallazgos)
+14. [Proceso de Liberación de Versiones](#15-proceso-de-liberación-de-versiones)
+15. [Roadmap Futuro (Hitos 5–9, visión de producto)](#16-roadmap-futuro-hitos-59-visión-de-producto)
+16. [ADRs Pendientes — tabla de bloqueo por hito](#18-adrs-pendientes--tabla-de-bloqueo-por-hito)
+17. [Convenciones rápidas](#19-convenciones-rápidas)
 
 ---
 
@@ -372,6 +369,17 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 | S      | 1–2 días hábiles     |
 | M      | 3–5 días hábiles     |
 | L      | 6–10 días hábiles    |
+
+**Seguimiento en GitHub (desde el 2026-11-22).** Este documento es la fuente de verdad; las issues lo reflejan:
+
+- **Una issue por hito, épica e historia**, con el título `[H1]`, `[H1-E2]` o `[US-107]` y el texto de su sección de este PRD.
+  Jerarquía con **sub-issues** (hito → épica → historia) y **milestone** = hito (`M1 - v0.1` … `M4 - v1.0`).
+- **Labels:** tipo (`hito`, `epica`, `historia`, `tarea`, `bug`), épica (`H1-E1` … `H4-E4`), capa (`capa:dominio`,
+  `capa:aplicacion`, `capa:infraestructura`, `capa:ui`) y `tests`, `ci`, `docs`, `dependencias`. Los de capa y los `US-NNN`
+  los ponen solos los workflows en las PRs (US-109 AC18).
+- **Project "StatsPro – Roadmap"** (de la organización): campos _Status_ (Backlog / Todo / En curso / En review / Hecho),
+  _Prioridad_ y _Esfuerzo_ con los valores de las tablas de arriba.
+- Si cambia una historia acá (alcance, AC, estado), se actualiza su issue.
 
 ---
 
@@ -804,8 +812,6 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 #### Ajuste previo a la US-105 — Quitar el DNI de los jugadores
 
-> **No es una historia de usuario:** es un cambio chico sobre código ya terminado (US-101 a US-103) que conviene hacer antes de seguir, para no arrastrarlo. Va en su propia rama, por ejemplo `feature/quitar-dni-jugador`. No es un `hotfix/`: según la sección 15, esas ramas son para bugs en producción y salen de `main`, y todavía no hay ninguna versión entregada.
-
 - **Decisión (2026-10-31):** los jugadores **no tienen DNI**. No aporta a las estadísticas, los archivos de la CAB no lo traen (US-201, US-206) y pedirlo obligaba a inventar DNIs para los jugadores rivales. Un jugador se identifica por apellido y nombre dentro de su club. El año de nacimiento pasa a ser opcional por el mismo motivo.
 - **Esfuerzo:** S (1-2 días) · **Dependencias:** ninguna · **Lo hace:** la Pista B en la ronda 1, después del `SessionManager` (ver "Plan de trabajo en paralelo").
 - **Qué cambia:**
@@ -823,7 +829,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 #### US-105 — Interfaz Gráfica Base (Flet) y Retiro de la CLI
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, ADR-002 · **Estado:** 🔧 Implementada, falta la prueba manual guiada y el PR
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-104, ADR-002 · **Estado:** ✅ Hecha (PR #48)
 
 **Objetivo Funcional:** reemplazar la CLI por una aplicación de escritorio Flet como única interfaz del sistema, con su composition root, su navegación y el acceso de usuarios (registro, inicio y cierre de sesión), y retirar todo el código de la CLI.
 
@@ -880,18 +886,9 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 - _Integración:_ flujo registro → login → `SessionManager.iniciar_sesion` con DB `:memory:` y repositorios reales.
 - _Manual guiado:_ en Windows (y en Linux si hay entorno gráfico), abrir la app, registrarse, iniciar sesión, cerrar sesión y probar cada error del AC2.
 
-**Reparto en dos pistas** (ronda 1, ver "Plan de trabajo en paralelo"):
-
-- **Pista B (primero, ~1 día):** `SessionManager` en memoria con sus tests unitarios — la Pista A
-  lo necesita para conectar el login. Después, el test de integración registro → login → sesión.
-- **Pista A:** esqueleto Flet, `app.py` con la tabla de rutas, `errores.py`, `LoginScreen`,
-  `RegistroScreen` e `InicioScreen`; retiro de la CLI y de `scripts/`, smoke test nuevo del CI y
-  la documentación que describía la CLI.
-- **Juntos, antes de empezar:** versión de Flet y cómo se testean las pantallas.
-
 #### US-106 — Sesión Persistente ("Recordarme") y Club Activo
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-105 · **Estado:** 🔧 Implementada, falta la prueba manual guiada y el PR
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-105 · **Estado:** ✅ Hecha (PR #49)
 
 **Objetivo Funcional:** que la app recuerde la sesión entre una apertura y la siguiente cuando el usuario lo pide, y que el entrenador trabaje siempre en el contexto de un club activo elegido por él.
 
@@ -969,7 +966,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 #### US-111 — Base Visual de la GUI (tema, página y formularios)
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08 · **Estado:** 🔧 Implementada (2026-11-09), falta la prueba manual guiada y el PR
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08 · **Estado:** ✅ Hecha (PR #50)
 
 **Objetivo Funcional:** definir **una sola vez** cómo se ven las pantallas (colores, tipografía, espaciados, ancho del contenido, cómo se arma un formulario) en un tema y unos pocos componentes compartidos, y aplicarlo a las pantallas que ya existen, para que todas las que vienen (US-107, US-108, US-205, US-301...) nazcan acomodadas y parejas.
 
@@ -996,7 +993,7 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 
 **Opciones que se compararon:**
 
-- **Muestrario en lugar de bocetos (2026-11-08):** las combinaciones se comparan en un muestrario interactivo (https://claude.ai/artifact/PSH4GU5MA6kVn5s5bZbFZb): 9 propuestas aplicadas a 23 pantallas del PRD (las de hoy, gestión, carga e importación de partidos con su vista previa, estadísticas, gráficos, scouting, perfil y los informes PDF). Se elige ahí y la elección queda escrita en esta US y en la guía 13:
+- **Muestrario en lugar de bocetos (2026-11-08):** las combinaciones se comparan en un muestrario interactivo: 9 propuestas aplicadas a 23 pantallas del PRD (las de hoy, gestión, carga e importación de partidos con su vista previa, estadísticas, gráficos, scouting, perfil y los informes PDF). Se elige ahí y la elección queda escrita en esta US y en la guía 13:
   - **Color:** semilla de Material 3 (`ft.Theme(color_scheme_seed=...)`) y su **variante**: «tonal» (lo que hace Flet por defecto, baja la saturación) o «fiel a la semilla» (mantiene el color tal cual; en Flet probablemente con `ft.ColorScheme(primary=...)`, a confirmar). Con el naranja del logo, «tonal» da botones color ladrillo.
   - **Formato** (tarjetas, columna limpia o menú lateral con `ft.NavigationRail`), **densidad**, **estilo de tablas** (lo usa `tabla_datos.py`, US-107), **campos**, **botón principal**, **esquinas** y **letra**.
 - **Dónde viven las imágenes:** Flet sirve imágenes desde la carpeta que se pasa como `assets_dir`, y `flet build` (US-109 para escritorio, US-404 para Android) la busca en `src/assets/`. Recomendado: mover ahí `public/logo/` y dejar en `public/` solo el original de referencia.
@@ -1026,39 +1023,11 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 - _Las existentes:_ toda la suite de pantallas sigue en verde (AC4). Los ayudantes de `tests/unit/ayudantes_flet.py` recorren el árbol de controles completo, así los tests no dependen de cómo está anidada la pantalla; lo único que cambió en ellos es cómo encuentran la lista de clubes (por su `key`) y que la navegación se prueba en el menú, no en la barra.
 - _Manual guiado:_ recorrer login → registro → inicio → clubes en 1366×768 y maximizada, en claro y en oscuro, y comparar con el muestrario.
 
-**Reparto en dos pistas:**
-
-- **Juntos, primero:** los bocetos y la decisión del color; son el contrato entre las dos pistas.
-- **Pista A:** `estilo.py`, `crear_pagina` y `crear_formulario`, con sus tests.
-- **Pista B:** el repaso de las cuatro pantallas, en cuanto los componentes estén mergeados; la guía visual (AC5).
-
-**Archivos:**
-
-```text
-src/assets/
-├── logo/                     ← isotipo, versión blanca e ícono (movidos desde public/logo/)
-└── fuentes/                  ← IBMPlexSans.ttf y su licencia OFL.txt
-src/config/rutas.py           ← + ASSETS_DIR
-src/infraestructura/ui/flet/
-├── estilo.py                 ← nuevo: tema, espaciados, anchos, logo, ventana
-├── app.py                    ← aplicar_tema(page) y assets_dir en ejecutar()
-├── barra_superior.py         ← sin Inicio ni Clubes (pasaron al menú)
-├── components/
-│   ├── pagina.py             ← nuevo: crear_pagina, crear_vista_interna, crear_vista_acceso
-│   ├── formulario.py         ← nuevo
-│   └── menu_lateral.py       ← nuevo
-└── screens/                  ← login, registro, inicio y clubes usan los componentes
-
-tests/unit/ayudantes_flet.py          ← recorren el árbol de controles completo
-tests/unit/test_componentes_base.py   ← nuevo
-docs/info_modulo/13-gui-flet-y-eventos.md   ← + sección 16: guía visual y conceptos nuevos
-```
-
 #### US-107 — Competencias, Inscripciones y Listas de Buena Fe en Pantalla
 
-**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-111
+**Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-103, US-106, US-111 · **Estado:** 🔧 En review (PR #52)
 
-> **Dividida el 2026-11-08.** La US-107 original («Pantallas de Gestión Administrativa», L) creció con las categorías por competencia y se partió en dos: esta, con todo lo del torneo (competencias, categorías, inscripciones y listas de buena fe), y la **US-112**, con jugadores y partidos. Esta va primero porque crea `tabla_datos.py` y el guard `requiere_club_activo`, que la US-112 reusa.
+> **Dividida el 2026-11-08.** La US-107 original creció con las categorías por competencia y se partió en dos: esta, con todo lo del torneo (competencias, categorías, inscripciones y listas de buena fe), y la **US-112**, con jugadores y partidos. Esta va primero porque crea `tabla_datos.py` y el guard `requiere_club_activo`, que la US-112 reusa.
 
 **Objetivo Funcional:** gestionar desde la GUI las competencias, sus categorías, las inscripciones del club activo y sus listas de buena fe, sobre los casos de uso de la US-103.
 
@@ -1071,72 +1040,44 @@ docs/info_modulo/13-gui-flet-y-eventos.md   ← + sección 16: guía visual y co
 **Capa de Aplicación:**
 
 - **Categorías por competencia (2026-11-08):**
-  - **Repositorio:** `CompetenciaRepositorio` (que ya maneja categorías e inscripciones) suma `habilitar_categoria(idCompetencia, idCategoria)`, `obtener_categorias_de_competencia(idCompetencia)`, `quitar_categoria(idCompetencia, idCategoria)` y `guardar_competencia_con_categorias(competencia, idCategorias)`, que guarda la competencia y sus categorías en **una transacción** (mismo patrón que `guardar_con_entrenador` de la US-106).
+  - **Repositorio:** `CompetenciaRepositorio` (que ya maneja categorías e inscripciones) suma `habilitar_categoria(idCompetencia, idCategoria)`, `obtener_categorias_de_competencia(idCompetencia)`, `quitar_categoria(idCompetencia, idCategoria)` y `guardar_competencia_con_categorias(competencia, idCategorias)`, que guarda la competencia y sus categorías en **una transacción** (mismo patrón que `guardar_con_entrenador` de la US-106). ✅ (2026-11-14) Se suma un quinto método, `tiene_inscripciones(idCompetencia, idCategoria)`, para que `QuitarCategoriaDeCompetenciaUseCase` lance `CategoriaConInscripcionesError` consultando antes de borrar (misma convención que `InscripcionDuplicadaError`: el repositorio devuelve `bool` o `None` y el caso de uso lanza la excepción), en vez de adivinar el motivo del `False` de `quitar_categoria`.
   - **Casos de uso nuevos:** `HabilitarCategoriaEnCompetenciaUseCase`, `ListarCategoriasDeCompetenciaUseCase` y `QuitarCategoriaDeCompetenciaUseCase` (rechaza si la categoría ya tiene clubes inscriptos en esa competencia).
   - **Casos de uso extendidos:** `CrearCompetenciaUseCase` acepta las categorías al crear (`CrearCompetenciaDTO.idCategorias`, lista que puede venir vacía); `InscribirClubEnCompetenciaUseCase` rechaza una categoría no habilitada en la competencia.
   - **Excepciones nuevas** (`ErrorDeDominio`): `CategoriaNoHabilitadaError` (inscribir en una categoría que la competencia no juega), `CategoriaYaHabilitadaError` y `CategoriaConInscripcionesError` (quitar una categoría con clubes inscriptos).
   - **Base de datos:** tabla `competenciaCategoria (idCompetencia, idCategoria)`, con clave primaria compuesta y FK a las dos tablas. Además, `inscripcion` suma una **FK compuesta** `(idCompetencia, idCategoria) → competenciaCategoria`, para que la base tampoco acepte una inscripción en una categoría no habilitada aunque alguien se saltee el caso de uso. `seed.sql` habilita sus categorías antes de inscribir. Como en la US-108 con `partido.idCategoria`: se cambia `schema.sql` y cada integrante borra y recrea su base local (todavía no hay versión entregada; las migraciones son de la US-204).
+- **Bajas seguras y vaciado (ampliación 2026-11-23):**
+  - **Repositorio:** `CompetenciaRepositorio` suma `competencia_tiene_inscripciones(idCompetencia)`, `competencia_tiene_partidos(idCompetencia)`, `eliminar_competencia(idCompetencia)`, `categoria_en_uso(idCategoria)`, `eliminar_categoria(idCategoria)`, `inscripcion_tiene_partidos(idInscripcion)`, `eliminar_inscripcion(idInscripcion)` y `vaciar_lista_buena_fe(idListaBuenaFe)`.
+  - **Casos de uso nuevos:** `EliminarCompetenciaUseCase` (rechaza si tiene inscripciones o partidos), `EliminarCategoriaUseCase` (rechaza si está habilitada en alguna competencia o tiene inscripciones), `EliminarInscripcionUseCase` (da de baja la inscripción y en cascada su lista 1:1, rechazando si el club ya tiene partidos cargados en esa competencia) y `VaciarListaBuenaFeUseCase` (quita todos los jugadores habilitados de una lista sin dar de baja la inscripción).
+  - **Excepciones nuevas** (`ErrorDeDominio`): `CompetenciaEnUsoError`, `CategoriaEnUsoError` e `InscripcionEnUsoError`.
 
 **Capa de Infraestructura (UI):**
 
-- **Componente compartido:** `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados, también los de la US-112. Reemplaza a `formatters/table_formatter.py` de la CLI. Toma colores y espaciados de `estilo.py` (US-111), con **filas alternadas** (lo elegido en el muestrario): una fila sí y otra no con fondo `SURFACE_CONTAINER_LOW`.
-- **Menú lateral:** cada sección nueva suma su fila a `DESTINOS` en `components/menu_lateral.py` (US-111): «Torneos» lleva a competencias, inscripciones y listas.
+- **Componentes compartidos:**
+  - `components/tabla_datos.py` — tabla reutilizable (encabezados + filas a partir de DTOs) que usan todos los listados, también los de la US-112. Reemplaza a `formatters/table_formatter.py` de la CLI. Toma colores y espaciados de `estilo.py` (US-111), con **filas alternadas** (lo elegido en el muestrario): una fila sí y otra no con fondo `SURFACE_CONTAINER_LOW`.
+  - `components/subnav_torneos.py` — barra de sub-navegación por ruta entre `/competencias`, `/inscripciones` y `/listas`, manteniendo las tres pantallas desacopladas (AC1).
+  - `components/confirmacion.py` — diálogo modal de confirmación (`pedir_confirmacion`) para acciones destructivas (bajas y vaciado de listas).
+- **Menú lateral:** cada sección nueva suma su fila a `DESTINOS` en `components/menu_lateral.py` (US-111): «Torneos» lleva a `/competencias` y se mantiene marcado en `/inscripciones` y `/listas`.
 - **Guard `requiere_club_activo`** (postergado desde la US-106): las pantallas de esta US y de las US-112 y US-108 sin club activo llevan a `ClubesScreen` con un aviso.
 - **Base visual:** todas las pantallas usan `crear_pagina` y sus formularios `crear_formulario` (US-111), siguiendo la guía visual de la guía 13.
 - **Pantallas** (`screens/`):
-  - `CompetenciasScreen` — alta y listado de competencias y de categorías (`CrearCompetenciaUseCase`, `ListarCompetenciasUseCase`, `CrearCategoriaUseCase`, `ListarCategoriasUseCase`). Al crear una competencia se eligen sus categorías del catálogo; en el listado, cada competencia muestra sus categorías y permite habilitar otra o quitar una (`HabilitarCategoriaEnCompetenciaUseCase`, `QuitarCategoriaDeCompetenciaUseCase`).
-  - `InscripcionesScreen` — inscribir al club activo en una competencia y categoría (`InscribirClubEnCompetenciaUseCase`) y listar sus inscripciones (`ListarInscripcionesClubUseCase`). El desplegable de categoría muestra solo las habilitadas en la competencia elegida (`ListarCategoriasDeCompetenciaUseCase`).
-  - `ListaBuenaFeScreen` — habilitar y quitar jugadores de la lista de una inscripción y verla (`AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`). Los jugadores se eligen entre los del club activo (`ListarJugadoresClubUseCase`).
+  - `CompetenciasScreen` — alta, listado, filtros en memoria por **Año** y **Categoría**, y eliminación con confirmación de competencias y de categorías (`CrearCompetenciaUseCase`, `ListarCompetenciasUseCase`, `CrearCategoriaUseCase`, `ListarCategoriasUseCase`, `EliminarCompetenciaUseCase`, `EliminarCategoriaUseCase`). Al crear una competencia se eligen sus categorías del catálogo; en la pantalla se muestran sus categorías habilitadas y permite habilitar otra o quitar una (`HabilitarCategoriaEnCompetenciaUseCase`, `QuitarCategoriaDeCompetenciaUseCase`).
+  - `InscripcionesScreen` — inscribir al club activo en una competencia y categoría (`InscribirClubEnCompetenciaUseCase`), listar sus inscripciones (`ListarInscripcionesClubUseCase`), filtrarlas en memoria por **Año** y **Categoría**, y dar de baja inscripciones con confirmación (`EliminarInscripcionUseCase`). El desplegable de categoría muestra solo las habilitadas en la competencia elegida (`ListarCategoriasDeCompetenciaUseCase`).
+  - `ListaBuenaFeScreen` — habilitar y quitar jugadores de la lista de una inscripción, verla, vaciar la lista o dar de baja la inscripción con confirmación (`AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`, `VaciarListaBuenaFeUseCase`, `EliminarInscripcionUseCase`). Los jugadores se eligen entre los del club activo (`ListarJugadoresClubUseCase`).
 
 **Criterios de Aceptación:**
 
 - **AC1 — Pantallas desacopladas:** agregar una pantalla solo requiere crear su archivo en `screens/` y registrarla en la tabla de rutas de `app.py`, sin modificar otras pantallas (el equivalente del AC1 de la vieja US-107 para la CLI). Vale también para la US-112 y las siguientes.
 - **AC2 — Sin IDs a mano:** competencia, categoría, inscripción y jugadores del club se eligen de listas desplegables cargadas desde los casos de uso de listado; el club es siempre el club activo (US-106).
-- **AC3 — Errores de negocio:** toda excepción de dominio (jugador ya en lista, inscripción duplicada, categoría no habilitada, etc.) se muestra junto al formulario con el manejador común de la US-105.
+- **AC3 — Errores de negocio:** toda excepción de dominio (jugador ya en lista, inscripción duplicada, categoría no habilitada, baja rechazada por datos asociados, etc.) se muestra junto al formulario o tabla con el manejador común de la US-105.
 - **AC4 — Sesión:** todas las pantallas de esta US exigen sesión y club activo (guard de la US-105 y `requiere_club_activo`).
 - **AC5 — Categorías por competencia:** una competencia se crea con sus categorías en una sola transacción; se puede habilitar otra o quitar una sin inscriptos; inscribir en una categoría no habilitada lanza `CategoriaNoHabilitadaError` desde el caso de uso, y la FK compuesta la rechaza también desde la base.
+- **AC6 — Bajas seguras y filtros:** eliminar competencias, categorías o inscripciones y vaciar listas pide confirmación previa; los casos de uso rechazan la baja si existen inscripciones, partidos o usos vinculados; los listados de competencias e inscripciones se pueden filtrar en memoria por año y categoría.
 
 **Testing Mínimo:**
 
-- _Unitarias:_ las funciones puras que convierten DTOs en filas de `tabla_datos`; los tres casos de uso de categorías por competencia y la validación nueva de `InscribirClubEnCompetenciaUseCase` (categoría habilitada, no habilitada, quitar con y sin inscriptos).
-- _Integración:_ `guardar_competencia_con_categorias` guarda todo o nada; un `INSERT` directo en `inscripcion` con una categoría no habilitada falla por la FK compuesta. Los demás casos de uso ya tienen sus tests desde la US-103. Los tests de integración de la US-103 que insertan inscripciones directo tienen que habilitar antes la categoría (la FK compuesta los rompería).
-- _Manual guiado:_ recorrido club → competencia con sus categorías → inscripción → lista de buena fe (con los jugadores de `seed.sql`), probando al menos un error de negocio en cada pantalla.
-
-**Reparto en dos pistas:**
-
-- **Pista B, ronda 1:** la tabla `competenciaCategoria`, sus métodos de repositorio y sus casos de uso (AC5), con sus tests, **antes** de `CompetenciasScreen` e `InscripcionesScreen`.
-- **Pista A, ronda 2:** `tabla_datos.py` y `requiere_club_activo` **primero** (los usan la Pista B y la US-112).
-- **Pista B, ronda 2:** `CompetenciasScreen`, `InscripcionesScreen` y `ListaBuenaFeScreen`.
-
-**Archivos:**
-
-```text
-src/aplicacion/
-├── casos_uso/habilitar_categoria_competencia.py
-├── casos_uso/listar_categorias_competencia.py
-├── casos_uso/quitar_categoria_competencia.py
-├── casos_uso/crear_competencia.py            ← + categorías al crear
-├── casos_uso/inscribir_club_competencia.py    ← + categoría habilitada
-└── dtos/competencia_dto.py         ← CrearCompetenciaDTO + idCategorias
-
-src/dominio/exceptions.py                                      ← + CategoriaNoHabilitadaError, CategoriaYaHabilitadaError, CategoriaConInscripcionesError
-src/dominio/repositorios/competencia_repositorio.py            ← + categorías por competencia
-src/infraestructura/repositorios/sqlite_competencia_repositorio.py ← + categorías por competencia
-src/infraestructura/persistencia/sql/schema.sql                ← + competenciaCategoria, FK compuesta en inscripcion
-src/infraestructura/persistencia/sql/seed.sql                  ← habilita las categorías antes de inscribir
-
-src/infraestructura/ui/flet/
-├── app.py                      ← resolver_ruta + club activo (requiere_club_activo)
-├── components/tabla_datos.py
-└── screens/
-    ├── competencias_screen.py
-    ├── inscripciones_screen.py
-    └── lista_buena_fe_screen.py
-
-tests/unit/test_tabla_datos.py
-tests/unit/test_uc_categorias_competencia.py
-tests/integration/test_competencia_categoria.py
-```
+- _Unitarias:_ las funciones puras que convierten DTOs en filas de `tabla_datos` y las funciones puras de filtrado por año y categoría; los casos de uso de categorías por competencia y de baja/vaciado; la validación nueva de `InscribirClubEnCompetenciaUseCase`; y cada pantalla sin ventana (incluyendo confirmaciones y filtros).
+- _Integración:_ `guardar_competencia_con_categorias` guarda todo o nada; un `INSERT` directo en `inscripcion` con una categoría no habilitada falla por la FK compuesta; flujo completo con bajas y errores de uso sobre SQLite real. Los tests de integración de la US-103 que insertan inscripciones directo tienen que habilitar antes la categoría (la FK compuesta los rompería).
+- _Manual guiado:_ recorrido club → competencia con sus categorías → filtros → inscripción → lista de buena fe → bajas/vaciado con confirmación, probando al menos un error de negocio en cada pantalla.
 
 #### US-112 — Jugadores y Partidos en Pantalla
 
@@ -1175,33 +1116,6 @@ tests/integration/test_competencia_categoria.py
 - _Unitarias:_ `ObtenerBoxscorePartidoUseCase` y `BuscarJugadoresPorNombreUseCase` con repositorio mock.
 - _Integración:_ `ObtenerBoxscorePartidoUseCase` contra `v_boxscore_completo` con `seed.sql`; `buscar_por_nombre` sin distinguir mayúsculas ni tildes de más.
 - _Manual guiado:_ alta de un jugador con un nombre que ya existe (vincular en vez de duplicar) → baja → partidos filtrados por competencia y categoría → boxscore.
-
-**Reparto en dos pistas:**
-
-- **Pista B, ronda 1:** `buscar_por_nombre` y `BuscarJugadoresPorNombreUseCase`, `boxscore_por_partido` y `ObtenerBoxscorePartidoUseCase`, con sus tests (no necesitan la GUI).
-- **Pista A, ronda 2:** `JugadoresScreen` y `PartidosScreen`, apenas la US-107 mergea `tabla_datos.py`.
-
-**Archivos:**
-
-```text
-src/aplicacion/
-├── casos_uso/obtener_boxscore_partido.py
-├── casos_uso/buscar_jugadores_nombre.py
-└── dtos/partido_dto.py             ← + BoxscoreFilaDTO
-
-src/dominio/repositorios/partido_repositorio.py                ← + boxscore_por_partido
-src/infraestructura/repositorios/sqlite_partido_repositorio.py ← + boxscore_por_partido
-src/dominio/repositorios/jugador_repositorio.py                ← + buscar_por_nombre
-src/infraestructura/repositorios/sqlite_jugador_repositorio.py ← + buscar_por_nombre
-
-src/infraestructura/ui/flet/screens/
-├── jugadores_screen.py
-└── partidos_screen.py
-
-tests/unit/test_uc_boxscore.py
-tests/unit/test_uc_buscar_jugador.py
-tests/integration/test_boxscore_vista.py
-```
 
 #### US-108 — Carga Atómica de Partido (CargarPartido)
 
@@ -1265,34 +1179,6 @@ tests/integration/test_boxscore_vista.py
 - **Pista A:** `CargaPartidoScreen` y `components/puntos_por_cuarto.py`, programados contra los DTOs acordados (puede arrancar con un
   caso de uso falso hasta que la Pista B mergee el real).
 
-**Archivos a crear o modificar:**
-
-```text
-src/dominio/entidades/partido.py              ← Partido + idCategoria
-src/infraestructura/persistencia/sql/
-├── schema.sql                                ← partido.idCategoria y partidoCuarto (cada uno recrea su base local)
-└── views.sql                                 ← v_partidos_resumen + categoría
-src/infraestructura/repositorios/
-├── sqlite_partido_repositorio.py             ← guarda y lee idCategoria
-└── sqlite_club_repositorio.py                ← + listar_todos
-src/aplicacion/
-├── dtos/partido_dto.py     ← se extiende: PartidoDTO (carga), BoxscoreDTO, EstadisticaInputDTO, CuartoDTO
-└── casos_uso/
-    ├── cargar_partido.py
-    ├── listar_clubes.py
-    └── crear_club.py       ← idUsuario opcional
-
-src/infraestructura/ui/flet/screens/
-└── carga_partido_screen.py
-src/infraestructura/ui/flet/components/
-└── puntos_por_cuarto.py   ← bloque opcional, lo reusa la vista previa de la US-201
-
-tests/unit/
-└── test_uc_cargar_partido.py
-tests/integration/
-└── test_cargar_partido_flujo.py
-```
-
 #### US-110 — Monitoreo y Trazabilidad Operativa
 
 - **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-107, US-108
@@ -1302,19 +1188,6 @@ tests/integration/
   - **Pista B (trabajo suelto, cualquier ronda):** núcleo — `ExecutionContext`, formato JSON, redacción de secretos (AC3) y selección de sink (AC4), con sus tests unitarios.
   - **Pista A (ronda 4):** conectar los eventos a las acciones de las pantallas y a los casos de uso de la lista de eventos obligatorios, y el test de integración del `correlation_id`.
   - **Juntos, antes:** los nombres de los campos del evento (`accion`, `correlation_id`, resultado, duración), que son el contrato entre las dos pistas.
-- **Archivos a crear:**
-
-```text
-src/infraestructura/logging/
-├── logger_config.py       ← configuración de sinks (local-file / Seq)
-
-src/aplicacion/servicios/
-└── execution_context.py   ← genera correlation_id UUIDv4 y propaga contexto
-
-tests/unit/
-├── test_execution_context.py
-└── test_logging_redaction.py
-```
 
 - **Eventos de log obligatorios:** inicio/fin de cada acción del usuario (pantalla, acción, resultado y duración); `LoginLocalUseCase`/cierre de sesión, `SessionManager.set_active_club` (US-104/106), fallos de autenticación; inicio/fin de transacciones críticas (`CargarPartidoUseCase` de US-108; importación Excel y backup/restore cuando existan, US-201 y US-402); creación/actualización de entidades principales; excepciones de dominio y errores de infraestructura, clasificados por severidad.
 - **Criterios de Aceptación:**
@@ -1330,7 +1203,7 @@ tests/unit/
 
 #### US-109 — Entorno de Desarrollo y Pipeline CI/CD
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI) · **Estado:** 🔧 Implementada (2026-11-09), probada con el pre-release `v0.1.0-rc.2`; falta la prueba en máquina limpia (AC14) y el PR
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105 (los binarios empaquetan la GUI) · **Estado:** ✅ Hecha (PR #51), probada con el pre-release `v0.1.0-rc.2`
 - **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto; y que **publicar una versión** (desde la v0.1) sea un proceso automático y repetible: tag → tests → binarios → GitHub Release con changelog.
 
 > **Ampliada (2026-11-08):** se le suma todo el **release** de escritorio (Windows y Linux), que antes era de la US-404, para que la
@@ -1362,39 +1235,12 @@ tests/unit/
 >
 > **Spike de `flet build` (2026-11-09, workflow temporal `spike-build.yml`, ya borrado: lo reemplazó `release.yml`):** compila en
 > `windows-latest` y `ubuntu-latest` sin instalar nada a mano (Flet baja Flutter solo con `--yes`; Linux necesita `clang cmake
-> ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` probado en Windows abre, crea `~/.statspro/` con la base y
+ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` probado en Windows abre, crea `~/.statspro/` con la base y
 > funciona. Hallazgos para `release.yml`: (1) `PYTHONUTF8=1` en el paso del build, si no flet-cli se cae en Windows al reenviar el `√`
 > de Flutter (`UnicodeEncodeError` con cp1252) y no copia el resultado; (2) el paquete lleva **su propio Python 3.14**, no el del runner
 > (ya probado por la matriz de `tests-linux`); (3) va todo compilado a `.pyc`, con `src/assets/` y los `.sql` adentro; (4) se excluye
 > `statspro_basketball.egg-info` (`[tool.flet.app] exclude`); (5) nada de `| head` en los pasos de bash (con `pipefail`, el
 > "Broken pipe" hace fallar el paso).
-
-- **Archivos a crear/existentes:**
-
-```text
-.github/workflows/MainAction.yml  ✅ existe
-.github/actions/style/{ruff,mypy}/action.yml                   ✅ existen
-.github/actions/coverage/{linux,windows,docker}/action.yml     ✅ existen
-.github/dependabot.yml          ✅ existe (uv, github-actions y docker; semanal)
-.pre-commit-config.yaml         ✅ existe   ← hook de actionlint ✅ (AC12, 2026-11-09; actionlint-py fijado en el grupo dev)
-pyproject.toml                  ✅ existe   ← reglas "S" de ruff ✅ (AC13, 2026-11-09) · falta [tool.flet] para flet build (AC9)
-Makefile                        ✅ existe
-
-.github/workflows/MainAction.yml  ← actionlint en el job lint ✅ y sin el comentario de gitleaks ✅ (2026-11-09)
-.github/workflows/titulo-pr.yml  ✅ nuevo (2026-11-09): título del PR en Conventional Commits (AC11)
-src/config/rutas.py             ✅ base y logs en ~/.statspro/ (AC15) + tests/unit/test_rutas.py
-.github/workflows/release.yml   ✅ nuevo (2026-11-09): se dispara con el tag vX.Y.Z (AC9); probado con v0.1.0-rc.2
-empaquetado/windows/statspro.iss  ✅ nuevo: script de Inno Setup que arma el instalador .exe (AC9)
-empaquetado/linux/armar_deb.sh    ✅ nuevo: arma el .deb (/opt/statspro, /usr/bin/statspro, acceso directo e ícono) (AC9)
-empaquetado/linux/statspro.desktop ✅ nuevo: acceso directo del menú de Linux
-.gitattributes                  ✅ nuevo: *.sh y *.desktop siempre en LF (con CRLF, bash falla)
-cliff.toml                      ✅ nuevo (2026-11-09): configuración de git-cliff, secciones en castellano (AC10)
-CHANGELOG.md                    ✅ nuevo (2026-11-09): Keep a Changelog, generado con git-cliff (AC10)
-Makefile                        ← + make changelog VERSION=X.Y.Z ✅
-RUNBOOK.md                      ✅ sección 11 "Sacar una versión" (instalar, merge por PR, paso a paso, si falla) y migración de la base
-README.md                       ✅ sección "Descargar" y el título del PR en Conventional Commits
-docs/info_modulo/13-gui-flet-y-eventos.md  ✅ sección 17: empaquetar con flet build
-```
 
 - **Criterios de Aceptación:**
   - **AC1.** `make run_test` ejecuta la suite completa y falla si la cobertura baja del piso de `[tool.coverage.report]` de `pyproject.toml` (`fail_under = 60`). El job de Linux del CI exige además **85 %** (parámetro `cobertura-minima`; cumple el ≥ 80 % pedido) y guarda el reporte HTML como _artifact_.
@@ -1417,6 +1263,28 @@ docs/info_modulo/13-gui-flet-y-eventos.md  ✅ sección 17: empaquetar con flet 
   - **AC13 — SAST ✅ (2026-11-09):** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
   - **AC14 — Binario probado:** antes de publicar la v0.1, el instalador `.exe`, el `.zip` portable y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia, como Windows Sandbox): la app arranca, se registra un usuario y se crea un club.
   - **AC15 — Datos fuera de la carpeta de instalación (nuevo, 2026-11-09):** la base (`estadisticas.db`) y los logs viven en `~/.statspro/` (junto a `session.json`), con la app instalada y también en desarrollo; la carpeta se crea si no existe. La app instalada nunca escribe en su propia carpeta. ✅ (2026-11-09: `config/rutas.py` con `DATOS_DIR`; `ejecutar()` crea la carpeta antes de abrir la base; `tests/unit/test_rutas.py`.)
+  - **Ampliación (2026-11-22, rama `feature/mejora-ci`): resumen de la PR y labels.** Decisiones: **un solo comentario**
+    editable (tabla de semáforo arriba y un desplegable por tema), no uno por herramienta; la cobertura y los tests que se
+    reportan son los de **Linux 3.13** (no se combinan las cinco corridas); los benchmarks son **informativos** (no están en `ci-ok`).
+  - **AC16 — Resumen de la PR:** el job `resumen-pr` publica y edita un comentario con: el resultado de cada job; cobertura total
+    con el delta contra la última corrida de la rama base; cobertura de las líneas cambiadas (diff-cover); tests fallidos y los 5
+    más lentos (`--junitxml`); errores de ruff y mypy; una línea con el resumen de los benchmarks; la HU vinculada; y un
+    aviso si cambia `src/` sin cambiar `docs/`. No comenta en las PRs de Dependabot ni de forks (token de solo
+    lectura): ahí el resumen queda en la página de la corrida. No está en `ci-ok`.
+  - **AC17 — Anotaciones y dependency review:** ruff (`--output-format=github`) y mypy (problem matcher) marcan cada error sobre
+    la línea del diff; `dependency-review-action` falla si la PR agrega una dependencia con vulnerabilidad moderada o peor
+    (está en `ci-ok`).
+  - **AC18 — Labels automáticos** (`pr-meta.yml`): por capa según las carpetas (`.github/labeler.yml`), y la épica (`H1-E2`), la
+    US (`US-107`) y el milestone de la HU, encontrada por `Closes #N` o por el número de la rama.
+  - **AC19 — Benchmarks de consultas:** `pytest-benchmark` en `tests/benchmarks/`, fuera de la suite normal (`-m "not
+    benchmark"` en `pyproject.toml`); el job `benchmark` los corre en cada PR y en cada push a una rama base. Miden 19
+    consultas (las lecturas de los cinco repositorios, las vistas de `views.sql` y las dos escrituras transaccionales) sobre
+    datos de volumen en dos escalas (`temporada`: 240 partidos; `x10`: 2.400) y guardan el `EXPLAIN QUERY PLAN` de cada una.
+    El reporte va en un **segundo comentario** editable (`<!-- resumen-benchmark -->`): tabla por repositorio con la mediana
+    en cada escala, el crecimiento entre escalas, el cambio de la mediana contra la base (⚠️ si sube más de 20 %) y los
+    `SCAN` de tabla completa (🆕 si son nuevos respecto de la base); más los planes y las estadísticas completas en
+    desplegables. Informativo: no está en `ci-ok`. Guía e informe de los primeros resultados:
+    `docs/info_modulo/14-benchmarks.md`.
 - **Testing Mínimo:** manual — push a rama feature dispara el workflow; error de lint intencional hace fallar CI; cobertura por debajo del umbral hace fallar CI con mensaje explicativo; un PR con un job en rojo no puede mergearse (AC6); un PR con título `arreglos varios` falla (AC11); un tag `v0.1.0-rc.1` genera un _pre-release_ con el `.exe`, el `.zip` y el `.deb` y sus notas (AC9); un tag que no coincide con `pyproject.toml` falla sin publicar nada (AC9); el binario abre en una máquina limpia (AC14); tests de `config/rutas.py`: la base y los logs apuntan a `~/.statspro/` (AC15).
 
 ---
@@ -2168,7 +2036,7 @@ por el DT para tomar decisiones tácticas antes, durante y después del partido.
     (US-202). Toda tabla de promedios lleva la columna PJ y el aviso de muestra chica (sección 6).
   - **AC8 — Mismo estilo que la app:** color principal, letra y logo salen de `estilo.py` (US-111).
     El informe va siempre en claro, aunque la app esté en modo oscuro, porque se imprime. El aspecto
-    objetivo está en el muestrario de la US-111 (https://claude.ai/artifact/PSH4GU5MA6kVn5s5bZbFZb).
+    objetivo está en el muestrario de la US-111.
 - **Testing Mínimo:** generación exitosa de un PDF completo desde un `idPartido` con datos
   semilla (válido, no corrupto, abre con lector estándar); nombre de archivo y ruta esperados;
   ruta sin permisos → excepción controlada. Una tabla que ocupa dos páginas repite el encabezado
@@ -2459,7 +2327,6 @@ tests/unit/test_credential_policy.py
 > **Empaquetado decidido en la US-109 (2026-11-09):** `flet build`. Windows y Linux ya salen en cada
 > release (`.exe` instalador con Inno Setup, `.zip` portable y `.deb`); acá se suma el `.apk` al
 > mismo release (y macOS, si se decide), con la misma herramienta.
-
 > **iOS fuera de alcance (decisión 2026-10-03):** el NFR-1 pedía también iOS 14+, pero esta US
 > nunca tuvo ningún AC para IPA y el propio plan listaba `build_ios.py` sin más contexto.
 > Compilar y firmar una app iOS exige una Mac + Xcode, y distribuirla fuera de un entorno de
@@ -2618,11 +2485,3 @@ fuentes, por si se prefiere consultar esta vista en vez de la de "Registro de De
 - **Interfaces de repositorio:** el proyecto usa `ABC`/`@abstractmethod` en la práctica, **no** `typing.Protocol` como sugiere `docs/info_modulo/07-protocolos.md` (que compara ambas). Ambas son válidas — vale un ADR corto para dejarlo asentado.
 - **Logging:** `infraestructura/logger.py` ya implementado (rotación 10MB, 5 backups, nivel INFO+ a archivo) — ver `docs/info_modulo/01-logger.md`. Es la base sobre la que debería crecer la US-110 (JSON estructurado + `correlation_id`), no un reemplazo.
 - **Análisis estático:** el proyecto usa `ruff` en la práctica (`pyproject.toml`, `.github/workflows/MainAction.yml`), no `flake8`/`pylint` como sugería el borrador original del Acuerdo de Ingeniería (sección 5) — ya reflejado arriba.
-
----
-
-## 20. Estado real del código vs. plan (hallazgos)
-
-### Nuevo — investigación de mercado para las estadísticas multi-dimensionales (2026-08-17)
-
-Antes de sumar las ideas de estadísticas de jugador/equipo con distintos recortes (partido, competencia, año, global, comparativas) a US-202/203/301/303, se investigaron apps reales de analítica de básquet para no proponer a ciegas — confirma que estos ejes son estándar en la categoría, no sobrealcance: filtros por partido/temporada/período personalizado, comparativas jugador vs. jugador y equipo vs. equipo con distintos operadores (promedio, mediana, total), y "performance trends" (evolución de una métrica en el tiempo, vía media móvil). Fuentes: [Hudl Assist — Basketball](https://www.hudl.com/products/assist/basketball), [Hoopsalytics](https://hoopsalytics.com/), [Viziball](https://viziball.app/nba/en), [Basketball Stats Assistant](https://basketballstatsassistant.com/en/). El detalle de qué se agregó a cada US está en las propias US-202, US-203, US-301 y US-303 (Hito 2 y 3).

@@ -46,6 +46,7 @@ def test_database_schema(db_conexion_sin_seed):
         "jugador",
         "jugadorClub",
         "competencia",
+        "competenciaCategoria",
         "inscripcion",
         "listaBuenaFe",
         "jugadorListaBuenaFe",
@@ -296,11 +297,14 @@ def test_foreign_key_behavior(db_conexion_sin_seed):
     cursor.execute("INSERT INTO club (nombre) VALUES ('Atenas')")
     cursor.execute("INSERT INTO categoria (nombre) VALUES ('U21')")
     cursor.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026', 2026)")
+    cursor.execute("INSERT INTO competenciaCategoria (idCompetencia, idCategoria) VALUES (1, 1)")  # US-107
     cursor.execute("INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (1, 1, 1)")
 
-    # 1. CASCADE: Al borrar competencia, se debe borrar la inscripción automáticamente
+    # 1. CASCADE: Al borrar competencia, se borran la inscripción y sus categorías habilitadas automáticamente
     cursor.execute("DELETE FROM competencia WHERE idCompetencia = 1")
     cursor.execute("SELECT COUNT(*) FROM inscripcion WHERE idCompetencia = 1")
+    assert cursor.fetchone()[0] == 0
+    cursor.execute("SELECT COUNT(*) FROM competenciaCategoria WHERE idCompetencia = 1")
     assert cursor.fetchone()[0] == 0
 
     # 2. RESTRICT: No se puede borrar un club si tiene registros en jugadorPartido

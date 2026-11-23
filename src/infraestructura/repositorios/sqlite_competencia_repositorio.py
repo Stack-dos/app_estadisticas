@@ -98,6 +98,40 @@ class SqliteCompetenciaRepositorio(CompetenciaRepositorio):
                                 pero no se pudo reconstruir el objeto de retorno: {e}""")
             raise
 
+    def guardar_competencia_con_categorias(self, compe: Competencia, idCategorias: list[int]) -> Competencia | None:
+        """Guarda una competencia y habilita sus categorias en una unica transaccion atomica.
+
+        Utiliza el context manager de sqlite3 (COMMIT al salir sin error, ROLLBACK ante cualquier excepcion):
+        si una categoria no existe (la rechaza la FK) o esta repetida en la lista (la rechaza la PK compuesta),
+        la competencia tampoco queda guardada.
+
+        Args:
+            compe (Competencia): Entidad Competencia a guardar (sin ID).
+            idCategorias (list[int]): IDs de las categorias que juega. Puede venir vacia.
+
+        Returns:
+            Competencia | None: La competencia guardada con su ID, o None si ocurre un error.
+        """
+        try:
+            with self.conexion:
+                cursor = self.conexion.cursor()
+                cursor.execute(
+                    "INSERT INTO competencia (nombre,anio,tipo) VALUES (?,?,?);", (compe.nombre, compe.anio, compe.tipo)
+                )
+                idCompetencia = cursor.lastrowid
+                if idCompetencia is None:
+                    raise sqlite3.DatabaseError("SQLite no devolvio el id de la competencia recien insertada")
+                # Un mismo INSERT, una fila por categoria: [(5, 2), (5, 3)] inserta (5, 2) y despues (5, 3)
+                cursor.executemany(
+                    "INSERT INTO competenciaCategoria (idCompetencia, idCategoria) VALUES (?, ?);",
+                    [(idCompetencia, idCategoria) for idCategoria in idCategorias],
+                )
+        except sqlite3.Error as e:
+            logger.error(f"Error al guardar la competencia con sus categorias: {e}", exc_info=True)
+            return None
+
+        return Competencia(nombre=compe.nombre, anio=compe.anio, tipo=compe.tipo, idCompetencia=idCompetencia)
+
     def buscar_competencia_por_id(self, idCompetencia: int) -> Competencia | None:
         """Funcion que se encarga de buscar una competencia por su ID
 
@@ -180,6 +214,91 @@ class SqliteCompetenciaRepositorio(CompetenciaRepositorio):
             aux = self._row_to_entity_Categoria(r)
             lista_categorias.append(aux)
         return lista_categorias
+
+    def habilitar_categoria(self, idCompetencia: int, idCategoria: int) -> bool:
+        """Habilita una categoria en una competencia (fila nueva en competenciaCategoria).
+
+        Args:
+            idCompetencia (int): ID de la competencia.
+            idCategoria (int): ID de la categoria a habilitar.
+
+        Returns:
+            bool: True si se habilito. False si ya estaba habilitada, si alguna de las dos no existe
+            o si ocurre un error.
+        """
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO competenciaCategoria (idCompetencia, idCategoria) VALUES (?, ?);",
+                (idCompetencia, idCategoria),
+            )
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al habilitar la categoria en la competencia: {e}", exc_info=True)
+            return False
+        return True
+
+    def obtener_categorias_de_competencia(self, idCompetencia: int) -> list[Categoria]:
+        """Devuelve las categorias que juega una competencia, ordenadas por nombre.
+
+        Args:
+            idCompetencia (int): ID de la competencia.
+
+        Returns:
+            list[Categoria]: Categorias habilitadas en la competencia. Lista vacia si no tiene o si no existe.
+        """
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT c.idCategoria, c.nombre
+            FROM categoria c
+            JOIN competenciaCategoria cc ON cc.idCategoria = c.idCategoria
+            WHERE cc.idCompetencia = ?
+            ORDER BY c.nombre;
+            """,
+            (idCompetencia,),
+        )
+        return [self._row_to_entity_Categoria(row) for row in cursor.fetchall()]
+
+    def quitar_categoria(self, idCompetencia: int, idCategoria: int) -> bool:
+        """Quita una categoria de una competencia.
+
+        Args:
+            idCompetencia (int): ID de la competencia.
+            idCategoria (int): ID de la categoria a quitar.
+
+        Returns:
+            bool: True si estaba habilitada y se quito. False si no estaba habilitada o si ocurre un error
+            (por ejemplo, la FK compuesta de inscripcion lo impide si hay clubes inscriptos).
+        """
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute(
+                "DELETE FROM competenciaCategoria WHERE idCompetencia = ? AND idCategoria = ?;",
+                (idCompetencia, idCategoria),
+            )
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al quitar la categoria de la competencia: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
+
+    def tiene_inscripciones(self, idCompetencia: int, idCategoria: int) -> bool:
+        """Indica si hay clubes inscriptos en una competencia y categoria.
+
+        Args:
+            idCompetencia (int): ID de la competencia.
+            idCategoria (int): ID de la categoria.
+
+        Returns:
+            bool: True si hay al menos una inscripcion.
+        """
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            "SELECT EXISTS (SELECT 1 FROM inscripcion WHERE idCompetencia = ? AND idCategoria = ?);",
+            (idCompetencia, idCategoria),
+        )
+        return bool(cursor.fetchone()[0])
 
     def guardar_inscripcion(self, inscripcion: Inscripcion) -> Inscripcion | None:
         """Funcion que se encarga de guardar una inscripcion en la base de datos
@@ -459,3 +578,88 @@ class SqliteCompetenciaRepositorio(CompetenciaRepositorio):
             logger.error(f"Error al quitar jugador de la lista: {e}", exc_info=True)
             return False
         return cursor.rowcount > 0
+
+    def competencia_tiene_inscripciones(self, idCompetencia: int) -> bool:
+        """Indica si una competencia tiene al menos una inscripcion en cualquier categoria."""
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT EXISTS (SELECT 1 FROM inscripcion WHERE idCompetencia = ?);", (idCompetencia,))
+        return bool(cursor.fetchone()[0])
+
+    def competencia_tiene_partidos(self, idCompetencia: int) -> bool:
+        """Indica si una competencia tiene al menos un partido cargado."""
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT EXISTS (SELECT 1 FROM partido WHERE idCompetencia = ?);", (idCompetencia,))
+        return bool(cursor.fetchone()[0])
+
+    def eliminar_competencia(self, idCompetencia: int) -> bool:
+        """Elimina una competencia de la base de datos."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM competencia WHERE idCompetencia = ?;", (idCompetencia,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al eliminar competencia: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
+
+    def categoria_en_uso(self, idCategoria: int) -> bool:
+        """Indica si una categoria esta habilitada en alguna competencia o tiene inscripciones."""
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT EXISTS (SELECT 1 FROM competenciaCategoria WHERE idCategoria = ?)
+                OR EXISTS (SELECT 1 FROM inscripcion WHERE idCategoria = ?);
+            """,
+            (idCategoria, idCategoria),
+        )
+        return bool(cursor.fetchone()[0])
+
+    def eliminar_categoria(self, idCategoria: int) -> bool:
+        """Elimina una categoria del catalogo."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM categoria WHERE idCategoria = ?;", (idCategoria,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al eliminar categoria: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
+
+    def inscripcion_tiene_partidos(self, idInscripcion: int) -> bool:
+        """Indica si el club de la inscripcion ya jugo partidos en la competencia de la inscripcion."""
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM inscripcion i
+                JOIN partido p ON p.idCompetencia = i.idCompetencia
+                WHERE i.idInscripcion = ?
+                  AND (p.idClubLocal = i.idClub OR p.idClubVisitante = i.idClub)
+            );
+            """,
+            (idInscripcion,),
+        )
+        return bool(cursor.fetchone()[0])
+
+    def eliminar_inscripcion(self, idInscripcion: int) -> bool:
+        """Elimina una inscripcion y en cascada su lista de buena fe."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM inscripcion WHERE idInscripcion = ?;", (idInscripcion,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al eliminar inscripcion: {e}", exc_info=True)
+            return False
+        return cursor.rowcount > 0
+
+    def vaciar_lista_buena_fe(self, idListaBuenaFe: int) -> bool:
+        """Quita todos los jugadores habilitados de una lista de buena fe."""
+        cursor = self.conexion.cursor()
+        try:
+            cursor.execute("DELETE FROM jugadorListaBuenaFe WHERE idListaBuenaFe = ?;", (idListaBuenaFe,))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al vaciar lista de buena fe: {e}", exc_info=True)
+            return False
+        return True

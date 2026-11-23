@@ -588,32 +588,35 @@ siguientes ya están implementados y testeados; la columna "Pantalla" indica qu�
 | `RegistrarJugadorUseCase`            | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
 | `CrearClubUseCase`                   | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106)                                                                          |
 | `VincularJugadorAClubUseCase`        | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
-| `CrearCompetenciaUseCase`            | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
-| `InscribirClubEnCompetenciaUseCase`  | `InscripcionesScreen` (US-107) | ✅ Implementado; pantalla pendiente                                                            |
+| `CrearCompetenciaUseCase`            | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107, recibe categorías al crear)                                             |
+| `InscribirClubEnCompetenciaUseCase`  | `InscripcionesScreen` (US-107) | ✅ En la GUI (US-107, valida categoría habilitada)                                            |
 | `ListarClubesUsuarioUseCase`         | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106; el usuario sale de la sesión)                                            |
-| `ListarJugadoresClubUseCase`         | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarJugadoresClubUseCase`         | `ListaBuenaFeScreen` (US-107) / `JugadoresScreen` (US-112) | ✅ En `ListaBuenaFeScreen` (US-107); alta/baja en US-112           |
 | `ListarPartidosPorClubUseCase`       | `PartidosScreen` (US-112)      | ✅ Implementado; pantalla pendiente                                                            |
 | `CambiarClubActivoUseCase`           | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106): "Usar este club" + `SessionManager.set_active_club`                    |
 | `RestaurarSesionUseCase`             | _(ninguna: al abrir la app)_   | ✅ US-106, lo llama `construir_dependencias`                                                   |
-| `CrearCategoriaUseCase`              | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
-| `ListarCategoriasUseCase`            | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
-| `ListarCompetenciasUseCase`          | `CompetenciasScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
-| `ListarInscripcionesClubUseCase`     | `InscripcionesScreen` (US-107) | ✅ Implementado; pantalla pendiente                                                            |
-| `AgregarJugadorAListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
-| `ListarListaBuenaFeUseCase`          | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `CrearCategoriaUseCase`              | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
+| `ListarCategoriasUseCase`            | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
+| `ListarCompetenciasUseCase`          | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
+| `ListarInscripcionesClubUseCase`     | `InscripcionesScreen` (US-107) | ✅ En la GUI (US-107)                                                                          |
+| `AgregarJugadorAListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
+| `ListarListaBuenaFeUseCase`          | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
 | `DesvincularJugadorDeClubUseCase`    | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
-| `QuitarJugadorDeListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ Implementado; pantalla pendiente                                                            |
+| `QuitarJugadorDeListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
 
-**Planificados en la US-107 (2026-11-08): categorías por competencia.** Una competencia habilita las categorías
-que juega (tabla `competenciaCategoria`) y solo se puede inscribir un club en una categoría habilitada:
+**Categorías por competencia (US-107):** una competencia habilita las categorías que juega (tabla `competenciaCategoria`) y solo se puede inscribir un club en una categoría habilitada:
 
-| Caso de uso                               | Pantalla (GUI)                     | Estado                                                            |
-| ----------------------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
-| `HabilitarCategoriaEnCompetenciaUseCase`  | `CompetenciasScreen` (US-107)      | 📋 Planificado                                                     |
-| `ListarCategoriasDeCompetenciaUseCase`    | `InscripcionesScreen` (US-107)     | 📋 Planificado                                                     |
-| `QuitarCategoriaDeCompetenciaUseCase`     | `CompetenciasScreen` (US-107)      | 📋 Planificado (rechaza si hay clubes inscriptos)                  |
-| `CrearCompetenciaUseCase`                 | `CompetenciasScreen` (US-107)      | 📋 Se extiende: recibe las categorías al crear                     |
-| `InscribirClubEnCompetenciaUseCase`       | `InscripcionesScreen` (US-107)     | 📋 Se extiende: rechaza una categoría no habilitada                |
+| Caso de uso                              | Pantalla (GUI)                 | Estado                                                                 |
+| ---------------------------------------- | ------------------------------ | ---------------------------------------------------------------------- |
+| `HabilitarCategoriaEnCompetenciaUseCase` | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                  |
+| `ListarCategoriasDeCompetenciaUseCase`   | `InscripcionesScreen` (US-107) | ✅ En la GUI (US-107)                                                  |
+| `QuitarCategoriaDeCompetenciaUseCase`    | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si hay clubes inscriptos)                |
+| `CrearCompetenciaUseCase`                | `CompetenciasScreen` (US-107)  | ✅ Extendido y en la GUI (US-107): recibe las categorías al crear      |
+| `InscribirClubEnCompetenciaUseCase`      | `InscripcionesScreen` (US-107) | ✅ Extendido y en la GUI (US-107): rechaza una categoría no habilitada |
+| `EliminarCompetenciaUseCase`             | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si tiene inscripciones o partidos)       |
+| `EliminarCategoriaUseCase`               | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si está en uso en alguna competencia)    |
+| `EliminarInscripcionUseCase`             | `InscripcionesScreen` / `ListaBuenaFeScreen` (US-107) | ✅ En la GUI (US-107; borra también su lista 1:1 si no hay partidos) |
+| `VaciarListaBuenaFeUseCase`              | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107; quita todos los jugadores de la lista)           |
 
 Cómo abrir la aplicación y qué se puede hacer hoy: [RUNBOOK](../../RUNBOOK.md). Cómo está armada la GUI:
 [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).
