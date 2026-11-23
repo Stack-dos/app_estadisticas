@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from dominio.entidades.partido import JugadorPartido, Partido, PartidoResumen
+from dominio.entidades.partido import BoxscoreFila, JugadorPartido, Partido, PartidoResumen
 
 
 class PartidoRepositorio(ABC):
@@ -34,4 +34,9 @@ class PartidoRepositorio(ABC):
     @abstractmethod
     def resumen_por_club(self, id_club: int) -> list[PartidoResumen]:
         "Lista los partidos de un club (local o visitante) con los nombres de la competencia y de los clubes"
+        pass
+
+    @abstractmethod
+    def boxscore_por_partido(self, id_partido: int) -> list[BoxscoreFila]:
+        "Devuelve el boxscore completo de un partido desde la vista `v_boxscore_completo`"
         pass
