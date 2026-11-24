@@ -1,5 +1,6 @@
 import pytest
 
+from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
 from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartidoRepositorio
 
 # `crear_partido` y `crear_boxscore` son fabricas de datos validos (ver tests/conftest.py):
@@ -121,3 +122,24 @@ def test_resumen_por_club_trae_los_nombres_desde_la_vista(db_conexion):
 
 def test_resumen_por_club_de_un_club_sin_partidos_es_una_lista_vacia(db_conexion):
     assert SqlitePartidoRepositorio(db_conexion).resumen_por_club(999) == []
+
+
+def test_obtener_boxscore_partido_lee_vista_con_datos_del_seed(db_conexion):
+    """El partido 1 del seed tiene 2 filas en jugadorPartido (club 1 y club 2)."""
+    uc = ObtenerBoxscorePartidoUseCase(SqlitePartidoRepositorio(db_conexion))
+
+    filas = uc.ejecutar(1)
+
+    assert len(filas) == 2
+    assert filas[0].nombreJugador == "pepe argento"
+    assert filas[0].nombreClub == "Atenas"
+    assert filas[0].puntos == 10
+    assert filas[0].rebotesTotales == 12
+    assert filas[1].nombreJugador == "Sergio aguero"
+    assert filas[1].nombreClub == "Universitario"
+    assert filas[1].minutosJugados == 12.4
+    assert filas[1].rebotesTotales == 5
+
+
+def test_obtener_boxscore_partido_inexistente_devuelve_lista_vacia(db_conexion):
+    assert ObtenerBoxscorePartidoUseCase(SqlitePartidoRepositorio(db_conexion)).ejecutar(999) == []

@@ -14,13 +14,17 @@ import flet as ft
 
 import config.rutas as r
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
+from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
+from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeClubUseCase
+from aplicacion.casos_uso.editar_jugador import EditarJugadorUseCase
 from aplicacion.casos_uso.eliminar_categoria import EliminarCategoriaUseCase
 from aplicacion.casos_uso.eliminar_competencia import EliminarCompetenciaUseCase
 from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
+from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
 from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCategoriaEnCompetenciaUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
@@ -31,11 +35,15 @@ from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesCl
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
 from aplicacion.casos_uso.listar_lista_buena_fe import ListarListaBuenaFeUseCase
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
+from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
+from aplicacion.casos_uso.partidos_por_club import ListarPartidosPorClubUseCase
 from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeCompetenciaUseCase
 from aplicacion.casos_uso.quitar_jugador_lista import QuitarJugadorDeListaBuenaFeUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
+from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
 from aplicacion.casos_uso.restaurar_sesion import RestaurarSesionUseCase
 from aplicacion.casos_uso.vaciar_lista_buena_fe import VaciarListaBuenaFeUseCase
+from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.servicios.password_hasher import PasswordHasher
@@ -45,6 +53,7 @@ from infraestructura.persistencia.json_sesion_almacen import JsonSesionAlmacen
 from infraestructura.repositorios.sqlite_club_repositorio import SqliteClubRepositorio
 from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCompetenciaRepositorio
 from infraestructura.repositorios.sqlite_jugador_repositorio import SqliteJugadorRepositorio
+from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartidoRepositorio
 from infraestructura.repositorios.sqlite_usuario_repositorio import SqliteUsuarioRepositorio
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
 from infraestructura.ui.flet.estilo import aplicar_tema
@@ -52,8 +61,10 @@ from infraestructura.ui.flet.screens.clubes_screen import crear_clubes_view
 from infraestructura.ui.flet.screens.competencias_screen import crear_competencias_view
 from infraestructura.ui.flet.screens.inicio_screen import crear_inicio_view
 from infraestructura.ui.flet.screens.inscripciones_screen import crear_inscripciones_view
+from infraestructura.ui.flet.screens.jugadores_screen import crear_jugadores_view
 from infraestructura.ui.flet.screens.lista_buena_fe_screen import crear_lista_buena_fe_view
 from infraestructura.ui.flet.screens.login_screen import crear_login_view
+from infraestructura.ui.flet.screens.partidos_screen import crear_partidos_view
 from infraestructura.ui.flet.screens.registro_screen import crear_registro_view
 
 logger = get_logger(__name__)
@@ -65,8 +76,10 @@ RUTA_CLUBES = "/clubes"
 RUTA_COMPETENCIAS = "/competencias"
 RUTA_INSCRIPCIONES = "/inscripciones"
 RUTA_LISTAS = "/listas"
+RUTA_JUGADORES = "/jugadores"
+RUTA_PARTIDOS = "/partidos"
 RUTAS_PUBLICAS = {RUTA_LOGIN, RUTA_REGISTRO}
-RUTAS_CON_CLUB = {RUTA_COMPETENCIAS, RUTA_INSCRIPCIONES, RUTA_LISTAS}
+RUTAS_CON_CLUB = {RUTA_COMPETENCIAS, RUTA_INSCRIPCIONES, RUTA_LISTAS, RUTA_JUGADORES, RUTA_PARTIDOS}
 RUTAS_INTERNAS = {RUTA_INICIO, RUTA_CLUBES, *RUTAS_CON_CLUB}
 AVISO_REQUIERE_CLUB = "Elegí o creá un club activo para trabajar en esa sección."
 
@@ -101,6 +114,14 @@ class Dependencias:
     vaciar_lista_uc: VaciarListaBuenaFeUseCase
     listar_lista_uc: ListarListaBuenaFeUseCase
     listar_jugadores_club_uc: ListarJugadoresClubUseCase
+    registrar_jugador_uc: RegistrarJugadorUseCase
+    vincular_jugador_uc: VincularJugadorAClubUseCase
+    desvincular_jugador_uc: DesvincularJugadorDeClubUseCase
+    buscar_jugadores_uc: BuscarJugadoresPorNombreUseCase
+    editar_jugador_uc: EditarJugadorUseCase
+    eliminar_jugador_uc: EliminarJugadorUseCase
+    listar_partidos_uc: ListarPartidosPorClubUseCase
+    obtener_boxscore_uc: ObtenerBoxscorePartidoUseCase
 
 
 def construir_dependencias(
@@ -126,6 +147,7 @@ def construir_dependencias(
     repo_club = SqliteClubRepositorio(conexion)
     repo_competencia = SqliteCompetenciaRepositorio(conexion)
     repo_jugador = SqliteJugadorRepositorio(conexion)
+    repo_partido = SqlitePartidoRepositorio(conexion)
     sesion = SessionManager(almacen)
     cambiar_club_uc = CambiarClubActivoUseCase(repo_club)
     # RestaurarSesionUseCase no va en Dependencias: lo usa el arranque, no una pantalla.
@@ -154,6 +176,14 @@ def construir_dependencias(
         vaciar_lista_uc=VaciarListaBuenaFeUseCase(repo_competencia),
         listar_lista_uc=ListarListaBuenaFeUseCase(repo_competencia, repo_jugador),
         listar_jugadores_club_uc=ListarJugadoresClubUseCase(repo_jugador),
+        registrar_jugador_uc=RegistrarJugadorUseCase(repo_jugador),
+        vincular_jugador_uc=VincularJugadorAClubUseCase(repo_jugador, repo_club),
+        desvincular_jugador_uc=DesvincularJugadorDeClubUseCase(repo_jugador),
+        buscar_jugadores_uc=BuscarJugadoresPorNombreUseCase(repo_jugador),
+        editar_jugador_uc=EditarJugadorUseCase(repo_jugador),
+        eliminar_jugador_uc=EliminarJugadorUseCase(repo_jugador),
+        listar_partidos_uc=ListarPartidosPorClubUseCase(repo_partido),
+        obtener_boxscore_uc=ObtenerBoxscorePartidoUseCase(repo_partido),
     )
 
 
@@ -259,6 +289,26 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.quitar_jugador_lista_uc,
             deps.vaciar_lista_uc,
             deps.eliminar_inscripcion_uc,
+            deps.sesion,
+        ),
+        RUTA_JUGADORES: lambda: crear_jugadores_view(
+            page,
+            deps.listar_jugadores_club_uc,
+            deps.registrar_jugador_uc,
+            deps.vincular_jugador_uc,
+            deps.desvincular_jugador_uc,
+            deps.buscar_jugadores_uc,
+            deps.editar_jugador_uc,
+            deps.eliminar_jugador_uc,
+            deps.sesion,
+        ),
+        RUTA_PARTIDOS: lambda: crear_partidos_view(
+            page,
+            deps.listar_partidos_uc,
+            deps.obtener_boxscore_uc,
+            deps.listar_inscripciones_uc,
+            deps.listar_competencias_uc,
+            deps.listar_categorias_uc,
             deps.sesion,
         ),
     }

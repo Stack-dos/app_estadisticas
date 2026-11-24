@@ -18,7 +18,27 @@ class JugadorRepositorio(ABC):
         pass
 
     @abstractmethod
+    def buscar_por_nombre(self, texto: str) -> list[Jugador]:
+        "Busca jugadores por nombre o apellido en todos los clubes, sin distinguir mayusculas ni tildes"
+        pass
+
+    @abstractmethod
     def guardar(self, jugador: Jugador) -> Jugador | None:
+        pass
+
+    @abstractmethod
+    def actualizar(self, jugador: Jugador) -> Jugador | None:
+        "Actualiza nombre, apellido y anioNacimiento de un jugador existente"
+        pass
+
+    @abstractmethod
+    def jugador_en_uso(self, id_jugador: int) -> bool:
+        "Indica si el jugador tiene partidos cargados o figura en alguna lista de buena fe"
+        pass
+
+    @abstractmethod
+    def eliminar(self, id_jugador: int) -> bool:
+        "Elimina un jugador de la base de datos"
         pass
 
     @abstractmethod

@@ -56,6 +56,11 @@ class VincularJugadorAClubUseCase:
                     f"El vinculo nuevo empieza el {dto.fechaDesde}, antes de que termine el anterior del jugador "
                     f"(idClub={anterior.idClub}, hasta {anterior.fechaHasta})"
                 )
+            if anterior.idClub == dto.idClub and anterior.fechaDesde == dto.fechaDesde:
+                raise VinculoSuperpuestoError(
+                    f"El jugador ya tuvo un vinculo con este club iniciado el {dto.fechaDesde}; "
+                    "elegí una fecha posterior"
+                )
 
         vinculo = JugadorClub(fechaDesde=dto.fechaDesde, fechaHasta=None, idJugador=dto.idJugador, idClub=dto.idClub)
         resultado = self.repo_jugador.link_to_club(vinculo)

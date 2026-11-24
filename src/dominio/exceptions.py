@@ -159,3 +159,9 @@ class InscripcionEnUsoError(ErrorDeDominio):
     """Se lanza cuando se intenta dar de baja una inscripcion de un club con partidos cargados (US-107)."""
 
     pass
+
+
+class JugadorEnUsoError(ErrorDeDominio):
+    """Se lanza cuando se intenta eliminar un jugador con partidos cargados o en listas de buena fe (US-112)."""
+
+    pass

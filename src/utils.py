@@ -5,6 +5,23 @@ Solo funciones puras y sin dependencias del proyecto: este modulo NO debe import
 externa).
 """
 
+import unicodedata
+
+
+def normalizar_texto(texto: str) -> str:
+    """
+    Normaliza un texto para comparaciones tolerantes: quita tildes, pasa a minusculas y recorta bordes.
+
+    Args:
+        texto (str): Cadena original a normalizar.
+
+    Returns:
+        str: Cadena en minusculas y sin marcas diacriticas.
+    """
+    descompuesto = unicodedata.normalize("NFD", texto.strip())
+    sin_tildes = "".join(ch for ch in descompuesto if unicodedata.category(ch) != "Mn")
+    return sin_tildes.casefold()
+
 
 def id_persistido(valor: int | None, entidad: str) -> int:
     """

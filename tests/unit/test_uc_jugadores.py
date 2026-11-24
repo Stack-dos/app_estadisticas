@@ -8,17 +8,21 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeClubUseCase
+from aplicacion.casos_uso.editar_jugador import EditarJugadorUseCase
+from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
 from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
 from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.dtos.club_dto import DesvincularJugadorDTO, VincularJugadorClubDTO, VinculoDTO
-from aplicacion.dtos.jugador_dto import CrearJugadorDTO, JugadorDTO
+from aplicacion.dtos.jugador_dto import CrearJugadorDTO, EditarJugadorDTO, JugadorDTO
 from dominio.entidades.club import Club
 from dominio.entidades.jugador import Jugador, JugadorClub
 from dominio.exceptions import (
     ClubNoEncontradoError,
     DatoInvalidoError,
+    JugadorEnUsoError,
     JugadorNoEncontradoError,
     JugadorSinVinculoActivoError,
     VinculoActivoExistenteError,
@@ -127,6 +131,12 @@ def test_vincular_jugador_guarda_el_vinculo_vigente(repo_jugador, repo_club):
             VinculoSuperpuestoError,
             "2026-03-01",
             id="empieza-antes-de-que-termine-el-vinculo-anterior",
+        ),
+        pytest.param(
+            {"historial": [JugadorClub("2026-01-01", "2026-01-01", idJugador=1, idClub=2)]},
+            VinculoSuperpuestoError,
+            "2026-01-01",
+            id="revinculacion-mismo-club-y-misma-fecha-inicio",
         ),
     ],
 )
@@ -272,3 +282,98 @@ def test_desvincular_jugador_devuelve_none_si_el_repositorio_no_pudo_guardar(rep
     )
 
     assert resultado is None
+
+
+# ------------------------------------------------------------------ BuscarJugadoresPorNombre
+
+
+def test_buscar_jugadores_por_nombre_devuelve_dtos(repo_jugador):
+    repo_jugador.buscar_por_nombre.return_value = [
+        Jugador("Manu", "Ginobili", 1977, idJugador=7),
+        Jugador("Leandro", "Ginobili", None, idJugador=8),
+    ]
+
+    resultado = BuscarJugadoresPorNombreUseCase(repo_jugador).ejecutar("  Ginobili  ")
+
+    assert resultado == [
+        JugadorDTO(nombre_completo="Manu Ginobili", id=7, anioNacimiento=1977),
+        JugadorDTO(nombre_completo="Leandro Ginobili", id=8, anioNacimiento=None),
+    ]
+    repo_jugador.buscar_por_nombre.assert_called_once_with("Ginobili")
+
+
+def test_buscar_jugadores_con_texto_vacio_no_consulta_el_repositorio(repo_jugador):
+    assert BuscarJugadoresPorNombreUseCase(repo_jugador).ejecutar("   ") == []
+    repo_jugador.buscar_por_nombre.assert_not_called()
+
+
+def test_buscar_jugadores_sin_coincidencias_devuelve_lista_vacia(repo_jugador):
+    repo_jugador.buscar_por_nombre.return_value = []
+
+    assert BuscarJugadoresPorNombreUseCase(repo_jugador).ejecutar("Desconocido") == []
+
+
+# ------------------------------------------------------------------ EditarJugador
+
+
+def test_editar_jugador_actualiza_y_devuelve_dto(repo_jugador):
+    repo_jugador.buscar_por_id.return_value = Jugador("Pepe", "Argento", 1980, idJugador=1)
+    repo_jugador.actualizar.return_value = Jugador("José", "Argento", 1981, idJugador=1)
+
+    resultado = EditarJugadorUseCase(repo_jugador).ejecutar(
+        EditarJugadorDTO(idJugador=1, nombre="José", apellido="Argento", anioNacimiento=1981)
+    )
+
+    assert resultado == JugadorDTO(nombre_completo="José Argento", id=1, anioNacimiento=1981)
+    assert resultado.nombre == "José"
+    assert resultado.apellido == "Argento"
+    repo_jugador.actualizar.assert_called_once_with(Jugador("José", "Argento", 1981, idJugador=1))
+
+
+def test_editar_jugador_inexistente_lanza_error(repo_jugador):
+    repo_jugador.buscar_por_id.return_value = None
+
+    with pytest.raises(JugadorNoEncontradoError, match="idJugador=99"):
+        EditarJugadorUseCase(repo_jugador).ejecutar(EditarJugadorDTO(idJugador=99, nombre="Pepe", apellido="Argento"))
+
+    repo_jugador.actualizar.assert_not_called()
+
+
+def test_editar_jugador_con_datos_invalidos_no_llama_al_repositorio(repo_jugador):
+    repo_jugador.buscar_por_id.return_value = Jugador("Pepe", "Argento", 1980, idJugador=1)
+
+    with pytest.raises(DatoInvalidoError):
+        EditarJugadorUseCase(repo_jugador).ejecutar(EditarJugadorDTO(idJugador=1, nombre="", apellido="Argento"))
+
+    repo_jugador.actualizar.assert_not_called()
+
+
+# ------------------------------------------------------------------ EliminarJugador
+
+
+def test_eliminar_jugador_sin_uso_llama_al_repositorio(repo_jugador):
+    repo_jugador.buscar_por_id.return_value = Jugador("Pepe", "Argento", 1980, idJugador=1)
+    repo_jugador.jugador_en_uso.return_value = False
+    repo_jugador.eliminar.return_value = True
+
+    assert EliminarJugadorUseCase(repo_jugador).ejecutar(1) is True
+    repo_jugador.eliminar.assert_called_once_with(1)
+
+
+def test_eliminar_jugador_inexistente_lanza_error(repo_jugador):
+    repo_jugador.buscar_por_id.return_value = None
+
+    with pytest.raises(JugadorNoEncontradoError, match="idJugador=99"):
+        EliminarJugadorUseCase(repo_jugador).ejecutar(99)
+
+    repo_jugador.eliminar.assert_not_called()
+
+
+def test_eliminar_jugador_en_uso_lanza_error_y_no_borra(repo_jugador):
+    repo_jugador.buscar_por_id.return_value = Jugador("Pepe", "Argento", 1980, idJugador=1)
+    repo_jugador.jugador_en_uso.return_value = True
+
+    with pytest.raises(JugadorEnUsoError, match="idJugador=1"):
+        EliminarJugadorUseCase(repo_jugador).ejecutar(1)
+
+    repo_jugador.eliminar.assert_not_called()

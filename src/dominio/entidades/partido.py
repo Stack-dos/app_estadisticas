@@ -18,6 +18,41 @@ class PartidoResumen:
     anioCompetencia: int
     clubLocal: str
     clubVisitante: str
+    categoria: str | None = None
+
+
+@dataclass
+class BoxscoreFila:
+    """Vista de lectura de una fila del boxscore de un partido, con nombres de jugador y club.
+
+    Es lo que devuelve el repositorio a partir de la vista SQL `v_boxscore_completo`: sirve para
+    mostrar el detalle estadistico de un partido. No se construye para guardar (para eso esta
+    `JugadorPartido`), por eso no valida sus campos.
+    """
+
+    idPartido: int
+    idJugador: int
+    idClub: int
+    nombreJugador: str
+    nombreClub: str
+    minutosJugados: float
+    puntos: int
+    t2c: int
+    t2l: int
+    t3c: int
+    t3l: int
+    t1c: int
+    t1l: int
+    rebotesDef: int
+    rebotesOf: int
+    rebotesTotales: int
+    asistencias: int
+    recuperos: int
+    perdidas: int
+    taponesRecibidos: int
+    taponesRealizados: int
+    faltasRecibidas: int
+    faltasCometidas: int
 
 
 @dataclass

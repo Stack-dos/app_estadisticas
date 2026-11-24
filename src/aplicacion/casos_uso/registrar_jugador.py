@@ -27,4 +27,6 @@ class RegistrarJugadorUseCase:
             nombre_completo=resultado.nombre_completo,
             id=id_persistido(resultado.idJugador, "Jugador"),
             anioNacimiento=resultado.anioNacimiento,
+            nombre=resultado.nombre,
+            apellido=resultado.apellido,
         )
