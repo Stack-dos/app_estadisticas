@@ -8,7 +8,7 @@ import pytest
 from dominio.entidades.club import Club, UsuarioClub
 from dominio.entidades.competencia import Categoria, Competencia, Inscripcion, JugadorListaBuenaFe, ListaBuenaFe
 from dominio.entidades.jugador import Jugador, JugadorClub
-from dominio.entidades.partido import Partido
+from dominio.entidades.partido import Partido, PartidoCuarto
 from dominio.entidades.usuario import Usuario
 
 # Para cada entidad: (datos validos, {campo: valor con tipo incorrecto}).
@@ -45,15 +45,28 @@ ENTIDADES = [
     (JugadorListaBuenaFe, {"idJugador": 1, "idListaBuenaFe": 1}, {"idJugador": "1", "idListaBuenaFe": "1"}),
     (
         Partido,
-        {"fecha": "2026-05-21", "estadio": None, "idCompetencia": 1, "idClubLocal": 1, "idClubVisitante": 2},
+        {
+            "fecha": "2026-05-21",
+            "estadio": None,
+            "idCompetencia": 1,
+            "idCategoria": 1,
+            "idClubLocal": 1,
+            "idClubVisitante": 2,
+        },
         {
             "fecha": 20260521,
             "estadio": 5,
             "idCompetencia": "1",
+            "idCategoria": "1",
             "idClubLocal": "1",
             "idClubVisitante": "2",
             "idPartido": "1",
         },
+    ),
+    (
+        PartidoCuarto,
+        {"idClub": 1, "nroCuarto": 1, "puntos": 20},
+        {"idClub": "1", "nroCuarto": "1", "puntos": "20", "idPartido": "1"},
     ),
     (
         Usuario,
