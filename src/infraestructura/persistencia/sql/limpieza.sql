@@ -4,6 +4,9 @@ BEGIN TRANSACTION;
 -- Borrar estadísticas de jugadores (Restricción RESTRICT)
 DELETE FROM jugadorPartido;
 
+-- Borrar puntos por cuarto
+DELETE FROM partidoCuarto;
+
 -- Borrar relación Jugador-Lista de buena fe
 DELETE FROM jugadorListaBuenaFe;
 
