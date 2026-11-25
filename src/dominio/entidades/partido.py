@@ -56,10 +56,36 @@ class BoxscoreFila:
 
 
 @dataclass
+class PartidoCuarto:
+    """Puntos anotados por un club en un periodo (cuarto o prorroga) de un partido."""
+
+    idClub: int
+    nroCuarto: int
+    puntos: int
+    idPartido: int | None = None
+
+    def __post_init__(self) -> None:
+        """Valida los tipos y rangos de un cuarto del partido."""
+        if not isinstance(self.idClub, int) or isinstance(self.idClub, bool):
+            raise TypeError(f"idClub debe ser int, recibido {type(self.idClub).__name__}")
+        if not isinstance(self.nroCuarto, int) or isinstance(self.nroCuarto, bool):
+            raise TypeError(f"nroCuarto debe ser int, recibido {type(self.nroCuarto).__name__}")
+        if not isinstance(self.puntos, int) or isinstance(self.puntos, bool):
+            raise TypeError(f"puntos debe ser int, recibido {type(self.puntos).__name__}")
+        if self.idPartido is not None and (not isinstance(self.idPartido, int) or isinstance(self.idPartido, bool)):
+            raise TypeError(f"idPartido debe ser int o None, recibido {type(self.idPartido).__name__}")
+        if self.nroCuarto < 1:
+            raise DatoInvalidoError(f"nroCuarto debe ser >= 1 - Valor actual: {self.nroCuarto}")
+        if self.puntos < 0:
+            raise DatoInvalidoError(f"puntos de cuarto no puede ser < 0 - Valor actual: {self.puntos}")
+
+
+@dataclass
 class Partido:
     fecha: str
     estadio: str | None
     idCompetencia: int
+    idCategoria: int
     idClubLocal: int
     idClubVisitante: int
     idPartido: int | None = None
@@ -71,6 +97,7 @@ class Partido:
             TypeError: Si la fecha no es una cadena de caracteres.
             TypeError: Si el estadio no es una cadena de caracteres o None.
             TypeError: Si el ID de la competencia no es un entero.
+            TypeError: Si el ID de la categoria no es un entero.
             TypeError: Si el ID del club local no es un entero.
             TypeError: Si el ID del club visitante no es un entero.
             TypeError: Si el ID del partido no es un entero o None.
@@ -81,6 +108,8 @@ class Partido:
             raise TypeError(f"estadio debe ser str, recibido {type(self.estadio).__name__}")
         if not isinstance(self.idCompetencia, int):
             raise TypeError(f"idCompetencia debe ser int, recibido {type(self.idCompetencia).__name__}")
+        if not isinstance(self.idCategoria, int):
+            raise TypeError(f"idCategoria debe ser int, recibido {type(self.idCategoria).__name__}")
         if not isinstance(self.idClubLocal, int):
             raise TypeError(f"idClubLocal debe ser int, recibido {type(self.idClubLocal).__name__}")
         if not isinstance(self.idClubVisitante, int):

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from dominio.entidades.partido import BoxscoreFila, JugadorPartido, Partido, PartidoResumen
+from dominio.entidades.partido import BoxscoreFila, JugadorPartido, Partido, PartidoCuarto, PartidoResumen
 
 
 class PartidoRepositorio(ABC):
@@ -26,9 +26,12 @@ class PartidoRepositorio(ABC):
 
     @abstractmethod
     def save_with_boxscore(
-        self, partido: Partido, boxscore: list[JugadorPartido]
+        self,
+        partido: Partido,
+        boxscore: list[JugadorPartido],
+        cuartos: list[PartidoCuarto] | None = None,
     ) -> tuple[Partido, list[JugadorPartido]] | None:
-        """Guarda el partido y su boxscore en una única transacción atómica."""
+        """Guarda el partido, su boxscore y opcionalmente los cuartos en una única transacción atómica."""
         pass
 
     @abstractmethod

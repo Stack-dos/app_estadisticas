@@ -165,3 +165,9 @@ class JugadorEnUsoError(ErrorDeDominio):
     """Se lanza cuando se intenta eliminar un jugador con partidos cargados o en listas de buena fe (US-112)."""
 
     pass
+
+
+class CuartosInconsistentesError(ErrorDeDominio):
+    """Se lanza cuando los puntos por cuarto no cierran entre equipos o contra el boxscore (US-108)."""
+
+    pass
