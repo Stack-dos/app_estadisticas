@@ -95,13 +95,14 @@ def crear_jugador():
 
 @pytest.fixture
 def crear_partido():
-    """Fabrica de `Partido` validos (clubes 1 y 2 y competencia 1 existen en el seed)."""
+    """Fabrica de `Partido` validos (clubes 1 y 2, competencia 1 y categoria 1 existen en el seed)."""
 
     def _crear(**overrides) -> Partido:
         datos = {
             "fecha": "2023-01-01",
             "estadio": "Estadio Principal",
             "idCompetencia": 1,
+            "idCategoria": 1,
             "idClubLocal": 1,
             "idClubVisitante": 2,
         }
