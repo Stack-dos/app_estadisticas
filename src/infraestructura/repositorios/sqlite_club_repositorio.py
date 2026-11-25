@@ -114,6 +114,16 @@ class SqliteClubRepositorio(ClubRepositorio):
             resultados.append(aux)
         return resultados
 
+    def listar_todos(self) -> list[Club]:
+        """Lista todos los clubes registrados en la base de datos, ordenados por nombre.
+
+        Returns:
+            list[Club]: Lista de todos los clubes (vacia si no hay ninguno).
+        """
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT idClub, nombre FROM club ORDER BY nombre;")
+        return [self._row_to_entity_Club(row) for row in cursor.fetchall()]
+
     def guardar(self, club: Club) -> Club | None:
         """Función para guardar un club en la base de datos.
 
