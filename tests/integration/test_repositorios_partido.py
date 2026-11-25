@@ -1,6 +1,7 @@
 import pytest
 
 from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
+from dominio.entidades.partido import PartidoCuarto
 from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartidoRepositorio
 
 # `crear_partido` y `crear_boxscore` son fabricas de datos validos (ver tests/conftest.py):
@@ -52,6 +53,7 @@ def test_guardar_partido(db_conexion, crear_partido):
         pytest.param({"idClubLocal": 12}, id="club-local-inexistente"),
         pytest.param({"idClubVisitante": 304}, id="club-visitante-inexistente"),
         pytest.param({"idCompetencia": 205}, id="competencia-inexistente"),
+        pytest.param({"idCategoria": 999}, id="categoria-inexistente"),
     ],
 )
 def test_guardar_partido_con_referencia_inexistente_devuelve_none(db_conexion, crear_partido, overrides):
@@ -115,6 +117,7 @@ def test_resumen_por_club_trae_los_nombres_desde_la_vista(db_conexion):
     assert resumen[0].clubVisitante == "Universitario"
     assert resumen[0].competencia == "PROVINCIAL U21"
     assert resumen[0].anioCompetencia == 2026
+    assert resumen[0].categoria == "U21"
     # el club aparece igual si jugo de visitante
     assert resumen[1].clubLocal == "Universitario"
     assert resumen[1].clubVisitante == "Atenas"
@@ -143,3 +146,37 @@ def test_obtener_boxscore_partido_lee_vista_con_datos_del_seed(db_conexion):
 
 def test_obtener_boxscore_partido_inexistente_devuelve_lista_vacia(db_conexion):
     assert ObtenerBoxscorePartidoUseCase(SqlitePartidoRepositorio(db_conexion)).ejecutar(999) == []
+
+
+def test_save_with_boxscore_guarda_cuartos_en_la_misma_transaccion(db_conexion, crear_partido, crear_boxscore):
+    """US-108: save_with_boxscore persiste partido, boxscore y cuartos atomicamente."""
+    juego_rep = SqlitePartidoRepositorio(db_conexion)
+    partido = crear_partido(fecha="2026-08-10", estadio="Polideportivo")
+    fila_local = crear_boxscore(idPartido=0, idJugador=1, idClub=1)
+    fila_visitante = crear_boxscore(idPartido=0, idJugador=6, idClub=2)
+    cuartos = [
+        PartidoCuarto(idClub=1, nroCuarto=1, puntos=5),
+        PartidoCuarto(idClub=1, nroCuarto=2, puntos=4),
+        PartidoCuarto(idClub=2, nroCuarto=1, puntos=3),
+        PartidoCuarto(idClub=2, nroCuarto=2, puntos=6),
+    ]
+
+    resultado = juego_rep.save_with_boxscore(partido, [fila_local, fila_visitante], cuartos=cuartos)
+
+    assert resultado is not None
+    partido_guardado, filas = resultado
+    assert partido_guardado.idPartido is not None
+    assert partido_guardado.idCategoria == 1
+    assert len(filas) == 2
+
+    cursor = db_conexion.cursor()
+    cursor.execute(
+        "SELECT idClub, nroCuarto, puntos FROM partidoCuarto WHERE idPartido = ? ORDER BY idClub, nroCuarto",
+        (partido_guardado.idPartido,),
+    )
+    assert [(r["idClub"], r["nroCuarto"], r["puntos"]) for r in cursor.fetchall()] == [
+        (1, 1, 5),
+        (1, 2, 4),
+        (2, 1, 3),
+        (2, 2, 6),
+    ]

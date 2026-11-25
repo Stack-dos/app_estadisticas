@@ -203,11 +203,13 @@ def test_listar_partidos_trae_los_nombres_de_los_clubes_y_de_la_competencia(abri
     uc.crear_club.ejecutar(CrearClubDTO(nombre="Atenas"), ID_DT)
     uc.crear_club.ejecutar(CrearClubDTO(nombre="Instituto"), ID_DT)
     uc.crear_competencia.ejecutar(CrearCompetenciaDTO(nombre="Liga Provincial", anio=2026))
+    uc.crear_categoria.ejecutar(CrearCategoriaDTO(nombre="U21"))
     # todavia no hay un caso de uso para cargar partidos (US-108): se inserta directo en la base
     conexion = sqlite3.connect(abrir.db_path)
     conexion.execute(
-        "INSERT INTO partido (fecha, estadio, idCompetencia, idClubLocal, idClubVisitante) VALUES (?, ?, ?, ?, ?)",
-        ("2026-05-21", "Cancha Atenas", 1, 1, 2),
+        "INSERT INTO partido (fecha, estadio, idCompetencia, idCategoria, idClubLocal, idClubVisitante) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("2026-05-21", "Cancha Atenas", 1, 1, 1, 2),
     )
     conexion.commit()
     conexion.close()
@@ -215,7 +217,7 @@ def test_listar_partidos_trae_los_nombres_de_los_clubes_y_de_la_competencia(abri
     [partido] = uc.listar_partidos.ejecutar(2)  # el club 2 jugo de visitante
 
     assert (partido.clubLocal, partido.clubVisitante) == ("Atenas", "Instituto")
-    assert (partido.competencia, partido.anioCompetencia) == ("Liga Provincial", 2026)
+    assert (partido.competencia, partido.anioCompetencia, partido.categoria) == ("Liga Provincial", 2026, "U21")
     assert (partido.estadio, partido.fecha) == ("Cancha Atenas", "2026-05-21")
 
 

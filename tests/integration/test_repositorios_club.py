@@ -90,3 +90,12 @@ def test_link_user_club(db_conexion):
     us_aux = UsuarioClub(rol="Asistente", idUsuario=1, idClub=302)
     us_aux_2 = club_rep.link_user_to_club(us_club=us_aux)
     assert us_aux_2 is None
+
+
+def test_listar_todos_devuelve_todos_los_clubes_ordenados(db_conexion):
+    club_rep = SqliteClubRepositorio(db_conexion)
+    club_rep.guardar(Club(nombre="Belgrano"))
+
+    clubes = club_rep.listar_todos()
+
+    assert [c.nombre for c in clubes] == ["Atenas", "Belgrano", "Universitario"]
