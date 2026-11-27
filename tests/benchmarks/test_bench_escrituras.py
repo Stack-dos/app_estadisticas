@@ -41,6 +41,7 @@ def test_bench_guardar_partido_con_boxscore(benchmark, datos):
         fecha="2026-12-01",
         estadio="Estadio 01",
         idCompetencia=datos.ids["id_competencia"],
+        idCategoria=datos.ids["id_categoria"],
         idClubLocal=1,
         idClubVisitante=2,
     )
