@@ -181,10 +181,7 @@ def crear_carga_partido_view(
 
     dd_competencia = ft.Dropdown(
         label="Competencia",
-        options=[
-            ft.dropdown.Option(key=str(c.idCompetencia), text=f"{c.nombre} ({c.anio})")
-            for c in competencias
-        ],
+        options=[ft.dropdown.Option(key=str(c.idCompetencia), text=f"{c.nombre} ({c.anio})") for c in competencias],
     )
     dd_categoria = ft.Dropdown(label="Categoría", options=[])
     campo_fecha = ft.TextField(label="Fecha (AAAA-MM-DD)", hint_text="2026-08-10")
@@ -267,9 +264,7 @@ def crear_carga_partido_view(
 
         jugadores = listar_lista_uc.ejecutar(inscripcion.idInscripcion)
         if not jugadores:
-            aviso_lista_texto.value = (
-                f"El equipo {rol} ({nombre_club}) no tiene jugadores en su lista de buena fe."
-            )
+            aviso_lista_texto.value = f"El equipo {rol} ({nombre_club}) no tiene jugadores en su lista de buena fe."
             contenedor_aviso_lista.visible = True
             raise DatoInvalidoError(aviso_lista_texto.value)
         return jugadores
@@ -316,13 +311,15 @@ def crear_carga_partido_view(
         ejecutar_mostrando_errores(accion, error)
         page.update()
 
+    def _ids_seleccionados() -> tuple[int, int, int, int]:
+        if not dd_competencia.value or not dd_categoria.value or not dd_local.value or not dd_visitante.value:
+            raise DatoInvalidoError("Completá primero los datos del partido (competencia, categoría y clubes).")
+        return int(dd_competencia.value), int(dd_categoria.value), int(dd_local.value), int(dd_visitante.value)
+
     def al_continuar_a_resumen() -> None:
         def accion() -> None:
             nonlocal boxscore_local_validado, boxscore_visitante_validado
-            id_comp = int(dd_competencia.value)
-            id_cat = int(dd_categoria.value)
-            id_local = int(dd_local.value)
-            id_visitante = int(dd_visitante.value)
+            id_comp, id_cat, id_local, id_visitante = _ids_seleccionados()
 
             est_local = [_parsear_fila_estadistica(f, id_local) for f in filas_local_ui]
             est_visitante = [_parsear_fila_estadistica(f, id_visitante) for f in filas_visitante_ui]
@@ -350,14 +347,13 @@ def crear_carga_partido_view(
         def accion() -> None:
             if boxscore_local_validado is None or boxscore_visitante_validado is None:
                 raise DatoInvalidoError("Completá primero los boxscores de ambos equipos.")
-            id_local = int(dd_local.value)
-            id_visitante = int(dd_visitante.value)
+            id_comp, id_cat, id_local, id_visitante = _ids_seleccionados()
             cuartos = bloque_cuartos.leer_cuartos(id_local, id_visitante)
             partido_dto = PartidoDTO(
                 fecha=(campo_fecha.value or "").strip(),
                 estadio=(campo_estadio.value or "").strip() or None,
-                idCompetencia=int(dd_competencia.value),
-                idCategoria=int(dd_categoria.value),
+                idCompetencia=id_comp,
+                idCategoria=id_cat,
                 idClubLocal=id_local,
                 idClubVisitante=id_visitante,
                 cuartos=cuartos,

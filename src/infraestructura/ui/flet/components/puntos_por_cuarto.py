@@ -112,9 +112,7 @@ class BloquePuntosPorCuarto:
         for campo in (*self._campos_local, *self._campos_visitante):
             campo.error = None
 
-        todos_vacios = all(
-            not (campo.value or "").strip() for campo in (*self._campos_local, *self._campos_visitante)
-        )
+        todos_vacios = all(not (campo.value or "").strip() for campo in (*self._campos_local, *self._campos_visitante))
         if todos_vacios:
             return []
 
@@ -136,9 +134,7 @@ class BloquePuntosPorCuarto:
                     ) from err
                 if valor < 0:
                     campo.error = "≥ 0"
-                    raise DatoInvalidoError(
-                        f"Los puntos de {rol} {etiqueta_periodo(nro)} no pueden ser negativos."
-                    )
+                    raise DatoInvalidoError(f"Los puntos de {rol} {etiqueta_periodo(nro)} no pueden ser negativos.")
                 cuartos.append(CuartoDTO(idClub=id_club, nroCuarto=nro, puntos=valor))
 
         return cuartos
