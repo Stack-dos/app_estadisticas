@@ -16,6 +16,7 @@ import config.rutas as r
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
 from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
+from aplicacion.casos_uso.cargar_partido import CargarPartidoUseCase
 from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
@@ -29,6 +30,7 @@ from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCatego
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
+from aplicacion.casos_uso.listar_clubes import ListarClubesUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
@@ -57,6 +59,7 @@ from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartid
 from infraestructura.repositorios.sqlite_usuario_repositorio import SqliteUsuarioRepositorio
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
 from infraestructura.ui.flet.estilo import aplicar_tema
+from infraestructura.ui.flet.screens.carga_partido_screen import crear_carga_partido_view
 from infraestructura.ui.flet.screens.clubes_screen import crear_clubes_view
 from infraestructura.ui.flet.screens.competencias_screen import crear_competencias_view
 from infraestructura.ui.flet.screens.inicio_screen import crear_inicio_view
@@ -78,8 +81,16 @@ RUTA_INSCRIPCIONES = "/inscripciones"
 RUTA_LISTAS = "/listas"
 RUTA_JUGADORES = "/jugadores"
 RUTA_PARTIDOS = "/partidos"
+RUTA_CARGAR_PARTIDO = "/partidos/cargar"
 RUTAS_PUBLICAS = {RUTA_LOGIN, RUTA_REGISTRO}
-RUTAS_CON_CLUB = {RUTA_COMPETENCIAS, RUTA_INSCRIPCIONES, RUTA_LISTAS, RUTA_JUGADORES, RUTA_PARTIDOS}
+RUTAS_CON_CLUB = {
+    RUTA_COMPETENCIAS,
+    RUTA_INSCRIPCIONES,
+    RUTA_LISTAS,
+    RUTA_JUGADORES,
+    RUTA_PARTIDOS,
+    RUTA_CARGAR_PARTIDO,
+}
 RUTAS_INTERNAS = {RUTA_INICIO, RUTA_CLUBES, *RUTAS_CON_CLUB}
 AVISO_REQUIERE_CLUB = "Elegí o creá un club activo para trabajar en esa sección."
 
@@ -96,6 +107,7 @@ class Dependencias:
     login_uc: LoginLocalUseCase
     crear_club_uc: CrearClubUseCase
     listar_clubes_uc: ListarClubesUsuarioUseCase
+    listar_clubes_todos_uc: ListarClubesUseCase
     cambiar_club_uc: CambiarClubActivoUseCase
     crear_competencia_uc: CrearCompetenciaUseCase
     listar_competencias_uc: ListarCompetenciasUseCase
@@ -122,6 +134,7 @@ class Dependencias:
     eliminar_jugador_uc: EliminarJugadorUseCase
     listar_partidos_uc: ListarPartidosPorClubUseCase
     obtener_boxscore_uc: ObtenerBoxscorePartidoUseCase
+    cargar_partido_uc: CargarPartidoUseCase
 
 
 def construir_dependencias(
@@ -158,6 +171,7 @@ def construir_dependencias(
         login_uc=LoginLocalUseCase(repo_usuario, hasher),
         crear_club_uc=CrearClubUseCase(repo_club),
         listar_clubes_uc=ListarClubesUsuarioUseCase(repo_club),
+        listar_clubes_todos_uc=ListarClubesUseCase(repo_club),
         cambiar_club_uc=cambiar_club_uc,
         crear_competencia_uc=CrearCompetenciaUseCase(repo_competencia),
         listar_competencias_uc=ListarCompetenciasUseCase(repo_competencia),
@@ -184,6 +198,7 @@ def construir_dependencias(
         eliminar_jugador_uc=EliminarJugadorUseCase(repo_jugador),
         listar_partidos_uc=ListarPartidosPorClubUseCase(repo_partido),
         obtener_boxscore_uc=ObtenerBoxscorePartidoUseCase(repo_partido),
+        cargar_partido_uc=CargarPartidoUseCase(repo_partido, repo_competencia),
     )
 
 
@@ -309,6 +324,16 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.listar_inscripciones_uc,
             deps.listar_competencias_uc,
             deps.listar_categorias_uc,
+            deps.sesion,
+        ),
+        RUTA_CARGAR_PARTIDO: lambda: crear_carga_partido_view(
+            page,
+            deps.cargar_partido_uc,
+            deps.listar_competencias_uc,
+            deps.listar_categorias_comp_uc,
+            deps.listar_clubes_todos_uc,
+            deps.listar_inscripciones_uc,
+            deps.listar_lista_uc,
             deps.sesion,
         ),
     }

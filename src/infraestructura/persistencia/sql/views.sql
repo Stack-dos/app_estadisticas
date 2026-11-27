@@ -13,12 +13,14 @@ SELECT
     p.estadio,
     c.nombre AS competencia,
     c.anio AS anio_competencia,
+    cat.nombre AS categoria,
     p.idClubLocal AS id_club_local,
     cl.nombre AS club_local,
     p.idClubVisitante AS id_club_visitante,
     cv.nombre AS club_visitante
 FROM partido AS p
     INNER JOIN competencia AS c ON p.idCompetencia = c.idCompetencia
+    INNER JOIN categoria AS cat ON p.idCategoria = cat.idCategoria
     INNER JOIN club AS cl ON p.idClubLocal = cl.idCLub
     INNER JOIN club AS cv ON p.idClubVisitante = cv.idClub;
 

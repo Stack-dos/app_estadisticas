@@ -1,6 +1,6 @@
 import sqlite3
 
-from dominio.entidades.partido import BoxscoreFila, JugadorPartido, Partido, PartidoResumen
+from dominio.entidades.partido import BoxscoreFila, JugadorPartido, Partido, PartidoCuarto, PartidoResumen
 from dominio.repositorios.partido_repositorio import PartidoRepositorio
 from infraestructura.logger import get_logger
 
@@ -32,6 +32,7 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
             fecha=row["fecha"],
             estadio=row["estadio"],
             idCompetencia=row["idCompetencia"],
+            idCategoria=row["idCategoria"],
             idClubLocal=row["idClubLocal"],
             idClubVisitante=row["idClubVisitante"],
             idPartido=row["idPartido"],
@@ -100,6 +101,18 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                 return None
 
             query = """
+            SELECT * FROM categoria WHERE idCategoria = ?;
+            """
+            cursor.execute(query, (partido.idCategoria,))
+            row = cursor.fetchone()
+            if row is None:
+                logger.warning(
+                    "No se pudo guardar partido: categoria inexistente (idCategoria=%s)",
+                    partido.idCategoria,
+                )
+                return None
+
+            query = """
             SELECT * FROM club WHERE idClub IN (?,?);
             """
             cursor.execute(query, (partido.idClubLocal, partido.idClubVisitante))
@@ -113,12 +126,19 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                 )
                 return None
             query = """
-            INSERT INTO partido (fecha, estadio, idCompetencia, idClubLocal, idClubVisitante)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO partido (fecha, estadio, idCompetencia, idCategoria, idClubLocal, idClubVisitante)
+            VALUES (?, ?, ?, ?, ?, ?)
             """
             cursor.execute(
                 query,
-                (partido.fecha, partido.estadio, partido.idCompetencia, partido.idClubLocal, partido.idClubVisitante),
+                (
+                    partido.fecha,
+                    partido.estadio,
+                    partido.idCompetencia,
+                    partido.idCategoria,
+                    partido.idClubLocal,
+                    partido.idClubVisitante,
+                ),
             )
             self.conexion.commit()
 
@@ -132,6 +152,7 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                 fecha=partido.fecha,
                 estadio=partido.estadio,
                 idCompetencia=partido.idCompetencia,
+                idCategoria=partido.idCategoria,
                 idClubLocal=partido.idClubLocal,
                 idClubVisitante=partido.idClubVisitante,
                 idPartido=id_partido,
@@ -243,31 +264,39 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
             raise
 
     def save_with_boxscore(
-        self, partido: Partido, boxscore: list[JugadorPartido]
+        self,
+        partido: Partido,
+        boxscore: list[JugadorPartido],
+        cuartos: list[PartidoCuarto] | None = None,
     ) -> tuple[Partido, list[JugadorPartido]] | None:
         """
-            Función que se encarga de guardar el partido y el boxscore de todos los jugadores en una
-            única transacción atómica.
+            Función que se encarga de guardar el partido, el boxscore de todos los jugadores y
+            opcionalmente los puntos por cuarto en una única transacción atómica.
 
-        Utiliza el context manager de sqlite3  que realiza
+        Utiliza el context manager de sqlite3 que realiza
         COMMIT automático al salir sin error o ROLLBACK ante cualquier excepción.
-        Si falla cualquier fila del boxscore, el partido tampoco queda guardado.
+        Si falla cualquier fila del boxscore o de los cuartos, el partido tampoco queda guardado.
 
         Args:
-            boxscore (JugadorPartido): Entidad JugadorPartido a guardar.
             partido (Partido): Entidad Partido a guardar.
+            boxscore (list[JugadorPartido]): Filas de estadísticas individuales a guardar.
+            cuartos (list[PartidoCuarto] | None): Puntos por cuarto/prórroga opcionales.
 
         Returns:
-            JugadorPartido | None: Retorna el boxscore guardado con su ID asignado en la BD o None si ocurre un error.
+            tuple[Partido, list[JugadorPartido]] | None: Partido y boxscore guardados, o None si ocurre un error.
         """
         try:
             with self.conexion:
                 cursor = self.conexion.cursor()
 
-                # Validar que la competencia y los clubes del partido existan.
+                # Validar que la competencia, la categoría y los clubes del partido existan.
                 cursor.execute("SELECT * FROM competencia WHERE idCompetencia = ?", (partido.idCompetencia,))
                 if cursor.fetchone() is None:
                     raise sqlite3.IntegrityError(f"La competencia con id {partido.idCompetencia} no existe.")
+
+                cursor.execute("SELECT * FROM categoria WHERE idCategoria = ?", (partido.idCategoria,))
+                if cursor.fetchone() is None:
+                    raise sqlite3.IntegrityError(f"La categoria con id {partido.idCategoria} no existe.")
 
                 cursor.execute(
                     "SELECT COUNT(*) FROM club WHERE idClub IN (?, ?)", (partido.idClubLocal, partido.idClubVisitante)
@@ -299,13 +328,14 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                 # Insertar cabecera del partido
                 cursor.execute(
                     """
-                    INSERT INTO partido (fecha, estadio, idCompetencia, idClubLocal, idClubVisitante)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO partido (fecha, estadio, idCompetencia, idCategoria, idClubLocal, idClubVisitante)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
                         partido.fecha,
                         partido.estadio,
                         partido.idCompetencia,
+                        partido.idCategoria,
                         partido.idClubLocal,
                         partido.idClubVisitante,
                     ),
@@ -349,10 +379,22 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                     )
                     filas_guardadas.append(bs)
 
+                # Insertar puntos por cuarto si fueron provistos (en la misma transacción)
+                if cuartos:
+                    for cuarto in cuartos:
+                        cursor.execute(
+                            """
+                            INSERT INTO partidoCuarto (idPartido, idClub, nroCuarto, puntos)
+                            VALUES (?, ?, ?, ?)
+                            """,
+                            (id_partido, cuarto.idClub, cuarto.nroCuarto, cuarto.puntos),
+                        )
+
             partido_guardado = Partido(
                 fecha=partido.fecha,
                 estadio=partido.estadio,
                 idCompetencia=partido.idCompetencia,
+                idCategoria=partido.idCategoria,
                 idClubLocal=partido.idClubLocal,
                 idClubVisitante=partido.idClubVisitante,
                 idPartido=id_partido,
@@ -390,7 +432,7 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
         cursor = self.conexion.cursor()
 
         query = """
-        SELECT id_partido, fecha_partido, estadio, competencia, anio_competencia, club_local, club_visitante
+        SELECT id_partido, fecha_partido, estadio, competencia, anio_competencia, categoria, club_local, club_visitante
         FROM v_partidos_resumen
         WHERE id_club_local = ? OR id_club_visitante = ?
         ORDER BY fecha_partido, id_partido;
@@ -406,6 +448,7 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                 anioCompetencia=row["anio_competencia"],
                 clubLocal=row["club_local"],
                 clubVisitante=row["club_visitante"],
+                categoria=row["categoria"],
             )
             for row in cursor.fetchall()
         ]

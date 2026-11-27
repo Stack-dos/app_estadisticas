@@ -51,6 +51,7 @@ def test_database_schema(db_conexion_sin_seed):
         "listaBuenaFe",
         "jugadorListaBuenaFe",
         "partido",
+        "partidoCuarto",
         "jugadorPartido",
         "categoria",
     }
@@ -247,15 +248,16 @@ def test_division_by_zero_devuelve_cero_en_vistas():
 
 @pytest.fixture
 def db_con_datos_base(db_conexion_sin_seed):
-    """Datos previos que necesitan las restricciones de negocio: 2 clubes, 1 competencia, 1 jugador y 1 partido."""
+    """Datos previos para las restricciones: 2 clubes, 1 competencia, 1 categoria, 1 jugador y 1 partido."""
     cursor = db_conexion_sin_seed.cursor()
     cursor.execute("INSERT INTO club (nombre) VALUES ('Atenas')")
     cursor.execute("INSERT INTO club (nombre) VALUES ('Instituto')")
     cursor.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026', 2026)")
+    cursor.execute("INSERT INTO categoria (nombre) VALUES ('U21')")
     cursor.execute("INSERT INTO jugador (nombre, apellido) VALUES ('Facundo', 'Campazzo')")
     cursor.execute(
-        "INSERT INTO partido (fecha, idCompetencia, idClubLocal, idClubVisitante) VALUES (?, ?, ?, ?)",
-        ("2026-01-01", 1, 1, 2),
+        "INSERT INTO partido (fecha, idCompetencia, idCategoria, idClubLocal, idClubVisitante) VALUES (?, ?, ?, ?, ?)",
+        ("2026-01-01", 1, 1, 1, 2),
     )
     return db_conexion_sin_seed
 
@@ -264,8 +266,9 @@ def db_con_datos_base(db_conexion_sin_seed):
     "sentencia, parametros",
     [
         pytest.param(
-            "INSERT INTO partido (fecha, idCompetencia, idClubLocal, idClubVisitante) VALUES (?, ?, ?, ?)",
-            ("2026-01-01", 1, 1, 1),  # ID local == ID visitante
+            "INSERT INTO partido (fecha, idCompetencia, idCategoria, idClubLocal, idClubVisitante) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("2026-01-01", 1, 1, 1, 1),  # ID local == ID visitante
             id="club-local-igual-al-visitante",
         ),
         pytest.param(
@@ -313,10 +316,10 @@ def test_foreign_key_behavior(db_conexion_sin_seed):
     cursor.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026 B', 2026)")  # idCompetencia = 2
     cursor.execute(
         """
-        INSERT INTO partido (fecha, idCompetencia, idClubLocal, idClubVisitante)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO partido (fecha, idCompetencia, idCategoria, idClubLocal, idClubVisitante)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        ("2026-01-01", 2, 1, 2),  # Local=1, Visitante=2
+        ("2026-01-01", 2, 1, 1, 2),  # Local=1, Visitante=2
     )
     cursor.execute("INSERT INTO jugador (nombre, apellido) VALUES ('John', 'Doe')")
     cursor.execute(
@@ -349,6 +352,7 @@ def test_view_semantics_and_cardinality():
         "estadio",
         "competencia",
         "anio_competencia",
+        "categoria",
         "id_club_local",
         "club_local",
         "id_club_visitante",

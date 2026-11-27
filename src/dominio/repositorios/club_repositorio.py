@@ -22,6 +22,11 @@ class ClubRepositorio(ABC):
         pass
 
     @abstractmethod
+    def listar_todos(self) -> list[Club]:
+        "Lista todos los clubes registrados en la base de datos"
+        pass
+
+    @abstractmethod
     def guardar(self, club: Club) -> Club | None:
         "Guarda un Club, si es None, hay un error"
         pass

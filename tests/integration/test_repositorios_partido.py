@@ -1,6 +1,13 @@
 import pytest
 
+from aplicacion.casos_uso.cargar_partido import CargarPartidoUseCase
+from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
+from aplicacion.dtos.club_dto import CrearClubDTO
+from aplicacion.dtos.partido_dto import BoxscoreDTO, CuartoDTO, EstadisticaInputDTO, PartidoDTO
+from dominio.entidades.partido import PartidoCuarto
+from infraestructura.repositorios.sqlite_club_repositorio import SqliteClubRepositorio
+from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCompetenciaRepositorio
 from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartidoRepositorio
 
 # `crear_partido` y `crear_boxscore` son fabricas de datos validos (ver tests/conftest.py):
@@ -52,6 +59,7 @@ def test_guardar_partido(db_conexion, crear_partido):
         pytest.param({"idClubLocal": 12}, id="club-local-inexistente"),
         pytest.param({"idClubVisitante": 304}, id="club-visitante-inexistente"),
         pytest.param({"idCompetencia": 205}, id="competencia-inexistente"),
+        pytest.param({"idCategoria": 999}, id="categoria-inexistente"),
     ],
 )
 def test_guardar_partido_con_referencia_inexistente_devuelve_none(db_conexion, crear_partido, overrides):
@@ -115,6 +123,7 @@ def test_resumen_por_club_trae_los_nombres_desde_la_vista(db_conexion):
     assert resumen[0].clubVisitante == "Universitario"
     assert resumen[0].competencia == "PROVINCIAL U21"
     assert resumen[0].anioCompetencia == 2026
+    assert resumen[0].categoria == "U21"
     # el club aparece igual si jugo de visitante
     assert resumen[1].clubLocal == "Universitario"
     assert resumen[1].clubVisitante == "Atenas"
@@ -143,3 +152,109 @@ def test_obtener_boxscore_partido_lee_vista_con_datos_del_seed(db_conexion):
 
 def test_obtener_boxscore_partido_inexistente_devuelve_lista_vacia(db_conexion):
     assert ObtenerBoxscorePartidoUseCase(SqlitePartidoRepositorio(db_conexion)).ejecutar(999) == []
+
+
+def test_save_with_boxscore_guarda_cuartos_en_la_misma_transaccion(db_conexion, crear_partido, crear_boxscore):
+    """US-108: save_with_boxscore persiste partido, boxscore y cuartos atomicamente."""
+    juego_rep = SqlitePartidoRepositorio(db_conexion)
+    partido = crear_partido(fecha="2026-08-10", estadio="Polideportivo")
+    fila_local = crear_boxscore(idPartido=0, idJugador=1, idClub=1)
+    fila_visitante = crear_boxscore(idPartido=0, idJugador=6, idClub=2)
+    cuartos = [
+        PartidoCuarto(idClub=1, nroCuarto=1, puntos=5),
+        PartidoCuarto(idClub=1, nroCuarto=2, puntos=4),
+        PartidoCuarto(idClub=2, nroCuarto=1, puntos=3),
+        PartidoCuarto(idClub=2, nroCuarto=2, puntos=6),
+    ]
+
+    resultado = juego_rep.save_with_boxscore(partido, [fila_local, fila_visitante], cuartos=cuartos)
+
+    assert resultado is not None
+    partido_guardado, filas = resultado
+    assert partido_guardado.idPartido is not None
+    assert partido_guardado.idCategoria == 1
+    assert len(filas) == 2
+
+    cursor = db_conexion.cursor()
+    cursor.execute(
+        "SELECT idClub, nroCuarto, puntos FROM partidoCuarto WHERE idPartido = ? ORDER BY idClub, nroCuarto",
+        (partido_guardado.idPartido,),
+    )
+    assert [(r["idClub"], r["nroCuarto"], r["puntos"]) for r in cursor.fetchall()] == [
+        (1, 1, 5),
+        (1, 2, 4),
+        (2, 1, 3),
+        (2, 2, 6),
+    ]
+
+
+def test_cargar_partido_use_case_flujo_completo_con_clubes_sin_usuario_y_cuartos(db_conexion):
+    """US-108 AC5/AC7 integracion: carga un partido completo entre dos clubes sin vinculo con ningun usuario."""
+    repo_club = SqliteClubRepositorio(db_conexion)
+    repo_comp = SqliteCompetenciaRepositorio(db_conexion)
+    repo_partido = SqlitePartidoRepositorio(db_conexion)
+
+    # Creamos dos clubes de terceros sin vincular a ningun usuario (idUsuario=None)
+    crear_club = CrearClubUseCase(repo_club)
+    club_a = crear_club.ejecutar(CrearClubDTO(nombre="Barrio Parque"))
+    club_b = crear_club.ejecutar(CrearClubDTO(nombre="Hindú"))
+    assert club_a is not None and club_b is not None
+
+    # Inscribimos ambos clubes en la competencia 1 / categoria 1 del seed y habilitamos 1 jugador por club
+    cursor = db_conexion.cursor()
+    cursor.execute("INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (?, 1, 1)", (club_a.idClub,))
+    insc_a = cursor.lastrowid
+    cursor.execute("INSERT INTO listaBuenaFe (fechaPresentacion, idInscripcion) VALUES ('2026-03-01', ?)", (insc_a,))
+    lista_a = cursor.lastrowid
+    cursor.execute("INSERT INTO jugadorListaBuenaFe (idJugador, idListaBuenaFe) VALUES (3, ?)", (lista_a,))
+
+    cursor.execute("INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (?, 1, 1)", (club_b.idClub,))
+    insc_b = cursor.lastrowid
+    cursor.execute("INSERT INTO listaBuenaFe (fechaPresentacion, idInscripcion) VALUES ('2026-03-01', ?)", (insc_b,))
+    lista_b = cursor.lastrowid
+    cursor.execute("INSERT INTO jugadorListaBuenaFe (idJugador, idListaBuenaFe) VALUES (8, ?)", (lista_b,))
+    db_conexion.commit()
+
+    uc = CargarPartidoUseCase(repo_partido, repo_comp)
+    partido_dto = PartidoDTO(
+        fecha="2026-09-01",
+        estadio="El Teatro",
+        idCompetencia=1,
+        idCategoria=1,
+        idClubLocal=club_a.idClub,
+        idClubVisitante=club_b.idClub,
+        cuartos=[
+            CuartoDTO(idClub=club_a.idClub, nroCuarto=1, puntos=6),
+            CuartoDTO(idClub=club_a.idClub, nroCuarto=2, puntos=6),
+            CuartoDTO(idClub=club_b.idClub, nroCuarto=1, puntos=4),
+            CuartoDTO(idClub=club_b.idClub, nroCuarto=2, puntos=5),
+        ],
+    )
+    box_local = BoxscoreDTO(
+        idClub=club_a.idClub,
+        estadisticas=[EstadisticaInputDTO(idJugador=3, minutosJugados=30.0, puntos=12, t2c=6, t2l=10)],
+    )
+    box_visitante = BoxscoreDTO(
+        idClub=club_b.idClub,
+        estadisticas=[EstadisticaInputDTO(idJugador=8, minutosJugados=28.0, puntos=9, t3c=3, t3l=6)],
+    )
+
+    guardado = uc.ejecutar(partido_dto, box_local, box_visitante)
+
+    assert guardado is not None
+    assert guardado.idPartido is not None
+
+    # Verificamos que el boxscore y los cuartos se persistieron en la base
+    boxscore_leido = ObtenerBoxscorePartidoUseCase(repo_partido).ejecutar(guardado.idPartido)
+    assert len(boxscore_leido) == 2
+    assert {f.puntos for f in boxscore_leido} == {12, 9}
+
+    cursor.execute("SELECT COUNT(*) FROM partidoCuarto WHERE idPartido = ?", (guardado.idPartido,))
+    assert cursor.fetchone()[0] == 4
+
+    # Ninguno de los dos clubes quedo vinculado a usuarioClub
+    cursor.execute(
+        "SELECT COUNT(*) FROM usuarioClub WHERE idClub IN (?, ?)",
+        (club_a.idClub, club_b.idClub),
+    )
+    assert cursor.fetchone()[0] == 0

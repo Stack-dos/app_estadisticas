@@ -9,6 +9,7 @@ from ayudantes_flet import textos
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
 from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
+from aplicacion.casos_uso.cargar_partido import CargarPartidoUseCase
 from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
@@ -22,6 +23,7 @@ from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCatego
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
+from aplicacion.casos_uso.listar_clubes import ListarClubesUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
@@ -66,7 +68,17 @@ def test_sin_sesion_cualquier_otra_ruta_va_al_login(ruta):
 
 
 @pytest.mark.parametrize(
-    "ruta", ["/inicio", "/clubes", "/competencias", "/inscripciones", "/listas", "/jugadores", "/partidos"]
+    "ruta",
+    [
+        "/inicio",
+        "/clubes",
+        "/competencias",
+        "/inscripciones",
+        "/listas",
+        "/jugadores",
+        "/partidos",
+        "/partidos/cargar",
+    ],
 )
 def test_con_sesion_y_club_las_rutas_internas_se_respetan(ruta):
     assert resolver_ruta(ruta, autenticado=True, tiene_club=True) == ruta
@@ -129,6 +141,7 @@ def deps():
         login_uc=MagicMock(spec=LoginLocalUseCase),
         crear_club_uc=MagicMock(spec=CrearClubUseCase),
         listar_clubes_uc=MagicMock(spec=ListarClubesUsuarioUseCase, **{"ejecutar.return_value": []}),
+        listar_clubes_todos_uc=MagicMock(spec=ListarClubesUseCase, **{"ejecutar.return_value": []}),
         cambiar_club_uc=MagicMock(spec=CambiarClubActivoUseCase),
         crear_competencia_uc=MagicMock(spec=CrearCompetenciaUseCase),
         listar_competencias_uc=MagicMock(spec=ListarCompetenciasUseCase, **{"ejecutar.return_value": []}),
@@ -155,6 +168,7 @@ def deps():
         eliminar_jugador_uc=MagicMock(spec=EliminarJugadorUseCase),
         listar_partidos_uc=MagicMock(spec=ListarPartidosPorClubUseCase, **{"ejecutar.return_value": []}),
         obtener_boxscore_uc=MagicMock(spec=ObtenerBoxscorePartidoUseCase, **{"ejecutar.return_value": []}),
+        cargar_partido_uc=MagicMock(spec=CargarPartidoUseCase),
     )
 
 

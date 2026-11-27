@@ -24,6 +24,7 @@ EN_CANCHA = 12  # jugadores por club en cada boxscore y en cada lista de buena f
 RECAMBIO = 3  # bajas (y altas) por club en cada pretemporada
 ULTIMO_ANIO = 2026
 CATEGORIAS = ["Primera", "U21", "U19", "U17"]
+ID_CATEGORIA_LIGA = 1  # id de "Primera" en la base generada
 ESCALAS = {"temporada": 1, "x10": 10}
 
 
@@ -106,7 +107,8 @@ def construir_base(escala: str) -> Datos:
             )
             for id_club in range(1, CLUBES + 1):
                 id_insc = con.execute(
-                    "INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (?, 1, ?)", (id_club, id_comp)
+                    "INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (?, ?, ?)",
+                    (id_club, ID_CATEGORIA_LIGA, id_comp),
                 ).lastrowid
                 id_lista = con.execute(
                     "INSERT INTO listaBuenaFe (fechaPresentacion, idInscripcion) VALUES (?, ?)",
@@ -121,9 +123,9 @@ def construir_base(escala: str) -> Datos:
             for k, (local, visitante) in enumerate(permutations(range(1, CLUBES + 1), 2)):
                 fecha = date(anio, 3, 1) + timedelta(days=k // (CLUBES // 2))
                 id_partido = con.execute(
-                    "INSERT INTO partido (fecha, estadio, idCompetencia, idClubLocal, idClubVisitante)"
-                    " VALUES (?, ?, ?, ?, ?)",
-                    (fecha.isoformat(), f"Estadio {local:02d}", id_comp, local, visitante),
+                    "INSERT INTO partido (fecha, estadio, idCompetencia, idCategoria, idClubLocal, idClubVisitante)"
+                    " VALUES (?, ?, ?, ?, ?, ?)",
+                    (fecha.isoformat(), f"Estadio {local:02d}", id_comp, ID_CATEGORIA_LIGA, local, visitante),
                 ).lastrowid
                 filas = [
                     _estadistica_jugador(rng, j, id_partido, club)
@@ -149,6 +151,7 @@ def construir_base(escala: str) -> Datos:
         "id_jugador": planteles[1][-1],
         "id_jugador_con_historial": jugador_con_historial or planteles[1][0],
         "id_competencia": ultima[0],
+        "id_categoria": ID_CATEGORIA_LIGA,
         "anio": ultima[1],
         "id_inscripcion": con.execute("SELECT MAX(idInscripcion) FROM inscripcion WHERE idClub = 1").fetchone()[0],
         "id_partido": conteos["partido"] // 2,

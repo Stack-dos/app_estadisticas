@@ -105,12 +105,24 @@ CREATE TABLE IF NOT EXISTS partido (
     fecha text NOT NULL,
     estadio text NULL,
     idCompetencia integer NOT NULL,
+    idCategoria integer NOT NULL,
     idClubLocal integer NOT NULL,
     idClubVisitante integer NOT NULL,
     CHECK(idClubLocal != idClubVisitante),
     FOREIGN KEY (idCompetencia) REFERENCES competencia (idCompetencia) ON DELETE CASCADE on UPDATE CASCADE,
+    FOREIGN KEY (idCategoria) REFERENCES categoria (idCategoria) ON DELETE CASCADE on UPDATE CASCADE,
     FOREIGN KEY (idClubLocal) REFERENCES club (idClub) ON DELETE CASCADE on UPDATE CASCADE,
     FOREIGN KEY (idClubVisitante) REFERENCES club (idClub) ON DELETE CASCADE on UPDATE CASCADE
+) STRICT;
+-- Tabla partidoCuarto (US-108): puntos por cuarto/prorroga (opcional; si no se cargan, no hay filas)
+CREATE TABLE IF NOT EXISTS partidoCuarto (
+    idPartido integer NOT NULL,
+    idClub integer NOT NULL,
+    nroCuarto integer NOT NULL CHECK(nroCuarto >= 1),
+    puntos integer NOT NULL CHECK(puntos >= 0),
+    PRIMARY KEY (idPartido, idClub, nroCuarto),
+    FOREIGN KEY (idPartido) REFERENCES partido (idPartido) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (idClub) REFERENCES club (idClub) ON DELETE RESTRICT ON UPDATE CASCADE
 ) STRICT;
 -- Tabla jugador Partido
 CREATE TABLE IF NOT EXISTS jugadorPartido (

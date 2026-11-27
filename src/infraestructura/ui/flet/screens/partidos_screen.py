@@ -256,7 +256,16 @@ def crear_partidos_view(
     contenido = crear_pagina(
         "Partidos",
         [
-            ft.Row([dd_competencia, dd_categoria], spacing=ESPACIO, wrap=True),
+            ft.Row(
+                [
+                    dd_competencia,
+                    dd_categoria,
+                    ft.FilledButton("Cargar partido", on_click=lambda: page.navigate("/partidos/cargar")),
+                ],
+                spacing=ESPACIO,
+                wrap=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
             aviso_filtro,
             error,
             contenedor_tabla,

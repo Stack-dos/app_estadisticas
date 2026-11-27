@@ -6,6 +6,7 @@ import pytest
 
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_club import ROL_CREADOR, CrearClubUseCase
+from aplicacion.casos_uso.listar_clubes import ListarClubesUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO
 from dominio.entidades.club import Club
@@ -63,6 +64,35 @@ def test_crear_club_con_nombre_parecido_no_es_repetido(repo_club):
     repo_club.guardar_con_entrenador.return_value = Club("Atenas", idClub=2)
 
     assert CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Atenas"), idUsuario=7) == ClubDTO(2, "Atenas")
+
+
+def test_crear_club_sin_usuario_no_vincula_entrenador(repo_club):
+    """US-108: crear un club rival o de terceros sin idUsuario llama a guardar() sin vincularlo."""
+    repo_club.guardar.return_value = Club("Instituto", idClub=4)
+
+    resultado = CrearClubUseCase(repo_club).ejecutar(CrearClubDTO(nombre="Instituto"))
+
+    assert resultado == ClubDTO(idClub=4, nombre="Instituto")
+    repo_club.guardar.assert_called_once_with(club=Club("Instituto"))
+    repo_club.guardar_con_entrenador.assert_not_called()
+
+
+# ------------------------------------------------------------------ ListarClubes
+
+
+def test_listar_clubes_devuelve_todos_los_clubes_como_dto(repo_club):
+    repo_club.listar_todos.return_value = [Club("Atenas", idClub=1), Club("Instituto", idClub=2)]
+
+    resultado = ListarClubesUseCase(repo_club).ejecutar()
+
+    assert resultado == [ClubDTO(1, "Atenas"), ClubDTO(2, "Instituto")]
+    repo_club.listar_todos.assert_called_once_with()
+
+
+def test_listar_clubes_sin_clubes_devuelve_lista_vacia(repo_club):
+    repo_club.listar_todos.return_value = []
+
+    assert ListarClubesUseCase(repo_club).ejecutar() == []
 
 
 # ------------------------------------------------------------------ ListarClubesUsuario
