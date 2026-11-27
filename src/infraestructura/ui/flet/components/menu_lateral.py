@@ -26,7 +26,13 @@ DESTINOS = (
     Destino("/inicio", "Inicio", ft.Icons.HOME_OUTLINED, ft.Icons.HOME),
     Destino("/clubes", "Clubes", ft.Icons.SHIELD_OUTLINED, ft.Icons.SHIELD),
     Destino("/jugadores", "Jugadores", ft.Icons.GROUPS_OUTLINED, ft.Icons.GROUPS),
-    Destino("/partidos", "Partidos", ft.Icons.SPORTS_BASKETBALL_OUTLINED, ft.Icons.SPORTS_BASKETBALL),
+    Destino(
+        "/partidos",
+        "Partidos",
+        ft.Icons.SPORTS_BASKETBALL_OUTLINED,
+        ft.Icons.SPORTS_BASKETBALL,
+        subrutas=("/partidos/cargar",),
+    ),
     Destino(
         "/competencias",
         "Torneos",
