@@ -220,3 +220,11 @@ def test_ver_boxscore_consulta_el_caso_de_uso_y_dibuja_el_detalle(armar, mocks):
     mocks["obtener_boxscore"].ejecutar.return_value = []
     boton(vista, "Ver boxscore").on_click()
     assert SIN_BOXSCORE in textos(por_clave(vista, TABLA_BOXSCORE))
+
+
+def test_boton_cargar_partido_navega_a_la_pantalla_de_carga(armar, page):
+    vista = armar()
+
+    boton(vista, "Cargar partido").on_click()
+
+    page.navigate.assert_called_once_with("/partidos/cargar")
