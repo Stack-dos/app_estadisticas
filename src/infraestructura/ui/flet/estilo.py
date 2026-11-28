@@ -38,7 +38,7 @@ RADIO = 8
 
 # Anchos
 ANCHO_FORMULARIO = 400  # formularios de una columna (login, registro, alta)
-ANCHO_MAXIMO = 1100  # el contenido no se estira de borde a borde en una ventana maximizada
+# US-113: se quito ANCHO_MAXIMO; el contenido usa todo el ancho de la ventana (ver components/pagina.py)
 TAMANIO_LOGO_MENU = 44
 TAMANIO_LOGO_MARCA = 120
 
