@@ -494,6 +494,51 @@ validar contra la base, y la regla "solo clubes vinculados" se reusa en vez de r
 
 ---
 
+### 3.19 `CargarPartidoUseCase` (US-108, rehecho en la US-113, ampliado en la US-114)
+
+- **Archivo:** `cargar_partido.py` · **Repositorios:** `PartidoRepositorio`, `CompetenciaRepositorio`, `JugadorRepositorio`
+- **Entra:** `PartidoDTO` (con los cuartos y, para editar, su `idPartido`), `boxscore_propio: BoxscoreDTO`,
+  `rival: BoxscoreDTO | TotalesEquipoDTO` y `nombre_rival_nuevo: str | None` (US-114).
+- **Sale:** `PartidoDTO` con `idPartido`, o `None` si el repositorio revirtió la transacción.
+
+Qué hace, en orden (todo antes de tocar la base):
+
+1. **Partido:** fecha `AAAA-MM-DD`, local ≠ visitante, el club propio juega el partido y el rival es el otro.
+   Si el rival todavía no existe, viene con el id provisorio `ID_CLUB_NUEVO` (0) y su nombre en
+   `nombre_rival_nuevo`: los dos juntos o ninguno (US-114).
+2. **Club propio:** tiene que estar inscripto en la competencia y categoría, con lista de buena fe; cada
+   jugador del boxscore tiene `idJugador`, no se repite y está en esa lista (`JugadorNoEstaEnListaError`).
+3. **Rival con totales:** se convierten en `EstadisticaEquipo`, que valida no negativos, convertidos ≤
+   lanzados y que los puntos cierren con los tiros (si se cargaron tiros).
+4. **Rival con boxscore:** busca su inscripción y su lista (pueden no existir) y su plantel vigente.
+   Cada fila con `idJugador` tiene que ser de su plantel o su lista (`JugadorNoPerteneceAlClubError`);
+   cada fila sin id se busca por nombre y apellido normalizados (sin tildes ni mayúsculas) y, si no
+   está, es un jugador nuevo. Arma un `AltaPlantelRival` con lo que haya que crear (o `None` si no hace falta nada).
+5. **Cantidad y resultado (US-114):** como máximo 12 jugadores por equipo (`MAX_JUGADORES_PARTIDO`) y
+   sin empate (en básquet no hay).
+6. **Cuartos:** si vienen, los dos equipos con la misma cantidad de períodos y cada suma igual a sus puntos.
+7. Llama **una vez** a `save_with_boxscore(partido, filas, cuartos, totales, alta_rival, club_rival_nuevo)`:
+   el club rival nuevo, el alta del rival, el partido, los boxscores, los cuartos y los totales van en la
+   misma transacción. Con `idPartido` el repositorio actualiza el partido y reemplaza sus filas (editar).
+
+Ejemplo: Atenas (club activo) le gana a Pesca, que no tiene inscripción, y se carga el boxscore de Pesca
+con «Juan Rival». En una sola transacción se crean la inscripción de Pesca, su lista, el jugador Juan
+Rival (vinculado a Pesca desde la fecha del partido y habilitado en la lista) y el partido. En el
+partido siguiente, «JUAN rival» se reconoce y no se duplica.
+
+### 3.20 Editar, eliminar y clubes rivales (US-114)
+
+| Caso de uso                  | Archivo                    | Entra              | Sale                 | Qué valida                                                                   |
+| ---------------------------- | -------------------------- | ------------------ | -------------------- | ---------------------------------------------------------------------------- |
+| `ObtenerPartidoUseCase`      | `obtener_partido.py`       | `id_partido: int`  | `PartidoDTO \| None` | Nada: trae el partido con sus cuartos para llenar la pantalla de edición      |
+| `EliminarPartidoUseCase`     | `eliminar_partido.py`      | `id_partido: int`  | `bool`               | Nada: borra partido, boxscore, cuartos y totales (el alta del rival queda)    |
+| `ListarClubesRivalesUseCase` | `listar_clubes_rivales.py` | _(nada)_           | `list[ClubDTO]`      | Los clubes sin ningún usuario                                                 |
+| `RenombrarClubUseCase`       | `renombrar_club.py`        | `RenombrarClubDTO` | `ClubDTO \| None`    | Que exista (`ClubNoEncontradoError`), que no sea propio (`ClubEnUsoError`) y que el nombre no lo use otro club (`ClubYaExisteError`) |
+| `EliminarClubUseCase`        | `eliminar_club.py`         | `id_club: int`     | `bool`               | Que no sea propio ni tenga partidos (`ClubEnUsoError`)                        |
+
+Ejemplo: al cargar un partido se escribió «Pezca». En «Mis clubes → Clubes rivales» se renombra a
+«Pesca» (aunque ya tenga partidos). Si se hubiera creado sin partidos, también se podría borrar.
+
 ## 4. DTOs
 
 Todos son `@dataclass` simples, sin lógica, en `src/aplicacion/dtos/`.
@@ -546,6 +591,7 @@ capturarlas juntas con un solo `except ErrorDeDominio` (en `infraestructura/ui/f
 | `ListaBuenaFeNoEncontradaError` | `AgregarJugadorAListaBuenaFeUseCase`, `QuitarJugadorDeListaBuenaFeUseCase`, `ListarListaBuenaFeUseCase`, `ListarInscripcionesClubUseCase` | La inscripción no tiene lista de buena fe (no debería pasar: es 1:1 y se crean juntas) |
 | `JugadorNoPerteneceAlClubError` | `AgregarJugadorAListaBuenaFeUseCase` | El jugador no tiene un vínculo vigente con el club de la inscripción |
 | `JugadorYaEnListaError` | `AgregarJugadorAListaBuenaFeUseCase` | El jugador ya está habilitado en esa lista |
+| `ClubEnUsoError` | `RenombrarClubUseCase`, `EliminarClubUseCase` | El club es propio de un usuario o (al eliminar) tiene partidos cargados |
 
 Además, las entidades pueden lanzar `TypeError` (tipo incorrecto) al construirse. Esa **no** es una excepción
 de dominio: es un error de programación (un bug), no algo que el usuario pueda corregir, y no se atrapa.
@@ -585,38 +631,55 @@ siguientes ya están implementados y testeados; la columna "Pantalla" indica qu�
 | ------------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------- |
 | `RegistrarEntrenadorUseCase`         | `RegistroScreen` (US-105)      | ✅ En la GUI (US-105)                                                                          |
 | `LoginLocalUseCase`                  | `LoginScreen` (US-105)         | ✅ En la GUI (US-105)                                                                          |
-| `RegistrarJugadorUseCase`            | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
+| `RegistrarJugadorUseCase`            | `JugadoresScreen` (US-112)     | ✅ En la GUI (US-112)                                                                          |
 | `CrearClubUseCase`                   | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106)                                                                          |
-| `VincularJugadorAClubUseCase`        | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
+| `VincularJugadorAClubUseCase`        | `JugadoresScreen` (US-112)     | ✅ En la GUI (US-112)                                                                          |
 | `CrearCompetenciaUseCase`            | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107, recibe categorías al crear)                                             |
 | `InscribirClubEnCompetenciaUseCase`  | `InscripcionesScreen` (US-107) | ✅ En la GUI (US-107, valida categoría habilitada)                                            |
 | `ListarClubesUsuarioUseCase`         | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106; el usuario sale de la sesión)                                            |
 | `ListarJugadoresClubUseCase`         | `ListaBuenaFeScreen` (US-107) / `JugadoresScreen` (US-112) | ✅ En `ListaBuenaFeScreen` (US-107); alta/baja en US-112           |
-| `ListarPartidosPorClubUseCase`       | `PartidosScreen` (US-112)      | ✅ Implementado; pantalla pendiente                                                            |
+| `ListarPartidosPorClubUseCase`       | `PartidosScreen` (US-112)      | ✅ En la GUI (US-112)                                                                          |
 | `CambiarClubActivoUseCase`           | `ClubesScreen` (US-106)        | ✅ En la GUI (US-106): "Usar este club" + `SessionManager.set_active_club`                    |
 | `RestaurarSesionUseCase`             | _(ninguna: al abrir la app)_   | ✅ US-106, lo llama `construir_dependencias`                                                   |
-| `CrearCategoriaUseCase`              | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
+| `CrearCategoriaUseCase`              | `CategoriasScreen` (US-113)    | ✅ En la GUI (US-107; desde la US-113 en su propia pestaña)                                    |
 | `ListarCategoriasUseCase`            | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
 | `ListarCompetenciasUseCase`          | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
 | `ListarInscripcionesClubUseCase`     | `InscripcionesScreen` (US-107) | ✅ En la GUI (US-107)                                                                          |
 | `AgregarJugadorAListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
 | `ListarListaBuenaFeUseCase`          | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
-| `DesvincularJugadorDeClubUseCase`    | `JugadoresScreen` (US-112)     | ✅ Implementado; pantalla pendiente                                                            |
+| `DesvincularJugadorDeClubUseCase`    | `JugadoresScreen` (US-112)     | ✅ En la GUI (US-112)                                                                          |
 | `QuitarJugadorDeListaBuenaFeUseCase` | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107)                                                                          |
 
 **Categorías por competencia (US-107):** una competencia habilita las categorías que juega (tabla `competenciaCategoria`) y solo se puede inscribir un club en una categoría habilitada:
 
 | Caso de uso                              | Pantalla (GUI)                 | Estado                                                                 |
 | ---------------------------------------- | ------------------------------ | ---------------------------------------------------------------------- |
-| `HabilitarCategoriaEnCompetenciaUseCase` | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107)                                                  |
+| `HabilitarCategoriaEnCompetenciaUseCase` | `CompetenciasScreen` (US-107)  | ✅ En la GUI: botón «Categorías» de cada fila (US-113)                 |
 | `ListarCategoriasDeCompetenciaUseCase`   | `InscripcionesScreen` (US-107) | ✅ En la GUI (US-107)                                                  |
 | `QuitarCategoriaDeCompetenciaUseCase`    | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si hay clubes inscriptos)                |
 | `CrearCompetenciaUseCase`                | `CompetenciasScreen` (US-107)  | ✅ Extendido y en la GUI (US-107): recibe las categorías al crear      |
 | `InscribirClubEnCompetenciaUseCase`      | `InscripcionesScreen` (US-107) | ✅ Extendido y en la GUI (US-107): rechaza una categoría no habilitada |
 | `EliminarCompetenciaUseCase`             | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si tiene inscripciones o partidos)       |
-| `EliminarCategoriaUseCase`               | `CompetenciasScreen` (US-107)  | ✅ En la GUI (US-107; rechaza si está en uso en alguna competencia)    |
+| `EliminarCategoriaUseCase`               | `CategoriasScreen` (US-113)    | ✅ En la GUI (rechaza si está en uso en alguna competencia)            |
 | `EliminarInscripcionUseCase`             | `InscripcionesScreen` / `ListaBuenaFeScreen` (US-107) | ✅ En la GUI (US-107; borra también su lista 1:1 si no hay partidos) |
 | `VaciarListaBuenaFeUseCase`              | `ListaBuenaFeScreen` (US-107)  | ✅ En la GUI (US-107; quita todos los jugadores de la lista)           |
+
+**Partidos (US-108, rehecha en la US-113, edición y rivales en la US-114):**
+
+| Caso de uso                             | Pantalla (GUI)                            | Estado                                                                    |
+| --------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------- |
+| `CargarPartidoUseCase`                  | `CargaPartidoScreen`                      | ✅ En la GUI: boxscore propio + totales o boxscore del rival (sección 3.19) |
+| `ObtenerBoxscorePartidoUseCase`         | `PartidosScreen` (US-112)                 | ✅ En la GUI: detalle del partido                                          |
+| `ObtenerTotalesPartidoUseCase`          | `PartidosScreen` (US-113)                 | ✅ En la GUI: tabla «Totales por equipo» del detalle                       |
+| `ListarLideresClubUseCase`              | `InicioScreen` (US-113)                   | ✅ En la GUI: líderes del club (5, por puntos por partido)                 |
+| `AgregarJugadoresAListaBuenaFeUseCase`  | `ListaBuenaFeScreen` (US-113)             | ✅ En la GUI: alta masiva con casillas                                     |
+| `ListarClubesUseCase`                   | `CargaPartidoScreen`                      | ✅ En la GUI: opciones del rival                                           |
+| `ObtenerPartidoUseCase`                 | `CargaPartidoScreen` (US-114)             | ✅ En la GUI: «Editar partido» llega con lo guardado                       |
+| `EliminarPartidoUseCase`                | `PartidosScreen` (US-114)                 | ✅ En la GUI: «Eliminar partido» con confirmación                          |
+| `ListarClubesRivalesUseCase`            | `ClubesScreen` (US-114)                   | ✅ En la GUI: sección «Clubes rivales»                                     |
+| `RenombrarClubUseCase`                  | `ClubesScreen` (US-114)                   | ✅ En la GUI: diálogo «Renombrar club rival»                               |
+| `EliminarClubUseCase`                   | `ClubesScreen` (US-114)                   | ✅ En la GUI: solo rivales sin partidos                                    |
+| `AgregarJugadoresAListaBuenaFeUseCase`  | `InscripcionesScreen` (US-114)            | ✅ También al inscribirse: «Agregar todo el plantel a la lista»            |
 
 Cómo abrir la aplicación y qué se puede hacer hoy: [RUNBOOK](../../RUNBOOK.md). Cómo está armada la GUI:
 [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).

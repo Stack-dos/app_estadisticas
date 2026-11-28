@@ -53,6 +53,8 @@
   - [15. Checklist: agregar una pantalla nueva](#15-checklist-agregar-una-pantalla-nueva)
   - [16. Base visual: tema, página y formulario (US-111)](#16-base-visual-tema-página-y-formulario-us-111)
   - [17. Empaquetar la app: `flet build` (US-109)](#17-empaquetar-la-app-flet-build-us-109)
+  - [18. Formularios densos: la carga de partido (US-113)](#18-formularios-densos-la-carga-de-partido-us-113)
+  - [19. Editar con la misma pantalla, rutas con id y texto en Markdown (US-114)](#19-editar-con-la-misma-pantalla-rutas-con-id-y-texto-en-markdown-us-114)
 
 ---
 
@@ -1125,10 +1127,13 @@ no tiene: margen interno (`padding`), fondo (`bgcolor`), esquinas (`border_radiu
 (`width`) o un **ancho máximo** (`max_width`), y dónde ubicar al hijo (`alignment`).
 
 ```python
-ft.Container(content=columna, max_width=1100, padding=24)   # crear_pagina
+ft.Container(content=columna, padding=24)   # crear_pagina
 ```
 
-- **`max_width`** hace que en una ventana maximizada el contenido no se estire de borde a borde.
+- **`max_width`** limita el ancho para que en una ventana maximizada el contenido no se estire de
+  borde a borde. `crear_pagina` lo usó hasta la US-113 (1100 px) y se sacó: las tablas y la planilla
+  del partido quedaban apretadas en el medio con media pantalla vacía. Ahora el contenido ocupa todo
+  el ancho y cada formulario se acomoda con `ResponsiveRow` (sección 18).
 - **`expand=True`** (o un número) en un hijo de `Row`/`Column` hace que ocupe el espacio que sobra.
   Con números se reparte: en el login, `expand=2` para la marca y `expand=3` para el formulario.
 - **Alineación:** en una `Column`, `alignment` es la vertical y `horizontal_alignment` la
@@ -1154,7 +1159,7 @@ flowchart TB
         R --> MN["crear_menu_lateral<br/>ft.NavigationRail: logo, Inicio, Clubes"]
         R --> D["VerticalDivider"]
         R --> SC["Column con scroll (expand)"]
-        SC --> PG["crear_pagina: Container max_width 1100<br/>título · subtítulo · controles · panel lateral"]
+        SC --> PG["crear_pagina: Container a todo el ancho<br/>título · subtítulo · controles · panel lateral"]
     end
     subgraph AC["Login y registro: crear_vista_acceso(ruta, titulo, subtitulo, formulario)"]
         R2["Row (expand)"]
@@ -1300,3 +1305,213 @@ build/linux/
 - **`UnicodeEncodeError` al final del build en Windows:** la consola de Python está en cp1252 y flet-cli no puede escribir el `√` con el
   que Flutter avisa que terminó. Se corre con `PYTHONUTF8=1`.
 - **Escribir rutas relativas al directorio actual:** instalada, la app arranca desde cualquier carpeta. Las rutas salen de `config/rutas.py`.
+
+---
+
+## 18. Formularios densos: la carga de partido (US-113)
+
+### Qué problema resuelve
+
+La primera carga de partido era un formulario de tres pasos, angosto y en columna: para un partido
+con 12 jugadores y 16 estadísticas por jugador había que bajar y bajar, y el rival no se podía
+escribir. Un entrenador anota el partido en una planilla de Excel: una fila por jugador, una
+columna por estadística. La US-113 copia esa forma con controles que hasta ahora no usábamos.
+
+### `ft.ResponsiveRow`: columnas que se acomodan al ancho
+
+Una `Row` pone a sus hijos uno al lado del otro y, si no entran, se cortan (o hay que poner
+`wrap=True`). Una **`ResponsiveRow`** divide el ancho en **12 columnas** (como Bootstrap en la web) y
+cada hijo dice cuántas ocupa según el tamaño de la ventana con `col`:
+
+```python
+ft.ResponsiveRow(
+    controls=[
+        ft.Container(dd_torneo, col={"sm": 12, "md": 6, "xl": 4}),
+        ft.Container(campo_fecha, col={"sm": 6, "md": 3, "xl": 2}),
+    ]
+)
+```
+
+`sm`, `md`, `xl` son los cortes de ancho (chico, mediano, extra grande). En una ventana chica la
+competencia ocupa toda la fila (12) y la fecha media; maximizada entran las cinco cosas en una línea.
+
+### `ft.Dropdown` editable: elegir o escribir
+
+Un `Dropdown` común solo deja elegir una opción. Con **`editable=True`** se puede escribir, y con
+**`enable_filter=True`** las opciones se filtran mientras se escribe (autocompletar):
+
+```python
+dd_rival = ft.Dropdown(label="Rival", options=[...], editable=True, enable_filter=True)
+dd_rival.on_select = al_elegir_rival        # eligió una opción: dd_rival.value es su key
+dd_rival.on_text_change = al_escribir_rival  # escribió: el texto llega en e.data
+```
+
+La clave es que **`value` y el texto son cosas distintas**. Si se elige "Pesca", `value` es `"2"` (el
+id). Si se escribe "Pesca nuevo", no hay `value`: hay que guardarse el texto del evento. Por eso la
+pantalla tiene `texto_rival` y, al guardar, decide: si hay un club con ese nombre (sin tildes ni
+mayúsculas) lo usa; si no, lo crea.
+
+### `ft.SegmentedButton`: dos o tres opciones a la vista
+
+Para "Local / Visitante" o "Solo totales / Boxscore" un desplegable esconde las opciones y un par de
+casillas permitiría marcar las dos. Un **`SegmentedButton`** muestra todas y deja una elegida:
+
+```python
+seg = ft.SegmentedButton(
+    segments=[ft.Segment(value="local", label="Local"), ft.Segment(value="visitante", label="Visitante")],
+    selected=["local"],
+)
+seg.on_change = lambda: actualizar_marcador()
+```
+
+`selected` es una **lista** (el control también sirve para elegir varias), así que se lee
+`seg.selected[0]`.
+
+### `ft.DatePicker`: un calendario que se abre como diálogo
+
+El `DatePicker` no se pone en la pantalla: es un **diálogo**, como el de confirmación. Se abre con
+`page.show_dialog(picker)` y, cuando el usuario elige, `on_change` deja la fecha en `picker.value`
+(un `datetime`). El campo de texto sigue existiendo, porque escribir `2026-09-01` es más rápido que
+navegar meses:
+
+```python
+campo_fecha.suffix_icon = ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, on_click=lambda: page.show_dialog(picker))
+```
+
+`suffix_icon` y no `suffix`: `suffix` solo se ve cuando el campo tiene el foco.
+
+### Íconos con descripción: `IconButton(tooltip=...)`
+
+En una tabla con muchas filas, tres botones de texto por fila ("Editar", "Dar de baja", "Eliminar")
+ocupan más que los datos. Un **`ft.IconButton`** con `tooltip` muestra solo el ícono y el texto al
+pasar el mouse. En Flet 1.x `ft.Tooltip` no es un control que envuelve a otro: es la propiedad
+`tooltip=` del control.
+
+### Diálogos como formularios
+
+Un `ft.AlertDialog` no es solo para "¿Seguro?": su `content` puede ser una `Column` con campos. El
+alta de jugador y la baja (con su fecha) son diálogos: la tabla queda a todo el ancho y el formulario
+aparece solo cuando se usa. El diálogo se cierra con `page.pop_dialog()` **solo si salió bien**; si el
+caso de uso lanzó un error, se muestra adentro del diálogo y el usuario corrige sin perder lo escrito.
+
+### Ejemplo: la planilla del partido
+
+`components/planilla_boxscore.py` arma la planilla con piezas conocidas: una `Row` por jugador con un
+`TextField` angosto por estadística (cada uno con `key="Pepe Argento · T2C"`, para encontrarlo en los
+tests) y una fila "Equipo" de `ft.Text` que se recalcula en cada `on_change`. Toda la planilla va
+dentro de **una sola** `Row(scroll=AUTO)`, así el encabezado, los jugadores y el total se desplazan
+juntos en una ventana angosta.
+
+### Errores comunes
+
+- **Leer `dd.value` de un desplegable editable y esperar el texto:** si el usuario escribió, `value`
+  está vacío. El texto viene en el evento `on_text_change`.
+- **`selected` como string:** `seg.selected = "local"` no funciona; es `["local"]`.
+- **Poner el `DatePicker` en `controls`:** no se ve. Es un diálogo: `page.show_dialog`.
+- **Un scroll horizontal por fila:** cada fila se desplaza por su cuenta y las columnas dejan de
+  coincidir con el encabezado. Un solo scroll para toda la planilla.
+- **Cerrar el diálogo antes de saber si el caso de uso anduvo:** si falla, el usuario pierde lo que
+  escribió.
+
+## 19. Editar con la misma pantalla, rutas con id y texto en Markdown (US-114)
+
+### Qué problema resuelve
+
+Después de la US-113 un partido mal cargado no se podía corregir, la planilla mostraba toda la lista
+de buena fe (a veces 15 o más) y no había ayuda dentro de la app. La US-114 suma cuatro ideas nuevas
+de Flet: una ruta que lleva un dato (el id del partido), una pantalla que sirve para crear y para
+editar, casillas generadas en un bucle con su propio handler y un texto largo escrito en Markdown.
+
+### Rutas con un id: `/partidos/editar/5`
+
+Hasta ahora cada ruta era fija (`/partidos`, `/clubes`) y la tabla de rutas de `app.py` era un
+diccionario `ruta → función sin argumentos`. Para editar hace falta saber **qué** partido: el id va al
+final de la ruta, como en una web (`/partidos/editar/5`). `separar_ruta` lo corta:
+
+```python
+def separar_ruta(ruta: str) -> tuple[str, int | None]:
+    base, _, ultimo = ruta.rpartition("/")   # "/partidos/editar/5" -> ("/partidos/editar", "/", "5")
+    if base in RUTAS_CON_ID and ultimo.isdigit():
+        return base, int(ultimo)
+    return ruta, None
+```
+
+Las rutas con id tienen su propia tabla, `rutas_con_id: dict[str, Callable[[int], ft.View]]`, y el
+router elige: si `separar_ruta` devolvió un id, llama a esa función con el id; si no, a la de siempre.
+El guard (`resolver_ruta`) usa la **base** para decidir si hace falta sesión y club activo.
+
+`str.isdigit()` evita que `/partidos/editar/abc` rompa con `int("abc")`: esa ruta no existe y va al inicio.
+
+### Una pantalla para crear y editar
+
+`crear_carga_partido_view(..., id_partido=None)` arma siempre la misma pantalla. Con `id_partido`,
+al final la **llena** con lo guardado (`_precargar`) y cambia el título y el botón ("Guardar cambios").
+Al guardar, el `PartidoDTO` lleva ese `idPartido` y el repositorio hace UPDATE en vez de INSERT.
+
+Para poder llenarla, los componentes suman métodos que escriben en sus campos:
+`PlanillaBoxscore.poner_valores(id_jugador, valores)`, `FilaTotalesEquipo.poner_valores(puntos, valores)`
+y `BloquePuntosPorCuarto.cargar_cuartos(cuartos, id_local, id_visitante)` (que agrega las prórrogas
+que hagan falta). Los valores salen de `dataclasses.asdict(fila)`: los nombres de las columnas de la
+planilla son los mismos que los campos del DTO, así que no hay que traducir nada.
+
+Error común: llenar la pantalla **antes** de que exista la planilla del torneo. El orden importa:
+primero se elige la inscripción y se arma la planilla, después se ponen los valores.
+
+### Casillas en un bucle: `functools.partial`
+
+Los convocados son un `ft.Checkbox` por jugador de la lista. Cada casilla tiene que avisar **qué**
+jugador cambió. Con una `lambda` escrita en el `for` pasa lo de siempre (todas recuerdan el último
+jugador), y la vieja receta `lambda e, j=j: ...` depende de si Flet manda o no el evento. La opción
+limpia es `functools.partial`, que "congela" el argumento:
+
+```python
+from functools import partial
+
+ft.Checkbox(label=j.nombre_completo, data=j.id, on_change=partial(al_marcar_convocado, j.id))
+```
+
+`partial(al_marcar_convocado, 7)` es una función nueva que, al llamarla sin argumentos, ejecuta
+`al_marcar_convocado(7)`. Flet mira cuántos argumentos acepta el handler: `partial` no acepta ninguno
+más, así que lo llama sin el evento.
+
+**Revertir una casilla:** si ya hay 12 marcados, el handler no agrega al jugador y vuelve a dibujar
+las casillas desde el conjunto `convocados`: la casilla 13 queda desmarcada aunque el usuario la
+haya tocado. La fuente de verdad es el conjunto, no el `value` de cada casilla.
+
+### Confirmar antes de guardar: "¿Guardar igual?"
+
+Un aviso (menos de 5 jugadores, partido repetido) no es un error: el usuario puede tener razón. La
+pantalla arma primero todo lo que va a mandar (un `_Guardado`) y, si hay avisos, abre
+`pedir_confirmacion(..., texto_confirmar="Guardar igual")` con `partial(_guardar, guardado)` como
+acción. Si no hay avisos, guarda directo. Así la validación no se repite y lo que se confirma es
+exactamente lo que se guarda.
+
+### `ft.Markdown`: un texto largo sin armarlo con controles
+
+La guía de uso tiene títulos, listas y negritas. Armarla con `ft.Text` sería un montón de controles y
+cada corrección tocaría Python. **`ft.Markdown`** dibuja texto en formato Markdown (el de los README):
+
+```python
+ft.Markdown(Path(r.GUIA_MD).read_text(encoding="utf-8"), selectable=True,
+            extension_set=ft.MarkdownExtensionSet.GITHUB_WEB)
+```
+
+`GITHUB_WEB` activa lo mismo que GitHub (tablas, listas de tareas). El archivo vive en `src/assets/`,
+junto al logo, así `flet build` lo empaqueta. Si falta, `leer_guia` devuelve un aviso en vez de romper
+la pantalla.
+
+### Un botón fijo abajo del menú
+
+`NavigationRail` tiene `trailing`, pero queda pegado debajo del último destino, no abajo de todo. Para
+que "Guía" quede en la esquina inferior izquierda, `crear_vista_interna` pone el menú y el botón en
+una `Column`: el menú dentro de un `Container(expand=True)` (ocupa todo el alto que sobra) y el botón
+debajo.
+
+### Errores comunes
+
+- **`int(ultimo)` sin chequear:** una ruta escrita a mano (`/partidos/editar/x`) rompe el router.
+- **Pasar `id_partido` y olvidarse del UPDATE:** guardar crearía un partido nuevo y quedarían dos.
+- **Recrear las filas de la planilla al cambiar los convocados:** se pierde lo que ya se escribió. Por
+  eso `cargar_jugadores` reusa la fila de cada jugador que ya estaba.
+- **Leer el archivo de la guía con la codificación por defecto:** en Windows no es UTF-8 y las tildes
+  salen mal. Siempre `encoding="utf-8"`.
