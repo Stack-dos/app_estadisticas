@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 import config.rutas as ruta
 from dominio.entidades.jugador import Jugador
 from dominio.entidades.partido import JugadorPartido, Partido
+from infraestructura.observabilidad import FiltroContexto, FiltroSecretos
 from infraestructura.persistencia.database_manager import SQLiteManager
 
 
@@ -144,3 +146,32 @@ def crear_boxscore():
         return JugadorPartido(**{**datos, **overrides})
 
     return _crear
+
+
+class _HandlerLista(logging.Handler):
+    """Guarda los registros en una lista, con los mismos filtros que el handler real de la app (US-110)."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.DEBUG)
+        self.registros: list[logging.LogRecord] = []
+        self.addFilter(FiltroContexto())
+        self.addFilter(FiltroSecretos())
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.registros.append(record)
+
+
+@pytest.fixture
+def registros_log():
+    """Los registros que se loguean durante el test, ya con correlation_id, accion y secretos tapados.
+
+    `caplog` no sirve para esto: su handler no tiene los filtros de `logger.py`.
+    """
+    handler = _HandlerLista()
+    raiz = logging.getLogger()
+    nivel = raiz.level
+    raiz.addHandler(handler)
+    raiz.setLevel(logging.DEBUG)
+    yield handler.registros
+    raiz.removeHandler(handler)
+    raiz.setLevel(nivel)

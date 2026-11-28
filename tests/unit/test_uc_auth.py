@@ -205,3 +205,23 @@ def test_login_local_normaliza_email_antes_de_buscar(repo_usuario, hasher):
 def test_login_local_con_tipos_invalidos_lanza_type_error(repo_usuario, hasher, dto):
     with pytest.raises(TypeError):
         LoginLocalUseCase(repo_usuario, hasher).ejecutar(dto)
+
+
+# ------------------------------------------------------------------ eventos de log (US-110)
+
+
+def test_login_loguea_ok_con_el_id_y_fallido_sin_el_email(repo_usuario, hasher, registros_log):
+    repo_usuario.encontrar_por_mail.return_value = Usuario(
+        nombre="Profesor", email="profe@test.com", password_hash="h", idUsuario=5
+    )
+    hasher.verify.side_effect = [True, False]
+    uc = LoginLocalUseCase(repo_usuario, hasher)
+
+    uc.ejecutar(LoginDTO(email="profe@test.com", password="secreta123"))
+    with pytest.raises(CredencialesInvalidasError):
+        uc.ejecutar(LoginDTO(email="profe@test.com", password="otra"))
+
+    ok, fallido = registros_log
+    assert (ok.evento, ok.id_usuario) == ("login_ok", 5)
+    assert fallido.evento == "login_fallido"
+    assert all("profe@test.com" not in str(r.__dict__) for r in registros_log)

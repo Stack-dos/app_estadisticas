@@ -185,3 +185,18 @@ def test_despues_de_cerrar_sesion_un_login_sin_recordar_no_guarda(sesion, almace
     sesion.set_active_club(ATENAS)
 
     almacen.guardar.assert_not_called()
+
+
+# ------------------------------------------------------------------ eventos de log (US-110)
+
+
+def test_elegir_club_y_cerrar_sesion_quedan_en_el_log(sesion, usuario, registros_log):
+    sesion.iniciar_sesion(usuario)
+    sesion.set_active_club(ClubDTO(idClub=3, nombre="Atenas"))
+    sesion.cerrar_sesion()
+    sesion.cerrar_sesion()  # sin sesion: no loguea un logout fantasma
+
+    assert [(r.evento, r.__dict__.get("id_club"), r.__dict__.get("id_usuario")) for r in registros_log] == [
+        ("set_active_club", 3, None),
+        ("logout", None, 1),
+    ]
