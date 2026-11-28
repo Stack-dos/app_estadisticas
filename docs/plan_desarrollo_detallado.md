@@ -1386,13 +1386,28 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
   - **AC6 — Rival atómico:** si el partido no se guarda, el rival nuevo no queda en la base.
   - **AC7 — Rivales:** se renombran; se eliminan solo si no tienen partidos.
   - **AC8 — Guía:** se abre desde el menú (con sesión) y desde el login (sin sesión).
+  - **AC9 — Pantallas como la maqueta (agregado el 2026-11-27, al compararlas con el muestrario):**
+    - _Mis clubes:_ cada club con un círculo con sus iniciales y «n categorías · n jugadores».
+    - _Jugadores:_ buscador y «Del club» / «En todos los clubes» (este último solo de consulta, con el
+      club actual de cada jugador; nuevo `ListarJugadoresTodosUseCase` y
+      `JugadorRepositorio.listar_con_club_actual`). Se quita «Vincular jugador existente»: un jugador se
+      crea siempre con club y no se trae de otro club; solo un homónimo **sin club** se ofrece sumar.
+    - _Partidos:_ columnas Cat. y G/P; el filtro de categoría ofrece todo el catálogo; «Ver» abre el
+      partido en su pantalla (`/partidos/ver/{id}`) con marcador destacado, cuartos en tabla, totales y
+      un boxscore por equipo, todas las tablas al mismo ancho.
+    - _Inscripciones:_ «Jugadores en la lista» en vez de «Lista #n».
+    - _Carga de partido:_ asistente de tres pasos (Datos → Boxscore → Confirmar); los avisos se ven en
+      el resumen y reemplazan al diálogo «¿Guardar igual?».
+    - _Tablas:_ encabezado con fondo de color en toda la app.
 - **Testing Mínimo:**
   - _Unitarias:_ empate, más de 12, rival nuevo (id provisorio y nombre juntos), edición con
     `idPartido`, obtener/eliminar partido, renombrar/eliminar/listar rivales; convocados, avisos, error
     único y edición en la pantalla de carga; editar/eliminar en partidos; plantel al inscribirse;
-    clubes rivales; rutas con id y guía; botón Guía.
+    clubes rivales; rutas con id y guía; botón Guía; iniciales y resumen de clubes; buscador y «En
+    todos los clubes»; G/P y detalle del partido; jugadores por lista; pasos del asistente de carga.
   - _Integración:_ rival nuevo con el partido y su rollback, edición que reemplaza filas y conserva el
-    id, edición de un partido inexistente, eliminación, métodos nuevos del repositorio de clubes.
+    id, edición de un partido inexistente, eliminación, métodos nuevos del repositorio de clubes,
+    `listar_con_club_actual` (club vigente o ninguno, sin repetir jugadores).
   - _Manual guiado:_ simulación del flujo del entrenador (guía sin sesión → club → 14 jugadores →
     inscripción con plantel → partido con convocados → duplicado y empate → editar → eliminar →
     renombrar rival → guía con sesión).
