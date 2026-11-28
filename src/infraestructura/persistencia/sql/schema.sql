@@ -156,4 +156,33 @@ CREATE TABLE IF NOT EXISTS jugadorPartido (
     FOREIGN KEY (idPartido) REFERENCES partido (idPartido) ON DELETE RESTRICT ON UPDATE RESTRICT,
     FOREIGN KEY (idClub) REFERENCES club (idClub) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) STRICT;
+-- Tabla estadisticaEquipoPartido (US-113): totales de un equipo en un partido cuando NO se cargo su boxscore
+-- por jugador (el caso tipico: del rival solo se tiene la planilla de totales o el resultado). Si el equipo
+-- tiene filas en jugadorPartido, sus totales salen de sumarlas (vista v_totales_equipo_partido) y aca no hay fila.
+CREATE TABLE IF NOT EXISTS estadisticaEquipoPartido (
+    idPartido integer NOT NULL,
+    idClub integer NOT NULL,
+    puntos integer NOT NULL DEFAULT 0 CHECK(puntos >= 0),
+    T2C integer NOT NULL DEFAULT 0 CHECK(T2C >= 0),
+    T2L integer NOT NULL DEFAULT 0 CHECK(T2L >= 0),
+    T3C integer NOT NULL DEFAULT 0 CHECK(T3C >= 0),
+    T3L integer NOT NULL DEFAULT 0 CHECK(T3L >= 0),
+    T1C integer NOT NULL DEFAULT 0 CHECK(T1C >= 0),
+    T1L integer NOT NULL DEFAULT 0 CHECK(T1L >= 0),
+    rebotesDef integer NOT NULL DEFAULT 0 CHECK(rebotesDef >= 0),
+    rebotesOf integer NOT NULL DEFAULT 0 CHECK(rebotesOf >= 0),
+    asistencias integer NOT NULL DEFAULT 0 CHECK(asistencias >= 0),
+    recuperos integer NOT NULL DEFAULT 0 CHECK(recuperos >= 0),
+    perdidas integer NOT NULL DEFAULT 0 CHECK(perdidas >= 0),
+    taponesRecibidos integer NOT NULL DEFAULT 0 CHECK(taponesRecibidos >= 0),
+    taponesRealizados integer NOT NULL DEFAULT 0 CHECK(taponesRealizados >= 0),
+    faltasRecibidas integer NOT NULL DEFAULT 0 CHECK(faltasRecibidas >= 0),
+    faltasCometidas integer NOT NULL DEFAULT 0 CHECK(faltasCometidas >= 0),
+    CHECK(T2C <= T2L),
+    CHECK(T3C <= T3L),
+    CHECK(T1C <= T1L),
+    PRIMARY KEY (idPartido, idClub),
+    FOREIGN KEY (idPartido) REFERENCES partido (idPartido) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (idClub) REFERENCES club (idClub) ON DELETE RESTRICT ON UPDATE CASCADE
+) STRICT;
 COMMIT;
