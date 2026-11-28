@@ -1,7 +1,12 @@
+import logging
+
 from aplicacion.dtos.auth_dto import UsuarioDTO
 from aplicacion.dtos.club_dto import ClubDTO
 from aplicacion.dtos.session_dto import SessionDTO
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class SessionManager:
@@ -43,6 +48,8 @@ class SessionManager:
 
     def cerrar_sesion(self) -> None:
         """Cierra la sesión y borra la recordada. Es idempotente: sin sesión abierta no falla."""
+        if self._usuario is not None:
+            logger.info("Sesion cerrada", extra={"evento": "logout", "id_usuario": self._usuario.idUsuario})
         self._usuario = None
         self._club = None
         self._recordar = False
@@ -88,6 +95,7 @@ class SessionManager:
         if self._usuario is None:
             raise RuntimeError("No hay sesión iniciada: no se puede elegir un club activo")
         self._club = club
+        logger.info("Club activo elegido", extra={"evento": "set_active_club", "id_club": club.idClub})
         if self._recordar:
             self._guardar()
 
