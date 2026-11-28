@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from dominio.entidades.club import Club
-from dominio.entidades.jugador import Jugador, JugadorClub
+from dominio.entidades.jugador import Jugador, JugadorClub, JugadorConClub
 
 
 class JugadorRepositorio(ABC):
@@ -59,4 +59,9 @@ class JugadorRepositorio(ABC):
     @abstractmethod
     def cerrar_vinculo(self, id_jugador: int, fecha_hasta: str) -> JugadorClub | None:
         "Cierra el vinculo vigente de un jugador cargando su fechaHasta. None si no habia vinculo vigente o fallo"
+        pass
+
+    @abstractmethod
+    def listar_con_club_actual(self) -> list[JugadorConClub]:
+        "Todos los jugadores de la base con su club vigente (o None), ordenados por apellido y nombre"
         pass

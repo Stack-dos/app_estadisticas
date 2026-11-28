@@ -1,6 +1,16 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from dominio.entidades.jugador import Jugador
 from dominio.exceptions import DatoInvalidoError
+
+# Planilla de un partido (US-114): FIBA permite hasta 12 jugadores por equipo y un equipo necesita 5 para
+# empezar. El maximo se valida; el minimo solo avisa, porque un partido real jugado con menos se carga igual.
+MAX_JUGADORES_PARTIDO = 12
+MIN_JUGADORES_PARTIDO = 5
+
+# Id provisorio del club rival que todavia no existe (US-114): el repositorio lo crea dentro de la misma
+# transaccion del partido y reemplaza este id por el real en el partido, el boxscore, los cuartos y los totales.
+ID_CLUB_NUEVO = 0
 
 
 @dataclass
@@ -19,6 +29,8 @@ class PartidoResumen:
     clubLocal: str
     clubVisitante: str
     categoria: str | None = None
+    puntosLocal: int | None = None
+    puntosVisitante: int | None = None
 
 
 @dataclass
@@ -208,3 +220,162 @@ class JugadorPartido:
             raise DatoInvalidoError(f"Faltas Recibidas no puede ser < 0 - Valor actual: {self.faltasRecibidas}")
         if self.faltasCometidas < 0:
             raise DatoInvalidoError(f"Faltas Cometidas no puede ser < 0 - Valor actual: {self.faltasCometidas}")
+
+
+# Campos de estadistica que comparten el boxscore por jugador y los totales de equipo (sin minutos).
+CAMPOS_CONTEO_EQUIPO = (
+    "t2c",
+    "t2l",
+    "t3c",
+    "t3l",
+    "t1c",
+    "t1l",
+    "rebotesDef",
+    "rebotesOf",
+    "asistencias",
+    "recuperos",
+    "perdidas",
+    "taponesRecibidos",
+    "taponesRealizados",
+    "faltasRecibidas",
+    "faltasCometidas",
+)
+
+
+@dataclass
+class EstadisticaEquipo:
+    """Totales de un equipo en un partido cuando no se cargo su boxscore por jugador (US-113).
+
+    Es la fila "Equipo Rival" de la planilla: puntos, tiros, rebotes, etc. del equipo entero. Si se
+    cargaron tiros, los puntos tienen que cerrar con ellos (2*T2C + 3*T3C + T1C). Si todos los tiros
+    estan en 0 se acepta cualquier puntaje: es el caso en que del rival solo se conoce el resultado.
+    """
+
+    idClub: int
+    puntos: int
+    t2c: int = 0
+    t2l: int = 0
+    t3c: int = 0
+    t3l: int = 0
+    t1c: int = 0
+    t1l: int = 0
+    rebotesDef: int = 0
+    rebotesOf: int = 0
+    asistencias: int = 0
+    recuperos: int = 0
+    perdidas: int = 0
+    taponesRecibidos: int = 0
+    taponesRealizados: int = 0
+    faltasRecibidas: int = 0
+    faltasCometidas: int = 0
+    idPartido: int | None = None
+
+    @property
+    def tiene_tiros(self) -> bool:
+        """Si se cargo algun tiro (convertido o lanzado); si no, solo se conoce el puntaje."""
+        return any(getattr(self, c) for c in ("t2c", "t2l", "t3c", "t3l", "t1c", "t1l"))
+
+    def __post_init__(self) -> None:
+        """
+        Valida tipos, rangos y coherencia de los totales.
+
+        Raises:
+            TypeError: Si algun campo no es int (los bool no cuentan como int).
+            DatoInvalidoError: Si hay valores negativos, convertidos > lanzados, o puntos que no cierran
+                con los tiros cargados.
+        """
+        for nombre in ("idClub", "puntos", *CAMPOS_CONTEO_EQUIPO):
+            valor = getattr(self, nombre)
+            if not isinstance(valor, int) or isinstance(valor, bool):
+                raise TypeError(f"{nombre} debe ser int, recibido {type(valor).__name__}")
+            if valor < 0:
+                raise DatoInvalidoError(f"{nombre} del equipo no puede ser negativo - Valor actual: {valor}")
+        if self.idPartido is not None and (not isinstance(self.idPartido, int) or isinstance(self.idPartido, bool)):
+            raise TypeError(f"idPartido debe ser int o None, recibido {type(self.idPartido).__name__}")
+        for conv, lanz, etiqueta in (("t2c", "t2l", "T2"), ("t3c", "t3l", "T3"), ("t1c", "t1l", "T1")):
+            if getattr(self, conv) > getattr(self, lanz):
+                raise DatoInvalidoError(
+                    f"{etiqueta}: convertidos ({getattr(self, conv)}) no puede ser mayor que lanzados "
+                    f"({getattr(self, lanz)})"
+                )
+        if self.tiene_tiros:
+            esperado = self.t2c * 2 + self.t3c * 3 + self.t1c
+            if self.puntos != esperado:
+                raise DatoInvalidoError(
+                    f"Los puntos del equipo ({self.puntos}) no cierran con los tiros convertidos "
+                    f"(2*T2C + 3*T3C + T1C = {esperado})"
+                )
+
+
+@dataclass
+class TotalesEquipoFila:
+    """Vista de lectura de `v_totales_equipo_partido`: los totales de un equipo en un partido.
+
+    `origen` dice de donde salen: "boxscore" (suma de los jugadores) o "totales" (cargados a mano).
+    """
+
+    idPartido: int
+    idClub: int
+    nombreClub: str
+    origen: str
+    puntos: int
+    t2c: int
+    t2l: int
+    t3c: int
+    t3l: int
+    t1c: int
+    t1l: int
+    rebotesDef: int
+    rebotesOf: int
+    asistencias: int
+    recuperos: int
+    perdidas: int
+    taponesRecibidos: int
+    taponesRealizados: int
+    faltasRecibidas: int
+    faltasCometidas: int
+
+
+@dataclass
+class JugadorRivalNuevo:
+    """Un jugador del rival que todavia no existe en la base: se crea al guardar el partido (US-113).
+
+    `estadistica.idJugador` es un marcador (0): el repositorio lo reemplaza por el id real del jugador
+    que inserta, dentro de la misma transaccion.
+    """
+
+    jugador: Jugador
+    estadistica: JugadorPartido
+
+
+@dataclass
+class AltaPlantelRival:
+    """Lo que hay que dar de alta del rival para que su boxscore cumpla la regla de la lista de buena fe.
+
+    Todo se escribe en la misma transaccion que el partido: si algo falla no queda nada a medias.
+
+    - Si `idListaBuenaFe` es None, el rival no estaba inscripto: se crea la inscripcion y su lista.
+    - `habilitar`: jugadores que ya son del club rival pero no estaban en la lista.
+    - `nuevos`: jugadores que no existian; se crean, se vinculan al club desde la fecha del partido y se
+      agregan a la lista.
+    """
+
+    idClub: int
+    idCompetencia: int
+    idCategoria: int
+    fecha: str
+    idListaBuenaFe: int | None = None
+    habilitar: list[int] = field(default_factory=list)
+    nuevos: list[JugadorRivalNuevo] = field(default_factory=list)
+
+
+@dataclass
+class LiderClub:
+    """Vista de lectura de `v_lideres_club`: promedios de un jugador en los partidos de su club."""
+
+    idJugador: int
+    nombreJugador: str
+    partidosJugados: int
+    puntosPromedio: float
+    rebotesPromedio: float
+    asistenciasPromedio: float

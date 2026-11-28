@@ -40,3 +40,28 @@ class ClubRepositorio(ABC):
     def link_user_to_club(self, us_club: UsuarioClub) -> UsuarioClub | None:
         "Linkea un usuario a un club especifico"
         pass
+
+    @abstractmethod
+    def listar_sin_usuario(self) -> list[Club]:
+        "Clubes que no son de ningun usuario: los rivales (US-114), ordenados por nombre"
+        pass
+
+    @abstractmethod
+    def actualizar(self, club: Club) -> Club | None:
+        "Cambia el nombre de un club existente (US-114). None si no existe o fallo la base"
+        pass
+
+    @abstractmethod
+    def eliminar(self, id_club: int) -> bool:
+        "Elimina un club; su inscripcion, lista y vinculos caen en cascada (US-114)"
+        pass
+
+    @abstractmethod
+    def tiene_partidos(self, id_club: int) -> bool:
+        "Si el club jugo algun partido cargado (US-114)"
+        pass
+
+    @abstractmethod
+    def tiene_usuarios(self, id_club: int) -> bool:
+        "Si el club es club propio de algun usuario (US-114)"
+        pass

@@ -74,3 +74,11 @@ class JugadorClub:
             raise TypeError(f"idJugador debe ser int o None, recibido {type(self.idJugador).__name__}")
         if self.idClub is not None and not isinstance(self.idClub, int):
             raise TypeError(f"idClub debe ser int o None, recibido {type(self.idClub).__name__}")
+
+
+@dataclass
+class JugadorConClub:
+    """Un jugador con el nombre de su club vigente (None si hoy no tiene club). Solo para listar."""
+
+    jugador: Jugador
+    nombreClub: str | None

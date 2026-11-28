@@ -167,6 +167,12 @@ class JugadorEnUsoError(ErrorDeDominio):
     pass
 
 
+class ClubEnUsoError(ErrorDeDominio):
+    """Se lanza al eliminar o renombrar un club con partidos cargados o que es club propio de un usuario (US-114)."""
+
+    pass
+
+
 class CuartosInconsistentesError(ErrorDeDominio):
     """Se lanza cuando los puntos por cuarto no cierran entre equipos o contra el boxscore (US-108)."""
 
