@@ -3,14 +3,19 @@
 Si un handler de Flet lanza una excepcion que nadie atrapa, Flet cierra la sesion y muestra el
 traceback en la ventana. Las pantallas envuelven en `ejecutar_mostrando_errores` cada accion que
 llama a un caso de uso, asi el error se muestra junto al formulario y la app sigue andando.
+
+Desde la US-110 tambien es el punto donde nace cada accion del usuario: abre su correlation_id y
+loguea el inicio y el fin (resultado y duracion).
 """
 
+import time
 from collections.abc import Callable
 
 import flet as ft
 
 from dominio.exceptions import ErrorDeDominio
 from infraestructura.logger import get_logger
+from infraestructura.observabilidad import nueva_accion
 
 logger = get_logger(__name__)
 
@@ -27,7 +32,7 @@ def crear_etiqueta_error() -> ft.Text:
     return ft.Text(value="", color=ft.Colors.ERROR)
 
 
-def ejecutar_mostrando_errores(accion: Callable[[], None], etiqueta: ft.Text) -> None:
+def ejecutar_mostrando_errores(accion: Callable[[], None], etiqueta: ft.Text, *, nombre: str) -> None:
     """
     Ejecuta una accion de la interfaz y muestra en `etiqueta` el error que lance, si lanza alguno.
 
@@ -40,13 +45,34 @@ def ejecutar_mostrando_errores(accion: Callable[[], None], etiqueta: ft.Text) ->
     Args:
         accion (Callable[[], None]): Lo que hay que hacer (llamar al caso de uso, navegar...).
         etiqueta (ft.Text): Donde se muestra el error. Se limpia antes de ejecutar.
+        nombre (str): Nombre de la accion para el log, `pantalla.que_hace` (p. ej. "clubes.crear").
     """
     etiqueta.value = ""
-    try:
-        accion()
-    except ErrorDeDominio as e:
-        logger.warning(f"Error de dominio en la GUI: {e}")
-        etiqueta.value = str(e)
-    except Exception:
-        logger.exception("Error inesperado en la GUI")
-        etiqueta.value = MENSAJE_ERROR_INESPERADO
+    pantalla = nombre.split(".")[0]
+    with nueva_accion(nombre):
+        logger.info("Inicio de %s", nombre, extra={"evento": "accion_inicio", "pantalla": pantalla})
+        inicio = time.perf_counter()
+        resultado = "ok"
+        try:
+            accion()
+        except ErrorDeDominio as e:
+            resultado = "error_dominio"
+            logger.warning(
+                "Error de dominio en la GUI: %s", e, extra={"evento": "error_dominio", "tipo": type(e).__name__}
+            )
+            etiqueta.value = str(e)
+        except Exception:
+            resultado = "error"
+            logger.exception("Error inesperado en la GUI", extra={"evento": "error_inesperado"})
+            etiqueta.value = MENSAJE_ERROR_INESPERADO
+        logger.info(
+            "Fin de %s: %s",
+            nombre,
+            resultado,
+            extra={
+                "evento": "accion_fin",
+                "pantalla": pantalla,
+                "resultado": resultado,
+                "duracion_ms": round((time.perf_counter() - inicio) * 1000, 1),
+            },
+        )

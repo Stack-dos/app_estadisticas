@@ -59,6 +59,7 @@ from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.servicios.password_hasher import PasswordHasher
 from infraestructura.logger import get_logger
+from infraestructura.observabilidad import nueva_accion
 from infraestructura.persistencia.database_manager import SQLiteManager
 from infraestructura.persistencia.json_sesion_almacen import JsonSesionAlmacen
 from infraestructura.repositorios.sqlite_club_repositorio import SqliteClubRepositorio
@@ -432,7 +433,13 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
     }
 
     def al_cambiar_ruta() -> None:
-        """Handler de `on_route_change`: decide que pantalla corresponde a `page.route` y la dibuja."""
+        """Handler de `on_route_change`: cada cambio de pantalla es una accion propia en el log (US-110)."""
+        with nueva_accion("navegar"):
+            logger.info("Navegar a %s", page.route, extra={"evento": "navegar", "ruta": page.route})
+            _dibujar_ruta()
+
+    def _dibujar_ruta() -> None:
+        """Decide que pantalla corresponde a `page.route` y la dibuja."""
         autenticado = deps.sesion.is_authenticated()
         tiene_club = deps.sesion.club_activo() is not None
         destino_sin_club_guard = resolver_ruta(page.route, autenticado, tiene_club=True)
@@ -462,8 +469,11 @@ def ejecutar() -> None:
     db = SQLiteManager(r.DB_FILE, r.SCHEMA_SQL, r.VISTA_SQL)
     conexion = db.connect()
     try:
-        db.inicializar_schema()
-        deps = construir_dependencias(conexion, Pbkdf2PasswordHasher(), JsonSesionAlmacen(Path(r.SESSION_FILE)))
+        # El esquema y la sesion recordada son la accion "arranque" (US-110). ft.run queda afuera: si no,
+        # las tareas de Flet heredarian este contexto y todos los clics saldrian con el mismo correlation_id.
+        with nueva_accion("arranque"):
+            db.inicializar_schema()
+            deps = construir_dependencias(conexion, Pbkdf2PasswordHasher(), JsonSesionAlmacen(Path(r.SESSION_FILE)))
         # assets_dir absoluta: relativa, Flet la buscaria desde donde se lanzo la app y no encontraria el logo
         ft.run(lambda page: _main(page, deps), assets_dir=r.ASSETS_DIR)
     finally:
