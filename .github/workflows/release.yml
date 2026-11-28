@@ -1,7 +1,7 @@
 name: Release
 
 # US-109, AC9: un tag vX.Y.Z publica una version. En orden:
-#   1. version: el tag tiene que coincidir con [project].version de pyproject.toml
+#   1. version: el tag tiene que coincidir con [project].version de pyproject.toml y con VERSION de src/config/version.py
 #   2. tests:   la suite completa, en Linux y en Windows (si falla, no se publica nada)
 #   3. build:   flet build en Windows (instalador .exe + .zip portable) y en Linux (.deb)
 #   4. publicar: GitHub Release con los tres archivos y, como notas, la seccion de la version en CHANGELOG.md
@@ -31,8 +31,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      # v0.1.0 -> 0.1.0 · v0.1.0-rc.1 -> 0.1.0-rc.1 (y se compara 0.1.0, sin el sufijo, contra pyproject.toml)
-      - name: Verificar que el tag coincida con pyproject.toml
+      # v0.1.0 -> 0.1.0 · v0.1.0-rc.1 -> 0.1.0-rc.1 (y se compara 0.1.0, sin el sufijo, contra pyproject.toml
+      # y contra la version embebida en la app, que es la que usa el aviso de version nueva)
+      - name: Verificar que el tag coincida con pyproject.toml y con la version embebida
         id: version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -40,6 +41,11 @@ jobs:
           PYPROJECT="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           if [ "$BASE" != "$PYPROJECT" ]; then
             echo "::error::El tag $GITHUB_REF_NAME no coincide con version = \"$PYPROJECT\" de pyproject.toml"
+            exit 1
+          fi
+          EMBEBIDA="$(cd src && python3 -c 'from config.version import VERSION; print(VERSION)')"
+          if [ "$BASE" != "$EMBEBIDA" ]; then
+            echo "::error::El tag $GITHUB_REF_NAME no coincide con VERSION = \"$EMBEBIDA\" de src/config/version.py"
             exit 1
           fi
           if [ "$VERSION" != "$BASE" ]; then PRERELEASE=true; else PRERELEASE=false; fi

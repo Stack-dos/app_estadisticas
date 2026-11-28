@@ -3,6 +3,9 @@ version: 2
 # Dependabot abre Pull Requests solo cuando hay una version nueva de algo que usa el proyecto.
 # Como pyproject.toml fija versiones exactas (==), cada PR cambia esa version y regenera uv.lock:
 # ruff y mypy quedan actualizados a la vez en pre-commit y en el CI (ambos leen pyproject.toml).
+# Cada ecosistema agrupa todo ("*"): a lo sumo un PR por semana por ecosistema. Dependabot no puede
+# juntar ecosistemas distintos en un mismo PR. Las alertas de seguridad llegan en PR aparte.
+# Mergear uno no publica nada: viaja en la proxima version, o como patch si urge (PRD, seccion 15).
 updates:
   # Dependencias de Python: pyproject.toml + uv.lock
   - package-ecosystem: "uv"
@@ -14,13 +17,10 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     groups:
-      # pytest, pytest-cov, ruff y mypy suben juntos en un solo PR
-      herramientas-dev:
+      # Todas las dependencias de Python suben juntas en un solo PR por semana
+      python:
         patterns:
-          - "pytest"
-          - "pytest-cov"
-          - "ruff"
-          - "mypy"
+          - "*"
 
   # Actions de GitHub: los workflows y las actions propias de .github/actions/*/*
   - package-ecosystem: "github-actions"
@@ -47,3 +47,7 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(docker)"
+    groups:
+      docker:
+        patterns:
+          - "*"
