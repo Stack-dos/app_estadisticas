@@ -18,6 +18,8 @@ SEED_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "see
 CLEAR_SQL = os.path.join(RUTA_SRC, "infraestructura", "persistencia", "sql", "limpieza.sql")
 # Imagenes y letras de la GUI (US-111). `flet build` (US-109) tambien busca los assets en src/assets/
 ASSETS_DIR = os.path.join(RUTA_SRC, "assets")
+# Manual de uso que muestra la pantalla "Guía" (US-114)
+GUIA_MD = os.path.join(ASSETS_DIR, "guia.md")
 
 # Datos del usuario: en Windows, C:\Users\<usuario>\.statspro\; en Linux, /home/<usuario>/.statspro/
 DATOS_DIR = os.path.join(os.path.expanduser("~"), ".statspro")
