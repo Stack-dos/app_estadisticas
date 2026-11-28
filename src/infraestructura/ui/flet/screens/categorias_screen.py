@@ -65,7 +65,7 @@ def crear_categorias_view(
                     raise RuntimeError("No se pudo eliminar la categoría de la base")
                 refrescar()
 
-            ejecutar_mostrando_errores(accion, error_tabla)
+            ejecutar_mostrando_errores(accion, error_tabla, nombre="categorias.eliminar")
             page.update()
 
         def abrir_confirmacion() -> None:
@@ -97,7 +97,7 @@ def crear_categorias_view(
             nombre_cat.value = ""
             refrescar()
 
-        ejecutar_mostrando_errores(accion, error_cat)
+        ejecutar_mostrando_errores(accion, error_cat, nombre="categorias.crear")
         page.update()
 
     refrescar()

@@ -125,7 +125,7 @@ def crear_lista_buena_fe_view(
                     raise RuntimeError("No se pudo vaciar la lista de buena fe")
                 refrescar_lista()
 
-            ejecutar_mostrando_errores(accion, error_tabla)
+            ejecutar_mostrando_errores(accion, error_tabla, nombre="lista_buena_fe.vaciar")
             page.update()
 
         pedir_confirmacion(
@@ -148,7 +148,7 @@ def crear_lista_buena_fe_view(
                 dd_inscripcion.value = None
                 cargar_inicial()
 
-            ejecutar_mostrando_errores(accion, error_tabla)
+            ejecutar_mostrando_errores(accion, error_tabla, nombre="lista_buena_fe.dar_de_baja")
             page.update()
 
         pedir_confirmacion(
@@ -220,7 +220,7 @@ def crear_lista_buena_fe_view(
     casilla_todos.on_change = al_marcar_todos
 
     def al_elegir_inscripcion() -> None:
-        ejecutar_mostrando_errores(refrescar_lista, error_tabla)
+        ejecutar_mostrando_errores(refrescar_lista, error_tabla, nombre="lista_buena_fe.elegir_inscripcion")
         page.update()
 
     dd_inscripcion.on_select = al_elegir_inscripcion
@@ -261,7 +261,7 @@ def crear_lista_buena_fe_view(
                 resultado_agregar.controls.append(ft.Text(f"{nombre}: {rechazado.motivo}", color=ft.Colors.ERROR))
             refrescar_lista()
 
-        ejecutar_mostrando_errores(accion, error_agregar)
+        ejecutar_mostrando_errores(accion, error_agregar, nombre="lista_buena_fe.agregar")
         page.update()
 
     boton_agregar.on_click = agregar
@@ -277,7 +277,7 @@ def crear_lista_buena_fe_view(
                 raise RuntimeError("Quitar el jugador de la lista no devolvio confirmacion (fallo al borrar)")
             refrescar_lista()
 
-        ejecutar_mostrando_errores(accion, error_tabla)
+        ejecutar_mostrando_errores(accion, error_tabla, nombre="lista_buena_fe.quitar")
         page.update()
 
     cargar_inicial()

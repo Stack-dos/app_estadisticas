@@ -393,12 +393,12 @@ def crear_carga_partido_view(
             _cargar_planilla_propia()
             _refrescar_rival()
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="carga_partido.elegir_torneo")
         _actualizar_marcador()
 
     def al_elegir_rival() -> None:
         texto_rival[0] = _nombre_rival() if dd_rival.value else texto_rival[0]
-        ejecutar_mostrando_errores(_refrescar_rival, error)
+        ejecutar_mostrando_errores(_refrescar_rival, error, nombre="carga_partido.elegir_rival")
         _actualizar_marcador()
 
     def al_escribir_rival(e: object = None) -> None:
@@ -413,7 +413,7 @@ def crear_carga_partido_view(
         _actualizar_marcador()
 
     def al_cambiar_modo_rival() -> None:
-        ejecutar_mostrando_errores(_refrescar_rival, error)
+        ejecutar_mostrando_errores(_refrescar_rival, error, nombre="carga_partido.cambiar_modo_rival")
         _actualizar_marcador()
 
     dd_torneo.on_select = al_elegir_torneo
@@ -478,7 +478,7 @@ def crear_carga_partido_view(
                 raise RuntimeError("No se pudo guardar el partido en la base de datos")
             page.navigate("/partidos")
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="carga_partido.guardar")
         page.update()
 
     def _validar_datos() -> None:
@@ -648,7 +648,7 @@ def crear_carga_partido_view(
                 _dibujar_resumen(guardado, _avisos(guardado, _inscripcion_obligatoria()))
                 _ir_a_paso(2)
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="carga_partido.siguiente")
         page.update()
 
     def _inscripcion_obligatoria() -> InscripcionDTO:
@@ -800,7 +800,7 @@ def crear_carga_partido_view(
             boton_siguiente.disabled = True
     elif len(inscripciones_propias) == 1:  # con una sola inscripcion, ya viene elegida
         dd_torneo.value = str(next(iter(inscripciones_propias)))
-        ejecutar_mostrando_errores(_cargar_planilla_propia, error)
+        ejecutar_mostrando_errores(_cargar_planilla_propia, error, nombre="carga_partido.precargar")
     _refrescar_rival()
     nombre_rival = _nombre_rival()
     pts_propios = planilla_propia.puntos

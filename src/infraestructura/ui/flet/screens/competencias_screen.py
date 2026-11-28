@@ -120,7 +120,7 @@ def crear_competencias_view(
                     raise RuntimeError("No se pudo eliminar la competencia de la base")
                 refrescar()
 
-            ejecutar_mostrando_errores(accion, error_tabla_comp)
+            ejecutar_mostrando_errores(accion, error_tabla_comp, nombre="competencias.eliminar")
             page.update()
 
         def abrir_confirmacion() -> None:
@@ -162,7 +162,7 @@ def crear_competencias_view(
                             raise RuntimeError("Quitar la categoria no devolvio confirmacion")
                     page.pop_dialog()
 
-                ejecutar_mostrando_errores(accion, error_dialogo)
+                ejecutar_mostrando_errores(accion, error_dialogo, nombre="competencias.editar_categorias")
                 refrescar()  # aunque falle a mitad, la tabla muestra lo que quedo guardado
                 page.update()
 
@@ -272,7 +272,7 @@ def crear_competencias_view(
                     ctrl.value = False
             refrescar()
 
-        ejecutar_mostrando_errores(accion, error_comp)
+        ejecutar_mostrando_errores(accion, error_comp, nombre="competencias.crear")
         page.update()
 
     refrescar()

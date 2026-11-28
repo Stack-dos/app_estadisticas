@@ -119,7 +119,7 @@ def crear_clubes_view(
             sesion.set_active_club(elegido)
             page.navigate("/inicio")
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="clubes.usar")
         page.update()
 
     def renglon(club: ClubDTO) -> ft.ListTile:
@@ -156,7 +156,7 @@ def crear_clubes_view(
             nombre.value = ""  # solo si salio bien: ante un error, el usuario corrige lo que escribio
             refrescar()
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="clubes.crear")
         page.update()
 
     def refrescar_rivales() -> None:
@@ -177,7 +177,7 @@ def crear_clubes_view(
                 page.pop_dialog()
                 refrescar_rivales()
 
-            ejecutar_mostrando_errores(accion, error_dialogo)
+            ejecutar_mostrando_errores(accion, error_dialogo, nombre="clubes.renombrar")
             page.update()
 
         campo.on_submit = guardar
@@ -200,7 +200,9 @@ def crear_clubes_view(
                     raise RuntimeError("No se pudo eliminar el club de la base")
                 refrescar_rivales()
 
-            ejecutar_mostrando_errores(accion, error)  # el mismo aviso de errores de la pantalla
+            ejecutar_mostrando_errores(
+                accion, error, nombre="clubes.eliminar"
+            )  # el mismo aviso de errores de la pantalla
             page.update()
 
         pedir_confirmacion(

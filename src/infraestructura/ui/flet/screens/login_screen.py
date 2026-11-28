@@ -46,7 +46,7 @@ def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: Session
             sesion.iniciar_sesion(usuario, recordar=bool(recordar.value))
             page.navigate("/inicio")  # adentro de la accion: si el login falla, no se navega
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="login.ingresar")
         page.update()
 
     # Enter en la contraseña (el ultimo campo de texto) ingresa igual que el boton: lo conecta crear_formulario

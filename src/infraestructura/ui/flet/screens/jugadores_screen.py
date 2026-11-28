@@ -164,7 +164,7 @@ def crear_jugadores_view(
             _limpiar_alta()
             refrescar_plantel()
 
-        ejecutar_mostrando_errores(accion, error_alta)
+        ejecutar_mostrando_errores(accion, error_alta, nombre="jugadores.sumar_sin_club")
         page.update()
 
     def _boton_dar_de_baja(jugador: JugadorDTO) -> ft.IconButton:
@@ -185,7 +185,7 @@ def crear_jugadores_view(
                     page.pop_dialog()
                     refrescar_plantel()
 
-                ejecutar_mostrando_errores(accion, error_baja)
+                ejecutar_mostrando_errores(accion, error_baja, nombre="jugadores.desvincular")
                 page.update()
 
             page.show_dialog(
@@ -242,7 +242,7 @@ def crear_jugadores_view(
                     page.pop_dialog()
                     refrescar_plantel()
 
-                ejecutar_mostrando_errores(accion, error_edicion)
+                ejecutar_mostrando_errores(accion, error_edicion, nombre="jugadores.editar")
                 page.update()
 
             dialogo = ft.AlertDialog(
@@ -265,7 +265,7 @@ def crear_jugadores_view(
                     raise RuntimeError("No se pudo eliminar el jugador en la base")
                 refrescar_plantel()
 
-            ejecutar_mostrando_errores(accion, error_tabla)
+            ejecutar_mostrando_errores(accion, error_tabla, nombre="jugadores.eliminar")
             page.update()
 
         def abrir_confirmacion() -> None:
@@ -314,7 +314,7 @@ def crear_jugadores_view(
         _redibujar_tabla()
 
     def al_filtrar() -> None:
-        ejecutar_mostrando_errores(_redibujar_tabla, error_tabla)
+        ejecutar_mostrando_errores(_redibujar_tabla, error_tabla, nombre="jugadores.filtrar")
         page.update()
 
     campo_busqueda.on_change = al_filtrar
@@ -348,7 +348,7 @@ def crear_jugadores_view(
         def accion() -> None:
             _crear_y_vincular(datos, fecha)
 
-        ejecutar_mostrando_errores(accion, error_alta)
+        ejecutar_mostrando_errores(accion, error_alta, nombre="jugadores.forzar_alta")
         page.update()
 
     def registrar() -> None:
@@ -375,7 +375,7 @@ def crear_jugadores_view(
 
             _crear_y_vincular(datos, fecha)
 
-        ejecutar_mostrando_errores(accion, error_alta)
+        ejecutar_mostrando_errores(accion, error_alta, nombre="jugadores.registrar")
         page.update()
 
     def _aviso_homonimo(jugador: JugadorConClubDTO) -> ft.Container:

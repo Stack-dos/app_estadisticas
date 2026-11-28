@@ -236,7 +236,7 @@ def crear_detalle_partido_view(
                     raise RuntimeError("No se pudo eliminar el partido de la base de datos")
                 page.navigate("/partidos")
 
-            ejecutar_mostrando_errores(accion, error)
+            ejecutar_mostrando_errores(accion, error, nombre="detalle_partido.eliminar")
             page.update()
 
         pedir_confirmacion(

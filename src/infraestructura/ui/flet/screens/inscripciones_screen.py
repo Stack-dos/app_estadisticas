@@ -136,7 +136,7 @@ def crear_inscripciones_view(
         dd_categoria.value = None
 
     def al_elegir_competencia() -> None:
-        ejecutar_mostrando_errores(_cargar_categorias_habilitadas, error)
+        ejecutar_mostrando_errores(_cargar_categorias_habilitadas, error, nombre="inscripciones.elegir_competencia")
         page.update()
 
     dd_competencia.on_select = al_elegir_competencia
@@ -153,7 +153,7 @@ def crear_inscripciones_view(
                     raise RuntimeError("No se pudo dar de baja la inscripción en la base")
                 refrescar()
 
-            ejecutar_mostrando_errores(accion, error_tabla)
+            ejecutar_mostrando_errores(accion, error_tabla, nombre="inscripciones.dar_de_baja")
             page.update()
 
         def abrir_confirmacion() -> None:
@@ -285,7 +285,7 @@ def crear_inscripciones_view(
             resultado.value = _pasar_plantel(creada.idInscripcion) if agregar_plantel.value else "Club inscripto."
             refrescar()
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="inscripciones.inscribir")
         page.update()
 
     refrescar()

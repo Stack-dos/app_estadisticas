@@ -44,7 +44,7 @@ def crear_registro_view(page: ft.Page, registrar_uc: RegistrarEntrenadorUseCase,
             sesion.iniciar_sesion(usuario)
             page.navigate("/inicio")  # adentro de la accion: si el registro falla, no se navega
 
-        ejecutar_mostrando_errores(accion, error)
+        ejecutar_mostrando_errores(accion, error, nombre="registro.registrar")
         page.update()
 
     # Enter en la contraseña (el ultimo campo) registra igual que el boton: lo conecta crear_formulario
