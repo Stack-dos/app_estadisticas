@@ -12,11 +12,43 @@ class CuartoDTO:
 
 @dataclass
 class EstadisticaInputDTO:
-    """Estadistica individual de un jugador para cargar un partido (entra en BoxscoreDTO)."""
+    """Estadistica individual de un jugador para cargar un partido (entra en BoxscoreDTO).
 
-    idJugador: int
+    Para el equipo propio `idJugador` es obligatorio. Para el rival (US-113) puede ser None: entonces el
+    jugador se identifica por `nombre` y `apellido` dentro del club rival y, si no existe, se crea.
+    """
+
+    idJugador: int | None
     minutosJugados: float = 0.0
     puntos: int = 0
+    t2c: int = 0
+    t2l: int = 0
+    t3c: int = 0
+    t3l: int = 0
+    t1c: int = 0
+    t1l: int = 0
+    rebotesDef: int = 0
+    rebotesOf: int = 0
+    asistencias: int = 0
+    recuperos: int = 0
+    perdidas: int = 0
+    taponesRecibidos: int = 0
+    taponesRealizados: int = 0
+    faltasRecibidas: int = 0
+    faltasCometidas: int = 0
+    nombre: str = ""
+    apellido: str = ""
+
+
+@dataclass
+class TotalesEquipoDTO:
+    """Totales de un equipo sin boxscore por jugador (US-113): la fila "Equipo Rival" de la planilla.
+
+    Si todos los tiros quedan en 0, se toma `puntos` como el resultado (solo se conoce el marcador).
+    """
+
+    idClub: int
+    puntos: int
     t2c: int = 0
     t2l: int = 0
     t3c: int = 0
@@ -68,6 +100,15 @@ class PartidoResumenDTO:
     clubLocal: str
     clubVisitante: str
     categoria: str | None = None
+    puntosLocal: int | None = None
+    puntosVisitante: int | None = None
+
+    @property
+    def resultado(self) -> str:
+        """Marcador legible ("72 - 65"), o "—" si el partido no tiene puntos cargados."""
+        if self.puntosLocal is None or self.puntosVisitante is None:
+            return "—"
+        return f"{self.puntosLocal} - {self.puntosVisitante}"
 
 
 @dataclass
@@ -97,3 +138,42 @@ class BoxscoreFilaDTO:
     taponesRealizados: int
     faltasRecibidas: int
     faltasCometidas: int
+
+
+@dataclass
+class TotalesEquipoFilaDTO:
+    """Sale de ObtenerTotalesPartidoUseCase: totales de un equipo en un partido (US-113).
+
+    `origen` es "boxscore" (suma de sus jugadores) o "totales" (cargados a mano, sin boxscore).
+    """
+
+    idClub: int
+    nombreClub: str
+    origen: str
+    puntos: int
+    t2c: int
+    t2l: int
+    t3c: int
+    t3l: int
+    t1c: int
+    t1l: int
+    rebotesDef: int
+    rebotesOf: int
+    asistencias: int
+    recuperos: int
+    perdidas: int
+    taponesRecibidos: int
+    taponesRealizados: int
+    faltasRecibidas: int
+    faltasCometidas: int
+
+
+@dataclass
+class LiderClubDTO:
+    """Sale de ListarLideresClubUseCase: promedios de un jugador en los partidos de su club (US-113)."""
+
+    nombreJugador: str
+    partidosJugados: int
+    puntosPromedio: float
+    rebotesPromedio: float
+    asistenciasPromedio: float

@@ -25,3 +25,13 @@ class EditarJugadorDTO:
     nombre: str
     apellido: str
     anioNacimiento: int | None = None
+
+
+@dataclass
+class JugadorConClubDTO:
+    """Sale de ListarJugadoresTodosUseCase: un jugador con su club vigente ("En todos los clubes")."""
+
+    nombre_completo: str
+    id: int
+    anioNacimiento: int | None
+    club: str | None
