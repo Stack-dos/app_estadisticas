@@ -55,6 +55,8 @@
   - [17. Empaquetar la app: `flet build` (US-109)](#17-empaquetar-la-app-flet-build-us-109)
   - [18. Formularios densos: la carga de partido (US-113)](#18-formularios-densos-la-carga-de-partido-us-113)
   - [19. Editar con la misma pantalla, rutas con id y texto en Markdown (US-114)](#19-editar-con-la-misma-pantalla-rutas-con-id-y-texto-en-markdown-us-114)
+  - [20. Usar el ancho: tablas estiradas, secciones plegables y grillas chicas (US-114)](#20-usar-el-ancho-tablas-estiradas-secciones-plegables-y-grillas-chicas-us-114)
+  - [21. Un asistente por pasos, filtros con SegmentedButton y color con intención (US-114)](#21-un-asistente-por-pasos-filtros-con-segmentedbutton-y-color-con-intención-us-114)
 
 ---
 
@@ -1515,3 +1517,215 @@ debajo.
   eso `cargar_jugadores` reusa la fila de cada jugador que ya estaba.
 - **Leer el archivo de la guía con la codificación por defecto:** en Windows no es UTF-8 y las tildes
   salen mal. Siempre `encoding="utf-8"`.
+
+## 20. Usar el ancho: tablas estiradas, secciones plegables y grillas chicas (US-114)
+
+### Qué problema resuelve
+
+Al probar la US-114 en la ventana real se veían tres problemas:
+
+- **Tablas angostas:** mucho espacio vacío entre cada tabla y el panel lateral.
+- **Convocados:** 14 casillas, una debajo de la otra, que ocupaban toda la pantalla.
+- **Cuartos:** el rótulo "Visitante Q1" no entraba en un casillero de 74 px y se partía en varias líneas.
+
+Los tests no lo detectaban, porque miran qué controles hay y no cómo se dibujan.
+
+### Una `DataTable` mide lo que su contenido
+
+`ft.DataTable` no se estira sola: mide lo que miden sus columnas. Para que ocupe el ancho de la
+pantalla, `crear_tabla_datos` la pone en una `Row` con `expand=True`:
+
+```python
+tabla = ft.DataTable(key=clave, expand=True, columns=..., rows=...)
+return ft.Row([tabla])
+```
+
+¿Por qué una `Row`? `expand` significa "ocupá lo que sobra **en la dirección de tu contenedor**". En una
+`Column` (donde viven las tablas) sería el alto, no el ancho. Dentro de una `Row` es el ancho. Cuando
+la tabla recibe más ancho del que necesita, Flutter reparte lo que sobra entre las columnas.
+
+Error común: poner `expand=True` en la tabla sin la `Row`. Así la tabla se estira para abajo o, en una
+pantalla con scroll, Flet tira un error porque el alto es infinito.
+
+### `ft.ExpansionTile`: una sección que se pliega
+
+Un `ExpansionTile` es un renglón con título, subtítulo y una flecha. Al tocarlo muestra u oculta sus
+`controls`. Es lo mismo que el "Ver más" de muchas apps.
+
+```python
+ft.ExpansionTile(
+    title=contador_convocados,                  # "Convocados: 5/12" se ve aun plegado
+    subtitle=ft.Text(AYUDA_CONVOCADOS),
+    controls=[casillas_convocados],
+    expanded=not convocados,                    # abierta solo si hay que elegir
+    maintain_state=True,
+)
+```
+
+- **`expanded`:** el estado de entrada. En la carga de partido viene plegada si ya están todos marcados
+  (lista de 12 o menos) y abierta si hay que elegir.
+- **`maintain_state=True`:** no destruye las casillas al plegar. Igual la fuente de verdad sigue siendo
+  el conjunto `convocados` (sección 19).
+- **`shape` y `collapsed_shape`:** el borde redondeado, abierta y plegada.
+
+### `ResponsiveRow` + `col`: varias casillas por fila
+
+Para no tener una casilla por renglón, las casillas van en una `ResponsiveRow`. Cada una dice cuántas
+de las **12 columnas** ocupa según el ancho de la ventana:
+
+```python
+COL_CASILLA_CONVOCADO = {"xs": 6, "sm": 4, "md": 3, "xl": 2}   # 2, 3, 4 o 6 por fila
+ft.Checkbox(label=j.nombre_completo, col=COL_CASILLA_CONVOCADO, ...)
+```
+
+En una pantalla grande (`xl`) cada casilla ocupa 2 de 12 columnas, así que entran 6 por fila. Es la
+misma idea que la grilla de Bootstrap.
+
+mypy pide el tipo exacto del diccionario (`dict[str | ft.ResponsiveRowBreakpoint, int | float]`). Si
+no, infiere `dict[str, int]` y no lo acepta como `col`.
+
+### Una grilla con encabezados en vez de rótulos dentro del casillero
+
+Un `TextField` angosto con `label` largo queda feo: el rótulo no entra y se parte. Cuando hay varios
+casilleros iguales (Q1, Q2, Q3...), conviene escribir el período **una vez, arriba**, como en una
+planilla:
+
+```
+             Q1    Q2    Q3    Q4
+Atenas      [18]  [  ]  [  ]  [  ]   Agregar prórroga
+Instituto   [  ]  [  ]  [  ]  [  ]
+```
+
+`BloquePuntosPorCuarto` arma tres `Row` con anchos fijos e iguales (`ANCHO_NOMBRE_EQUIPO`,
+`ANCHO_CASILLERO_CUARTO`), así las columnas quedan alineadas sin usar una tabla:
+
+- **Encabezados:** un `Container` vacío del ancho del nombre y un `Text` centrado por período.
+- **Equipos:** el nombre (cortado con "…" si es largo) y un casillero sin `label`, con el número centrado.
+
+Como los casilleros ya no tienen rótulo, los tests los buscan por `key`:
+`clave_casillero_cuarto("local", 1)` devuelve `"cuarto · local · Q1"`.
+
+### Errores comunes
+
+- **Confiar solo en los tests para lo visual:** un test confirma que el control existe, no que se vea
+  bien. Ante un cambio de diseño, mirá la ventana.
+- **`wrap=True` en filas que tienen que quedar alineadas:** si una fila se parte y la otra no, la grilla
+  se desarma. Los cuartos no usan `wrap` en sus filas; el que baja de renglón es el botón de prórroga.
+- **Plegar algo que el usuario tiene que completar sí o sí:** si con más de 12 jugadores la sección
+  viniera plegada, el entrenador no sabría por qué la planilla está vacía.
+
+## 21. Un asistente por pasos, filtros con SegmentedButton y color con intención (US-114)
+
+### Qué problema resuelve
+
+Al comparar las pantallas con la maqueta (el muestrario de la US-111) faltaban cosas:
+
+- **Carga de partido:** se hacía en una sola pantalla larguísima. La maqueta la pide **paso a paso**.
+- **Detalle de un partido:** se abría debajo del listado. La maqueta lo tiene como pantalla aparte.
+- **Jugadores:** no tenía el selector "Del club / En todos los clubes".
+- **Clubes:** les faltaban las iniciales y el resumen.
+- **Detalle:** era gris, sin nada que guiara la vista.
+
+### Un asistente (*wizard*) sin cambiar de pantalla
+
+Un **asistente** divide un formulario largo en pasos. Hay dos formas de hacerlo:
+
+- **Una ruta por paso:** hay que pasar los datos de una pantalla a otra.
+- **Todos los pasos en la misma pantalla, mostrando uno solo:** es la que usa la carga.
+
+Los controles de los tres pasos se crean una vez y viven siempre en la vista; `_ir_a_paso(n)` solo
+cambia cuál es `visible`:
+
+```python
+def _ir_a_paso(nro: int) -> None:
+    paso_actual[0] = nro
+    for indice, contenedor in enumerate(contenedores_pasos):
+        contenedor.visible = indice == nro
+    boton_atras.visible = nro > 0
+    boton_siguiente.visible = nro < len(PASOS) - 1
+    boton_guardar.visible = nro == len(PASOS) - 1
+```
+
+Como nada se destruye, **"Atrás" no pierde lo escrito**. Un control invisible no se dibuja, pero sigue
+existiendo con su `value`.
+
+"Siguiente" **valida el paso antes de avanzar**:
+
+- **Paso 1:** torneo, fecha y rival.
+- **Paso 2:** arma exactamente lo que se va a guardar (`_Guardado`) y lo deja en `pendiente`.
+- **Paso 3:** muestra ese resumen con los avisos. "Guardar" manda `pendiente`, sin volver a leer nada.
+
+Por eso desapareció el diálogo "¿Guardar igual?": el paso 3 **es** la confirmación.
+
+El indicador de arriba (círculos 1-2-3 con ✓ en los hechos) se redibuja en cada cambio de paso. Es
+un `Row` de `Container` redondos (`border_radius` = la mitad del ancho) unidos por líneas
+(`Container(height=1, expand=True)`).
+
+### Rutas con id, otra vez: el detalle del partido
+
+El detalle pasó a `/partidos/ver/{id}`, con la misma receta de la sección 19:
+
+- se suma `RUTA_DETALLE_PARTIDO` a `RUTAS_CON_ID`;
+- se agrega una entrada en `rutas_con_id`;
+- se suma la subruta en el menú, para que "Partidos" siga marcado.
+
+La pantalla busca el partido **entre los del club activo**. Así, un id escrito a mano de otro club
+muestra "No se encontró el partido".
+
+**Error común: la importación circular.** `partidos_screen` importa `ruta_detalle_partido` del
+detalle. Si el detalle importara algo de `partidos_screen`, Python no podría cargar ninguno de los
+dos. Por eso `filas_cuartos` se mudó al componente de cuartos, que no importa ninguna pantalla.
+
+### `ft.SegmentedButton` como filtro
+
+El selector "Del club / En todos los clubes" es un `SegmentedButton` (el mismo de Local/Visitante):
+
+```python
+ft.SegmentedButton(
+    segments=[ft.Segment(value="club", label="Del club"),
+              ft.Segment(value="todos", label="En todos los clubes")],
+    selected=["club"],
+    show_selected_icon=False,   # sin el ✓ adentro: queda más limpio para un filtro
+)
+```
+
+`selected` es una **lista** (puede haber selección múltiple), así que se compara con `["todos"]`.
+
+El buscador filtra **mientras se escribe**: su `on_change` y el del selector llaman al mismo
+`al_filtrar`. Como el plantel ya está en memoria, filtrar no consulta la base. `coincide()` usa la
+misma regla que el repositorio: todas las palabras, sin mayúsculas ni tildes.
+
+### `ft.CircleAvatar`: el círculo con iniciales
+
+```python
+ft.CircleAvatar(content=ft.Text("AT"), bgcolor=ft.Colors.PRIMARY_CONTAINER, color=ft.Colors.ON_PRIMARY_CONTAINER)
+```
+
+Va en el `leading` de un `ListTile`; el `subtitle` lleva el resumen ("2 categorías · 41 jugadores").
+
+### Color con intención
+
+El color no se agrega "para que haya color": cada uno **dice algo**, y siempre sale del esquema del
+tema (nunca un hex suelto), así que funciona en claro y en oscuro.
+
+| Dónde                          | Color                                      | Qué comunica                       |
+| ------------------------------ | ------------------------------------------ | ---------------------------------- |
+| Encabezado de las tablas       | `SECONDARY_CONTAINER`                      | "esto es el título, no un dato"    |
+| G / Victoria                   | `PRIMARY_CONTAINER` + `ON_PRIMARY_CONTAINER` | resultado bueno                  |
+| P / Derrota                    | `ERROR_CONTAINER` + `ON_ERROR_CONTAINER`   | resultado malo                     |
+| Puntos del ganador (marcador)  | `PRIMARY`, tamaño 44                       | quién ganó, de un vistazo          |
+| PTS y Total en las tablas      | `PRIMARY` en negrita                       | la columna más importante          |
+| Avisos del resumen             | `TERTIARY_CONTAINER`                       | "ojo", sin ser un error            |
+
+**Regla de los pares:** el fondo `X_CONTAINER` siempre va con el texto `ON_X_CONTAINER`. Material los
+calcula para que tengan contraste suficiente. Mezclarlos (por ejemplo, texto `PRIMARY` sobre
+`PRIMARY_CONTAINER`) puede quedar ilegible en un modo y bien en el otro.
+
+### Errores comunes
+
+- **Recrear los controles de un paso al volver:** se pierde lo cargado. Se ocultan, no se rehacen.
+- **Validar todo recién al guardar:** el usuario llena tres pasos y se entera al final de que el
+  primero estaba mal. Cada "Siguiente" valida lo suyo.
+- **Mostrar en el resumen algo distinto de lo que se guarda:** el resumen se arma con el mismo
+  `_Guardado` que después se manda al caso de uso.
+- **Usar color para todo:** si todo resalta, nada resalta.
