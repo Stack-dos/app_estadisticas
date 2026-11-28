@@ -9,8 +9,14 @@ from dominio.exceptions import DatoInvalidoError
 from infraestructura.ui.flet.estilo import ESPACIO_CHICO
 
 CUARTOS_INICIALES = 4
-ANCHO_CASILLERO_CUARTO = 74
+ANCHO_CASILLERO_CUARTO = 56
+ANCHO_NOMBRE_EQUIPO = 160
 CLAVE_BLOQUE_CUARTOS = "bloque_puntos_por_cuarto"
+
+
+def clave_casillero_cuarto(rol: str, nro_cuarto: int) -> str:
+    """`key` del casillero de un periodo ("cuarto · local · Q1"): no lleva rotulo, la columna dice el periodo."""
+    return f"cuarto · {rol} · {etiqueta_periodo(nro_cuarto)}"
 
 
 def etiqueta_periodo(nro_cuarto: int) -> str:
@@ -20,8 +26,35 @@ def etiqueta_periodo(nro_cuarto: int) -> str:
     return f"PR{nro_cuarto - CUARTOS_INICIALES}"
 
 
+def filas_cuartos(
+    cuartos: list[CuartoDTO], equipos: list[tuple[int, str]]
+) -> tuple[tuple[str, ...], list[tuple[str, ...]]]:
+    """
+    Arma la tabla de puntos por cuarto: una columna por periodo y el total.
+
+    Args:
+        cuartos (list[CuartoDTO]): Los cuartos guardados (pueden faltar periodos de un equipo).
+        equipos (list[tuple[int, str]]): `(idClub, nombre)` de local y visitante, en ese orden.
+
+    Returns:
+        tuple: Las columnas ("Equipo", "Q1".., "Total") y una fila por equipo ("—" si falta un periodo).
+    """
+    periodos = max((c.nroCuarto for c in cuartos), default=0)
+    columnas = ("Equipo", *(etiqueta_periodo(nro) for nro in range(1, periodos + 1)), "Total")
+    puntos = {(c.idClub, c.nroCuarto): c.puntos for c in cuartos}
+    filas = []
+    for id_club, nombre in equipos:
+        valores = [puntos.get((id_club, nro)) for nro in range(1, periodos + 1)]
+        total = sum(v for v in valores if v is not None)
+        filas.append((nombre, *("—" if v is None else str(v) for v in valores), str(total)))
+    return columnas, filas
+
+
 class BloquePuntosPorCuarto:
-    """Bloque opcional con 4 casilleros por equipo y boton para agregar prorrogas."""
+    """Bloque opcional con 4 casilleros por equipo y boton para agregar prorrogas.
+
+    Se ve como una grilla chica: una fila de encabezados (Q1..Q4, PR1...) y una fila por equipo.
+    """
 
     def __init__(
         self,
@@ -37,10 +70,11 @@ class BloquePuntosPorCuarto:
         self._campos_local: list[ft.TextField] = []
         self._campos_visitante: list[ft.TextField] = []
 
-        self._lbl_local = ft.Text(nombre_local, weight=ft.FontWeight.W_600, width=140)
-        self._lbl_visitante = ft.Text(nombre_visitante, weight=ft.FontWeight.W_600, width=140)
-        self._fila_local = ft.Row(spacing=ESPACIO_CHICO, wrap=True)
-        self._fila_visitante = ft.Row(spacing=ESPACIO_CHICO, wrap=True)
+        self._lbl_local = self._nombre_equipo(nombre_local)
+        self._lbl_visitante = self._nombre_equipo(nombre_visitante)
+        self._fila_encabezados = ft.Row(spacing=ESPACIO_CHICO)
+        self._fila_local = ft.Row(spacing=ESPACIO_CHICO)
+        self._fila_visitante = ft.Row(spacing=ESPACIO_CHICO)
 
         for nro in range(1, CUARTOS_INICIALES + 1):
             self._agregar_campos_periodo(nro)
@@ -55,33 +89,58 @@ class BloquePuntosPorCuarto:
                     "Si dejás todos los casilleros vacíos, el partido se guarda sin parciales.",
                     color=ft.Colors.ON_SURFACE_VARIANT,
                 ),
-                self._fila_local,
-                self._fila_visitante,
-                self._boton_prorroga,
+                ft.Row(
+                    [
+                        ft.Column(
+                            [self._fila_encabezados, self._fila_local, self._fila_visitante],
+                            spacing=ESPACIO_CHICO,
+                        ),
+                        self._boton_prorroga,
+                    ],
+                    wrap=True,
+                    vertical_alignment=ft.CrossAxisAlignment.END,
+                ),
             ],
         )
         self._reconstruir_filas()
 
-    def _agregar_campos_periodo(self, nro_cuarto: int) -> None:
-        etiqueta = etiqueta_periodo(nro_cuarto)
-        self._campos_local.append(
-            ft.TextField(
-                label=f"Local {etiqueta}",
-                width=ANCHO_CASILLERO_CUARTO,
-                keyboard_type=ft.KeyboardType.NUMBER,
-                dense=True,
-            )
-        )
-        self._campos_visitante.append(
-            ft.TextField(
-                label=f"Visitante {etiqueta}",
-                width=ANCHO_CASILLERO_CUARTO,
-                keyboard_type=ft.KeyboardType.NUMBER,
-                dense=True,
-            )
+    @staticmethod
+    def _nombre_equipo(nombre: str) -> ft.Text:
+        return ft.Text(
+            nombre,
+            weight=ft.FontWeight.W_600,
+            width=ANCHO_NOMBRE_EQUIPO,
+            no_wrap=True,
+            overflow=ft.TextOverflow.ELLIPSIS,
         )
 
+    @staticmethod
+    def _casillero(rol: str, nro_cuarto: int) -> ft.TextField:
+        return ft.TextField(
+            key=clave_casillero_cuarto(rol, nro_cuarto),
+            width=ANCHO_CASILLERO_CUARTO,
+            keyboard_type=ft.KeyboardType.NUMBER,
+            text_align=ft.TextAlign.CENTER,
+            dense=True,
+        )
+
+    def _agregar_campos_periodo(self, nro_cuarto: int) -> None:
+        self._campos_local.append(self._casillero("local", nro_cuarto))
+        self._campos_visitante.append(self._casillero("visitante", nro_cuarto))
+
     def _reconstruir_filas(self) -> None:
+        self._fila_encabezados.controls = [
+            ft.Container(width=ANCHO_NOMBRE_EQUIPO),
+            *(
+                ft.Text(
+                    etiqueta_periodo(nro),
+                    width=ANCHO_CASILLERO_CUARTO,
+                    text_align=ft.TextAlign.CENTER,
+                    color=ft.Colors.ON_SURFACE_VARIANT,
+                )
+                for nro in range(1, self._cantidad_periodos + 1)
+            ),
+        ]
         self._fila_local.controls = [self._lbl_local, *self._campos_local]
         self._fila_visitante.controls = [self._lbl_visitante, *self._campos_visitante]
 
@@ -99,6 +158,20 @@ class BloquePuntosPorCuarto:
         self._reconstruir_filas()
         if self._al_cambiar is not None:
             self._al_cambiar()
+
+    def cargar_cuartos(self, cuartos: list[CuartoDTO], id_club_local: int, id_club_visitante: int) -> None:
+        """Llena los casilleros con los cuartos de un partido guardado (US-114, editar), sumando prorrogas."""
+        if not cuartos:
+            return
+        while self._cantidad_periodos < max(c.nroCuarto for c in cuartos):
+            self._cantidad_periodos += 1
+            self._agregar_campos_periodo(self._cantidad_periodos)
+        self._reconstruir_filas()
+        campos_por_club = {id_club_local: self._campos_local, id_club_visitante: self._campos_visitante}
+        for cuarto in cuartos:
+            campos = campos_por_club.get(cuarto.idClub)
+            if campos is not None:
+                campos[cuarto.nroCuarto - 1].value = str(cuarto.puntos)
 
     @property
     def cantidad_periodos(self) -> int:

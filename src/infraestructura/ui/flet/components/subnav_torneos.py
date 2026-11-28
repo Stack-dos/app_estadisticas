@@ -1,7 +1,8 @@
 """Barra de sub-navegacion de la seccion Torneos (US-107).
 
-Mantiene desacopladas las tres pantallas (`CompetenciasScreen`, `InscripcionesScreen` y `ListaBuenaFeScreen`,
-AC1): cada una vive en su archivo y se navega entre ellas por ruta (`page.navigate`).
+Mantiene desacopladas las pantallas (`CompetenciasScreen`, `CategoriasScreen` desde la US-113,
+`InscripcionesScreen` y `ListaBuenaFeScreen`, AC1): cada una vive en su archivo y se navega entre
+ellas por ruta (`page.navigate`).
 """
 
 import flet as ft
@@ -10,6 +11,7 @@ from infraestructura.ui.flet.estilo import ESPACIO_CHICO
 
 SUBDESTINOS_TORNEOS: tuple[tuple[str, str], ...] = (
     ("/competencias", "Competencias"),
+    ("/categorias", "Categorías"),
     ("/inscripciones", "Inscripciones"),
     ("/listas", "Listas de buena fe"),
 )

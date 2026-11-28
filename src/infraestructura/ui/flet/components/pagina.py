@@ -2,8 +2,9 @@
 
 Tres piezas, de adentro hacia afuera:
 
-- `crear_pagina`: el contenido. Titulo, subtitulo, controles y un panel lateral opcional, con margen
-  y un ancho maximo para que no se estire de borde a borde en una ventana maximizada.
+- `crear_pagina`: el contenido. Titulo, subtitulo, controles y un panel lateral opcional, con margen.
+  Desde la US-113 usa todo el ancho de la ventana (antes tenia un maximo de 1100 px y en un monitor
+  de 1920 px quedaba un tercio de la pantalla vacio); el panel lateral mantiene su ancho fijo.
 - `crear_vista_interna`: las pantallas con sesion. Barra superior, menu lateral a la izquierda y el
   contenido a la derecha, con desplazamiento vertical (scroll) si no entra.
 - `crear_vista_acceso`: login y registro. Panel de marca (logo y nombre) a la izquierda y el
@@ -16,10 +17,9 @@ import flet as ft
 
 from aplicacion.servicios.session_manager import SessionManager
 from infraestructura.ui.flet.barra_superior import crear_barra_superior
-from infraestructura.ui.flet.components.menu_lateral import crear_menu_lateral
+from infraestructura.ui.flet.components.menu_lateral import crear_boton_guia, crear_menu_lateral
 from infraestructura.ui.flet.estilo import (
     ANCHO_FORMULARIO,
-    ANCHO_MAXIMO,
     ESPACIO,
     ESPACIO_CHICO,
     ESPACIO_GRANDE,
@@ -59,7 +59,7 @@ def crear_pagina(
             formulario junto al listado). Va sobre un fondo apenas distinto.
 
     Returns:
-        ft.Container: El contenido con margen y ancho maximo.
+        ft.Container: El contenido con margen, a todo el ancho disponible.
     """
     cuerpo: ft.Control = ft.Column(list(controles), spacing=ESPACIO)
     if lateral is not None:
@@ -77,7 +77,6 @@ def crear_pagina(
         )
     return ft.Container(
         content=ft.Column([crear_encabezado(titulo, subtitulo), cuerpo], spacing=ESPACIO_GRANDE),
-        max_width=ANCHO_MAXIMO,
         padding=ESPACIO_GRANDE,
     )
 
@@ -105,10 +104,20 @@ def crear_vista_interna(page: ft.Page, sesion: SessionManager, ruta: str, conten
                 spacing=0,
                 vertical_alignment=ft.CrossAxisAlignment.STRETCH,
                 controls=[
-                    crear_menu_lateral(page, ruta),
+                    # Menu arriba (ocupa lo que sobra) y el boton "Guía" fijo abajo a la izquierda (US-114)
+                    ft.Column(
+                        [ft.Container(crear_menu_lateral(page, ruta), expand=True), crear_boton_guia(page)],
+                        spacing=0,
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
                     ft.VerticalDivider(width=1),
-                    # START: el contenido queda arriba a la izquierda, con su ancho maximo
-                    ft.Column([contenido], expand=True, scroll=ft.ScrollMode.AUTO),
+                    # STRETCH: el contenido ocupa todo el ancho que deja el menu (US-113)
+                    ft.Column(
+                        [contenido],
+                        expand=True,
+                        scroll=ft.ScrollMode.AUTO,
+                        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+                    ),
                 ],
             )
         ],
