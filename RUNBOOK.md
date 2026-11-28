@@ -91,16 +91,29 @@ Al ser editable, usa el código de esta carpeta y la **misma** base que `uv run`
 1. **Crear una cuenta:** en "Crear cuenta", completar nombre, email y contraseña (mínimo 6 caracteres). Al registrarse, la sesión queda iniciada.
 2. **Iniciar sesión:** con el email y la contraseña. Enter en el campo de la contraseña equivale a apretar el botón.
    - **"Recordarme":** si la marcás, al cerrar y volver a abrir la app entrás directo, con el mismo club activo. Si no la marcás, al cerrar la ventana la sesión se pierde.
-3. **Crear clubes y elegir con cuál trabajar:** el destino "Clubes" del menú lateral abre "Mis clubes". Ahí se crea un club (queda vinculado a tu usuario) y "Usar este club"
-   lo deja como **club activo**, que se ve siempre en la barra superior ("StatsPro · Atenas").
-4. **Gestionar torneos (con club activo):** el destino "Torneos" del menú lateral da acceso a:
-   - **Competencias:** crear categorías, crear competencias eligiendo sus categorías, habilitar o quitar categorías por competencia, filtrar por año o categoría y eliminar competencias/categorías sin uso.
-   - **Inscripciones:** inscribir al club activo en una competencia y categoría habilitada (creando su lista de buena fe), filtrar por año o categoría y dar de baja inscripciones sin partidos cargados.
-   - **Listas de buena fe:** habilitar o quitar jugadores del club activo en cada inscripción, vaciar la lista o dar de baja la inscripción.
-5. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
+3. **Crear clubes y elegir con cuál trabajar:** el destino "Mis clubes" del menú lateral. Ahí se crea un club **propio** (queda vinculado a tu usuario) y "Usar este club"
+   lo deja como **club activo**, que se ve siempre en la barra superior ("StatsPro · Atenas"). Los rivales **no** se crean acá: se escriben al cargar el partido.
+   Abajo, **"Clubes rivales"** lista los clubes que se crearon al cargar partidos: se pueden **renombrar** (si escribiste "Pezca") y **eliminar** si todavía no tienen partidos.
+4. **Inicio:** con club activo muestra accesos rápidos (Cargar partido, Ver partidos, Jugadores, Listas), el último partido con su resultado y los líderes del club (promedio de puntos, rebotes y asistencias).
+5. **Jugadores:** "Nuevo jugador" abre un diálogo; antes de crear avisa si ya hay alguien con ese nombre para vincularlo en vez de duplicarlo. Cada fila tiene íconos para editar, dar de baja (pide la fecha) y eliminar (solo si no tiene partidos ni listas).
+6. **Gestionar torneos (con club activo):** el destino "Torneos" del menú lateral da acceso a:
+   - **Competencias:** crear competencias eligiendo sus categorías, cambiar las categorías de cada una desde su fila («Categorías»), filtrar por año o categoría y eliminar competencias sin uso.
+   - **Categorías:** el catálogo común (U13, U15, Primera...): crear y eliminar las que no se usan.
+   - **Inscripciones:** inscribir al club activo en una competencia y categoría habilitada (creando su lista de buena fe), filtrar por año o categoría y dar de baja inscripciones sin partidos cargados. Con **"Agregar todo el plantel a la lista"** (marcada de entrada) los jugadores del club quedan en la lista nueva sin pasar por "Listas".
+   - **Listas de buena fe:** marcar varios jugadores del plantel (o «Seleccionar todos») y «Agregar seleccionados»; los que no entran se listan con el motivo. También quitar jugadores, vaciar la lista o dar de baja la inscripción.
+7. **Cargar un partido:** "Partidos" → "Cargar partido". Una sola pantalla:
+   - **Datos:** competencia y categoría (si el club tiene una sola inscripción ya viene elegida), fecha (con calendario), estadio, **rival** (elegirlo o escribirlo; si no existe se crea sin vincularlo a tu usuario) y si jugaste de local o de visitante.
+   - **Convocados:** casillas con tu lista de buena fe; se marcan **hasta 12** y solo ellos van a la planilla. Con 12 o menos en la lista vienen todos marcados.
+   - **Tu equipo:** planilla tipo Excel con los convocados. PTS y la fila Equipo se calculan solos. **La fila de quien no jugó se deja vacía.**
+   - **Rival:** «Solo totales o resultado» (una fila: si cargás los tiros, los puntos se calculan; si solo sabés el resultado, escribí los puntos) o «Boxscore por jugador» (si el rival ya tiene lista en ese torneo aparecen sus jugadores; si no, se escriben nombre y apellido y se dan de alta solos al guardar).
+   - Puntos por cuarto opcionales y el marcador en vivo. Si algo está mal, el error se marca en la planilla (qué jugador y qué columna), abajo dice qué planilla revisar, y no se guarda nada.
+   - **No se guarda un empate** ni más de 12 jugadores por equipo. Con **menos de 5** jugadores tuyos o un **partido repetido** (mismo día, torneo y rival) pregunta "¿Guardar igual?".
+   - El rival escrito que no existe se crea **junto con el partido**: si el partido no se guarda, el club tampoco queda.
+8. **Ver partidos:** "Partidos" lista los partidos del club con el resultado; "Ver boxscore" muestra los totales por equipo y el boxscore por jugador, con **"Editar partido"** (abre la carga llena con lo guardado; "Guardar cambios" lo reemplaza) y **"Eliminar partido"** (pide confirmación).
+9. **Guía de uso:** el botón **"Guía"** abajo del menú lateral (o "¿Cómo se usa?" en el login) abre un manual corto para el entrenador. El texto está en `src/assets/guia.md`.
+10. **Cerrar sesión:** el botón "Cerrar sesión" de la barra superior vuelve al login y borra la sesión recordada.
 
-Las pantallas para cargar jugadores y partidos llegan con las US-112 y US-108; los casos de uso ya existen (ver
-[docs/info_modulo/03-casos-de-uso.md](docs/info_modulo/03-casos-de-uso.md)).
+Qué hace cada caso de uso por dentro: [docs/info_modulo/03-casos-de-uso.md](docs/info_modulo/03-casos-de-uso.md).
 
 ---
 
@@ -295,10 +308,9 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 
 El estado del proyecto por historia de usuario está en el [PRD](docs/plan_desarrollo_detallado.md). Hoy, desde la aplicación:
 
-- **No hay pantallas de gestión** (US-107): jugadores, competencias, categorías e inscripciones existen en los casos de uso, pero todavía no en la interfaz. Clubes sí.
 - **La sesión recordada no vence** (v0.1): con "Recordarme", cualquiera que use tu cuenta del sistema operativo abre la app sin contraseña. La expiración llega con la US-403.
-- **No se pueden cargar partidos ni estadísticas** (US-108).
-- **No se puede editar ni borrar** clubes, competencias ni jugadores (el PRD solo pide crear, listar y vincular): un dato mal cargado hoy solo se corrige en la base.
+- **No se pueden cargar partidos entre dos clubes ajenos** (decidido en la US-114): van a entrar por la importación de planillas (US-201) y la carga masiva (US-207).
+- **No se puede renombrar ni borrar un club propio** desde la app (los rivales sí, en "Mis clubes → Clubes rivales").
 
 ---
 
