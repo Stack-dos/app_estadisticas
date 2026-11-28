@@ -177,10 +177,11 @@ hacerles perder datos.** Por eso, a partir del Hito 2:
 - **Permitido en una migración:** `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE … ADD COLUMN` (que
   acepte `NULL` o tenga `DEFAULT`; SQLite no deja agregar una columna `PRIMARY KEY`, `UNIQUE` ni
   `NOT NULL` sin default) e `INSERT` de datos de referencia nuevos.
-- **Prohibido:** `DROP TABLE`, `DROP COLUMN`, `RENAME`, `DELETE`, `UPDATE`, y reconstruir una tabla
-  para cambiarle tipos o restricciones. El CI lo controla (US-209). Si algún día un cambio no
-  aditivo es indispensable, primero va un ADR que lo justifique; recién después se escribe la
-  historia.
+- **Prohibido:** `DROP TABLE`, `DROP COLUMN`, `RENAME`, `DELETE`, `UPDATE` de datos de negocio y
+  reconstruir una tabla para cambiarle tipos o restricciones. La única excepción es completar
+  metadatos técnicos nuevos (por ejemplo, asignar un UUID de sincronización a filas existentes),
+  con migración explícita y prueba de que los datos de negocio no cambian (US-231). El CI lo
+  controla (US-209). Cualquier otro cambio no aditivo requiere primero un ADR que lo justifique.
 - **Una migración que ya está en `main` no se edita ni se borra:** se corrige con otra migración.
 - **`schema.sql` queda congelado en la v1.0.0** y la US-204 lo convierte en `0001_base_v1_0_0.sql`.
   Hasta que la US-204 se mergee, ninguna historia toca tablas. Hoy `schema.sql` usa
@@ -198,6 +199,25 @@ hacerles perder datos.** Por eso, a partir del Hito 2:
   que ya migró una versión más nueva.
 - **Lo mismo vale para los otros archivos del usuario** (sesión, configuración): una versión nueva
   lee el formato viejo o lo descarta sin error (ej. US-415).
+
+### Preparación para sincronización futura
+
+- **Hito 2 prepara el modelo local; no implementa sincronización de red.** SQLite sigue siendo la
+  base operativa y la fuente de verdad local: todas las lecturas y escrituras de la app pasan por
+  SQLite y los cambios pendientes no se descartan si no hay conexión. Supabase es un candidato
+  para sincronizar entre dispositivos en el Hito 5, no un reemplazo de SQLite.
+- Las entidades del primer agregado sincronizable conservan sus PK locales y reciben una identidad
+  estable `sync_id` UUID, única por entidad. No se reemplazan en bloque las PK enteras ni se cambian
+  sus FK locales. También registran `updated_at` en UTC. La migración asigna estos metadatos a los
+  datos ya existentes; las escrituras nuevas los mantienen desde la aplicación.
+- El outbox registra en la misma transacción local qué entidad cambió y si fue creada, editada o
+  borrada. Las bajas sincronizables se representan con tombstones (`deleted_at`) y permanecen
+  disponibles para enviar; no se usa un `is_dirty` genérico como única cola. El cursor de descarga
+  también se guarda localmente.
+- La sincronización futura corre fuera del flujo de la UI, con reintentos e idempotencia. No comparte
+  una conexión `sqlite3.Connection` entre hilos: el worker administra su propia conexión. El Hito 5
+  define el agregado, la autenticación, los permisos remotos, los cursores y la resolución de
+  conflictos a partir de los resultados del spike (ADR-012).
 
 ### Agregados estadísticos: por jugador (existe) y por club (falta, propuesto)
 
@@ -576,7 +596,8 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 | NFR-5 | Arranque            | Tiempo de inicio de la GUI < 3 seg en entorno objetivo                                   | Alta       |
 | NFR-6 | Offline             | 100% de funcionalidades críticas sin conexión a internet                                 | Bloqueante |
 | NFR-7 | Cobertura de Tests  | ≥80% no críticos; ≥95% en módulos críticos (ver Catálogo de Criticidad)                  | Alta       |
-| NFR-8 | Compatibilidad de datos | Actualizar la app nunca pierde ni rompe los datos del usuario: solo migraciones aditivas (sección 3) | Bloqueante |
+| NFR-8 | Compatibilidad de datos | Actualizar la app nunca pierde ni rompe los datos del usuario: migraciones aditivas y backfills explícitos de metadatos técnicos (sección 3) | Bloqueante |
+| NFR-9 | Sincronización futura | La sincronización no bloquea la UI ni la operación offline; los cambios locales pendientes sobreviven reinicios y fallos de red | Bloqueante para Hito 5 |
 
 ---
 
@@ -587,7 +608,7 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 | ADR-001 | Arquitectura Local-First | Aprobado (`docs/adr/ADR-001-arquitectura-local-first.md`)                                 | SQLite + offline-first                                                                                                                             | Hito 1          |
 | ADR-002 | Framework UI             | Aprobado (`docs/adr/ADR-002-framework-ui.md`)                                             | Flet (Python puro); se descarta Compose Multiplatform. Desde 2026-10-31 es la única interfaz (la CLI se retira)                                    | US-105          |
 | ADR-003 | Protocolo de Ingesta     | Pendiente — propuesta con archivos reales (`docs/adr/ADR-003-protocolo-ingesta-excel.md`) | Mapeo fijo en código, buscando encabezados por texto; falta elegir la librería de PDF                                                              | US-201, US-206  |
-| ADR-004 | Versionado de DB         | Decidido en el PRD (2026-11-27); se formaliza en la US-204 (`docs/adr/ADR-004-versionado-db.md`) | `yoyo-migrations`: SQL plano, sin SQLAlchemy; solo migraciones aditivas (sección 3)                                                                | US-204          |
+| ADR-004 | Versionado de DB         | Aprobado (`docs/adr/ADR-004-versionado-db.md`)                                          | `yoyo-migrations` desde su API Python; sin SQLAlchemy; migraciones aditivas y backfills técnicos explícitos (sección 3)                            | US-204          |
 | ADR-005 | Reportes PDF             | Aprobado (`docs/adr/ADR-005-reportes-pdf.md`)                                             | `reportlab`; se descarta `weasyprint`                                                                                                              | US-302          |
 | ADR-006 | Seguridad y Cifrado      | Aprobado v1.0.0 / Pendiente Hito 4 (`docs/adr/ADR-006-seguridad-cifrado.md`)              | Hash de passwords con `pbkdf2_hmac` y salt dinámico; cifrado DB (SQLCipher) y migración a bcrypt/argon2 quedan para Hito 4, con preguntas abiertas | US-104 / Hito 4 |
 | ADR-007 | Motor de Visualización   | Aprobado (`docs/adr/ADR-007-motor-visualizacion.md`)                                      | `matplotlib`; se descarta `plotly` para este motor                                                                                                 | US-301          |
@@ -595,12 +616,9 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 | ADR-009 | Pipeline CI/CD           | Aprobado, ya implementado (`docs/adr/ADR-009-pipeline-cicd.md`)                           | GitHub Actions (hosted) para lint, tests y cobertura automáticos                                                                                   | US-109          |
 | ADR-010 | Carga del rival          | Aprobado, ya implementado (`docs/adr/ADR-010-carga-rival-y-totales.md`)                   | Boxscore completo solo del club propio; del rival, totales en `estadisticaEquipoPartido` o boxscore con alta automática en la misma transacción   | US-113          |
 | ADR-011 | Logs estructurados       | Aprobado, ya implementado (`docs/adr/ADR-011-logs-estructurados.md`)                      | `logging` de la biblioteca estándar con formatter JSON propio y `ContextVar` para el `correlation_id`; sin structlog ni servicio externo           | US-110          |
+| ADR-012 | Sincronización local-first | Aprobado para la preparación local; proveedor pendiente del spike (`docs/adr/ADR-012-sincronizacion-local-first.md`) | SQLite local + UUID de sincronización, outbox transaccional y tombstones; Supabase candidato para Hito 5 | US-231 / Hito 5 |
 
-Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Alternativas Consideradas → Decisión Tomada → Ventajas y Desventajas. Los ADR escritos viven en `docs/adr/` (no en el submódulo de documentación, que es de otro repositorio). **Estado (2026-10-03): los 9 ADR ya están redactados en `docs/adr/`.** Aprobados sin preguntas
-pendientes: ADR-001, ADR-002, ADR-005, ADR-007, ADR-008, ADR-009. Con preguntas abiertas a
-resolver antes de cerrarlos del todo: ADR-003 (ya hay archivos reales; falta elegir la librería de PDF)
-y ADR-006 (viabilidad de SQLCipher en Android y fuente de la lista
-de contraseñas comprometidas, ambas para el Hito 4).
+Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Alternativas Consideradas → Decisión Tomada → Ventajas y Desventajas. Los ADR escritos viven en `docs/adr/` (no en el submódulo de documentación, que es de otro repositorio). ADR-003 sigue pendiente de elegir la librería de PDF; ADR-006 conserva preguntas para el Hito 4; ADR-012 deja pendiente la validación del proveedor y del protocolo remoto hasta completar el spike.
 
 ---
 
@@ -1537,7 +1555,7 @@ confiables, exponerlas en pantallas de la GUI y asegurar la evolución del esque
 
 **Versiones:** H2-E1 → **v1.1.0** · H2-E2 → **v1.2.0** · H2-E3 → **v2.0.0** (cierra el hito).
 
-**Épicas:** 3 · **Historias:** 30 · **Esfuerzo total estimado:** ~50 días·persona
+**Épicas:** 3 · **Historias:** 31 · **Esfuerzo total estimado:** ~53–55 días·persona
 
 > **Rearmado (2026-11-27).** Las 7 historias que tenía el hito (US-201 a US-207) se dividieron en
 > historias chicas, cada una con un objetivo, sus dependencias y lo que deja hecho para las demás
@@ -1548,6 +1566,8 @@ confiables, exponerlas en pantallas de la GUI y asegurar la evolución del esque
 >
 > - La **US-204** (migraciones) es la primera del hito y se convierte en regla: desde la v1.0.0 la
 >   base solo cambia con migraciones aditivas (sección 3).
+> - La **US-231** prepara las identidades y el registro local de cambios para una sincronización
+>   futura; no agrega tráfico de red al Hito 2. La implementación remota sigue en el Hito 5.
 > - El **`IngestService`** de la vieja US-201 se fusiona con su caso de uso: resolver clubes,
 >   jugadores e inscripciones es lógica de aplicación, no de infraestructura.
 > - Los casos de uso de comparativas se mueven de la H2-E2 a la H2-E3: necesitan leer datos, y en el
@@ -1559,7 +1579,7 @@ confiables, exponerlas en pantallas de la GUI y asegurar la evolución del esque
 
 **Decisiones previas:** ADR-003 (protocolo de ingesta) sigue abierto solo en la librería de PDF y
 bloquea únicamente las US-210 y US-214; lo cierra quien tome la US-210. ADR-004 (versionado de la
-base) quedó decidido en este PRD: **yoyo-migrations** (sección 8); la US-204 lo pasa al ADR.
+base) elige **yoyo-migrations** (sección 8); la US-204 lo implementa.
 
 ### Mapa de dependencias del Hito 2
 
@@ -1569,6 +1589,7 @@ dependen de nada se pueden tomar desde el primer día.
 | US     | Qué deja hecho                                             | Depende de              | Tamaño | Sale de |
 | ------ | ---------------------------------------------------------- | ----------------------- | ------ | ------- |
 | US-204 | Migraciones con yoyo; la base de v1.0.0 como punto de partida | v1.0.0 publicada        | M      | US-204  |
+| US-231 | Identidades estables y metadatos locales para sincronización futura | US-204, ADR-012 | M | nueva |
 | US-208 | Copia de la base antes de migrar; bloqueo de bases más nuevas | US-204                  | S      | US-204  |
 | US-209 | El CI rechaza migraciones destructivas o editadas           | US-204                  | S      | nueva   |
 | US-206 | Lectura del listado de jugadores de la CAB en Excel         | —                       | S      | US-206  |
@@ -1711,6 +1732,37 @@ docs/info_modulo/12-como-agregar-una-migracion.md
 tests/integration/test_migraciones.py
 ```
 
+#### US-231 — Preparación Local para Sincronización Futura
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Depende de:** US-204 y ADR-012 · **Toca la
+  base:** sí, agrega metadatos técnicos sin reemplazar las PK locales.
+- **Objetivo:** evitar una migración tardía y disruptiva cuando se implemente la sincronización
+  multi-dispositivo, manteniendo SQLite como base operativa y garantizando que la app siga
+  funcionando offline.
+- **Entrega:** migraciones aditivas para `sync_id` UUID estable y `updated_at` en las entidades del
+  agregado sincronizable inicial, tabla `sync_outbox`, estado/cursor local y tombstones; cambios en los
+  repositorios para mantener esos metadatos en la misma transacción que cada alta, edición o baja.
+  El alcance exacto de entidades y relaciones se fija en ADR-012 antes de implementar.
+- **Criterios de Aceptación:**
+  - **AC1 — Identidad estable:** las filas existentes reciben un `sync_id` único y persistente;
+    las nuevas filas lo generan al crearse. Cada alta o edición mantiene `updated_at` en UTC. Se
+    conservan las PK enteras y las FK actuales, y la migración no altera valores de negocio.
+  - **AC2 — Outbox atómico:** cada cambio sincronizable registra su operación en `sync_outbox` en
+    la misma transacción SQLite. Si la transacción falla, no queda ni el cambio ni su evento; si se
+    reintenta, no se pierden cambios pendientes.
+  - **AC3 — Bajas:** las entidades sincronizables se marcan con `deleted_at` y no se eliminan
+    físicamente antes de que el protocolo remoto pueda propagar la baja. Las consultas normales
+    siguen ocultando registros eliminados.
+  - **AC4 — Operación local:** no se agrega una dependencia de red, credencial de Supabase ni hilo
+    sincronizador; la app conserva el mismo comportamiento offline.
+  - **AC5 — Compatibilidad:** una base v1.0.0 con datos migra sin perderlos; reabrir la app no
+    cambia identidades ni duplica eventos de sincronización.
+- **Testing Mínimo:** migrar una base v1.0.0 con datos y comprobar PK/FK/valores de negocio
+  intactos; probar generación y unicidad de `sync_id`, actualización de `updated_at`, outbox dentro
+  y fuera de transacciones exitosas, tombstones y reintentos idempotentes.
+- **Archivos:** migraciones SQLite bajo `src/infraestructura/persistencia/sql/migrations/`,
+  repositorios del agregado definido en ADR-012, pruebas de integración y guía de migraciones.
+
 #### US-208 — Copia de la Base Antes de Migrar y Bloqueo de Bases Más Nuevas
 
 - **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-204 · **Toca la base:** no
@@ -1741,7 +1793,9 @@ tests/integration/test_migraciones.py
 - **Entrega:** un test y un paso del CI que tiene que pasar toda migración nueva.
 - **Criterios de Aceptación:**
   - **AC1 — Solo sentencias aditivas:** un test recorre `migrations/` y falla si encuentra
-    `DROP TABLE`, `DROP COLUMN`, `RENAME`, `DELETE` o `UPDATE`, y dice el archivo y la línea.
+    `DROP TABLE`, `DROP COLUMN`, `RENAME`, `DELETE` o `UPDATE` de datos de negocio, y dice el
+    archivo y la línea. La única excepción permitida es el backfill de `sync_id` definido en
+    US-231; el test verifica que no se actualicen columnas de negocio.
   - **AC2 — Migraciones inmutables:** el CI falla si un PR modifica, renombra o borra un archivo
     de `migrations/` que ya está en `main` (solo se pueden agregar archivos nuevos).
   - **AC3:** los dos chequeos están en la guía `12-como-agregar-una-migracion.md`.
@@ -3048,7 +3102,12 @@ Este PRD ya describe el flujo nuevo. Para que el repositorio coincida falta:
 
 > Los hitos 5–9 son **visión de producto, no compromisos de entrega**. Se refinan y priorizan según feedback real de usuarios al cierre de la v4.0.0. Cada hito cierra con su MAJOR (Hito N → vN.0.0, sección 15). Se transcriben completos porque forman parte del PRD original, aunque no son parte del plan de trabajo actual.
 
-- **Hito 5 · Ecosistema Conectado y Colaborativo (v5.0.0):** romper el aislamiento local. Sincronización cloud híbrida (FastAPI + PostgreSQL, manteniendo la app 100% funcional offline); exportación de "Match Cards" para redes sociales; base de datos compartida de scouting entre DTs (con consentimiento explícito). Investigación previa de la sincronización (local-first con Supabase como alternativa): ver `docs/spike/spike_supabase.md`.
+- **Hito 5 · Ecosistema Conectado y Colaborativo (v5.0.0):** sincronizar en segundo plano los
+  agregados locales preparados en Hito 2, manteniendo SQLite como base operativa y la app 100%
+  funcional offline. Supabase es el candidato inicial; el spike (`docs/spike/spike_supabase.md`)
+  debe validar el transporte, autenticación/RLS, conflictos, seguridad y costo antes de elegirlo
+  frente a FastAPI + PostgreSQL. También incluye exportación de "Match Cards" y una base compartida
+  de scouting entre DTs, con consentimiento explícito.
 - **Hito 6 · Inteligencia Táctica con IA (v6.0.0):** pasar de análisis descriptivo a prescriptivo. Motor de recomendación de quinteto (scikit-learn/XGBoost); detección automática de patrones (rachas de tiro, degradación defensiva por fatiga, pérdidas en momentos de presión — z-score, ARIMA); explicabilidad con SHAP values; integración de video scouting; marco de experimentación A/B de estrategias.
 - **Hito 7 · Live Stats y Cancha Digital (v7.0.0):** captura de datos en tiempo real. Módulo de captura en vivo en tablet (<200ms por acción); dashboard en vivo para el banco (PPP por posesión, eFG% acumulado, +/- por jugador); mapa de tiro interactivo por zonas; control de carga/fatiga con alertas.
 - **Hito 8 · Plataforma Federativa y Competición Multi-Liga (v8.0.0):** escalar de club a federación. Integración con APIs federativas (CABB, FIBA); vista multi-club para oficiales de liga; reportería regulatoria automatizada; benchmarking anónimo inter-club; gestión de árbitros y planilleros.
@@ -3066,7 +3125,8 @@ fuentes, por si se prefiere consultar esta vista en vez de la de "Registro de De
 | ADR-001 | Arquitectura Local-First | Hito 1        | ✅ SQLite + offline-first (ya definido)                                                                                               |
 | ADR-002 | Framework UI             | US-105        | ✅ Flet, se descarta Compose Multiplatform; única interfaz desde el 2026-10-31 (ver `docs/adr/ADR-002`)                               |
 | ADR-003 | Protocolo de Ingesta     | US-210/US-214 | ⏳ Propuesta con archivos reales: mapeo fijo buscando encabezados por texto; falta elegir la librería de PDF (ver `docs/adr/ADR-003`) |
-| ADR-004 | Versionado de DB         | US-204        | ✅ `yoyo-migrations`, solo migraciones aditivas (decidido en el PRD el 2026-11-27; la US-204 actualiza `docs/adr/ADR-004`)            |
+| ADR-004 | Versionado de DB         | US-204        | ✅ `yoyo-migrations` por API Python; migraciones aditivas y backfills explícitos de metadatos técnicos |
+| ADR-012 | Sincronización Local-First | US-231 / Hito 5 | ✅ Preparar UUID/outbox/tombstones en Hito 2; Supabase y protocolo remoto sujetos al spike |
 | ADR-005 | Reportes PDF             | US-302        | ✅ `reportlab` (ya definido, ver `docs/adr/ADR-005`)                                                                                  |
 | ADR-006 | Seguridad y Cifrado      | US-413/414/416 | ✅ v1.0.0: `pbkdf2_hmac` con salt **dinámico**. Hito 4: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma   |
 | ADR-007 | Motor de Visualización   | US-301        | ✅ `matplotlib` (ya definido, ver `docs/adr/ADR-007`)                                                                                 |
