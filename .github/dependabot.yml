@@ -1,0 +1,49 @@
+version: 2
+
+# Dependabot abre Pull Requests solo cuando hay una version nueva de algo que usa el proyecto.
+# Como pyproject.toml fija versiones exactas (==), cada PR cambia esa version y regenera uv.lock:
+# ruff y mypy quedan actualizados a la vez en pre-commit y en el CI (ambos leen pyproject.toml).
+updates:
+  # Dependencias de Python: pyproject.toml + uv.lock
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # pytest, pytest-cov, ruff y mypy suben juntos en un solo PR
+      herramientas-dev:
+        patterns:
+          - "pytest"
+          - "pytest-cov"
+          - "ruff"
+          - "mypy"
+
+  # Actions de GitHub: los workflows y las actions propias de .github/actions/*/*
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+      - "/.github/actions/*/*"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Imagen base y version de uv de Dockerfile.test
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"

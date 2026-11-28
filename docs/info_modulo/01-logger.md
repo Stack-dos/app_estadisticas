@@ -63,3 +63,48 @@ Este módulo ilustra la aplicación del sistema de auditoría dentro de las oper
 - Auditoría de Procesos Exitosos: Mediante el nivel INFO, el sistema documenta hitos críticos del ciclo de vida de la base de datos, tales como la inicialización de esquemas y vistas, la carga de datos iniciales o seeds, y la correcta ejecución de rutinas de limpieza.
 
 - Manejo de Excepciones: Dentro de los bloques try/except, el módulo utiliza el nivel ERROR para capturar fallos operativos (por ejemplo, excepciones de tipo sqlite3.Error o archivos no localizados). El sistema registra la traza exacta de la excepción generada, garantizando que los detalles técnicos necesarios para la resolución del problema queden persistidos sin interrumpir abruptamente el flujo de la aplicación.
+
+# Desde la US-110: JSON, correlation_id y secretos tapados
+
+> Esta sección reemplaza los puntos **C** y **D** de arriba (el formato de texto y el nivel fijo) y la ubicación de `rutas.py`:
+> los logs viven en `~/.statspro/logs/app.log` desde la US-109. La decisión está en el ADR-011.
+
+**Concepto.** Un `correlation_id` (también _trace id_) es un identificador único que se le pone a **todos** los logs de una misma
+operación. **Problema que resuelve:** en el archivo, las líneas de un clic se mezclan con las de otros; con el id se filtran las de uno
+solo. **Ejemplo real:** es el `X-Request-ID` que agregan Nginx o Heroku a cada pedido HTTP; acá la "petición" es un clic.
+
+**Cómo funciona.** Tres piezas en `src/infraestructura/observabilidad.py`:
+
+1. **`ContextVar`** (módulo `contextvars` de la biblioteca estándar): una variable que parece global, pero cada hilo y cada tarea de
+   asyncio ve su propio valor. `nueva_accion("clubes.crear")` guarda ahí un `ContextoAccion(correlation_id, accion)` y lo borra al
+   salir del `with` (con `token = var.set(...)` / `var.reset(token)`, aunque haya excepción).
+2. **Filtros del handler.** Un `logging.Filter` puede modificar el registro antes de escribirlo. `FiltroContexto` le copia
+   `correlation_id` y `accion` de la `ContextVar`; `FiltroSecretos` tapa claves secretas (`password`, `hash`, `token`...) y emails en
+   el mensaje, en los extras y en el traceback.
+3. **`FormateadorJson`**: un `logging.Formatter` que devuelve `json.dumps(...)` con `ts` (UTC, milisegundos), `nivel`, `logger`,
+   `mensaje`, `correlation_id`, `accion`, los campos de `extra=` y `exc` (el traceback).
+
+```python
+with nueva_accion("clubes.crear"):                      # lo hace ejecutar_mostrando_errores
+    logger.info("Club creado", extra={"evento": "club_creado", "id_club": 7})
+# -> {"ts": "...", "nivel": "INFO", ..., "correlation_id": "b92b...", "accion": "clubes.crear", "evento": "club_creado", "id_club": 7}
+```
+
+**Detalles técnicos.**
+
+- **Los filtros van en el handler, no en el logger raíz.** Un filtro de logger solo ve lo que se loguea **en ese logger**; lo que llega
+  propagado desde `aplicacion.casos_uso.crear_club` no pasa por él. Los filtros de un handler ven todo lo que el handler escribe.
+- **La aplicación no importa nada de esto:** usa `logging.getLogger(__name__)`. El id lo pone el handler, al final del camino.
+- **`extra=`** agrega campos al registro; el formatter los detecta comparando contra los atributos que todo `LogRecord` ya trae.
+- **Sink y nivel:** `crear_handler(sink, nivel)` en `logger.py`, leído de `STATSPRO_LOG_SINK` y `STATSPRO_LOG_NIVEL` (ver el RUNBOOK).
+- **En los tests**, pytest ya puso sus handlers en el logger raíz y `configuracion_log()` no agrega el suyo (el `if logger.handlers`).
+  Para ver el `correlation_id`, la fixture `registros_log` de `tests/conftest.py` agrega un handler de lista con los filtros reales.
+
+**Errores comunes.**
+
+- Llamar a un módulo propio `logging.py`: tapa al de la biblioteca estándar en todos los `import logging`.
+- Abrir una acción alrededor de `ft.run(...)`: las tareas de asyncio copian el contexto de quien las crea y **todos** los clics
+  saldrían con el mismo id.
+- Loguear con f-string un dato sensible sin clave (`logger.info(f"{password}")`): el filtro no sabe que es un secreto. El filtro es la
+  red de seguridad, no un permiso para loguear secretos.
+- Esperar el id en un `threading.Thread` creado a mano: arranca con el contexto vacío (usar `contextvars.copy_context().run`).

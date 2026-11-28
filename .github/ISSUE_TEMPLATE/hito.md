@@ -1,31 +1,11 @@
 ---
 name: Hito
 about: Plantilla para el seguimiento de un Hito del proyecto
-title: "[Hito] - "
-labels: milestone
+title: "[HN] Hito N — "
+labels: hito
 assignees: ""
 ---
 
-<<<<<<< HEAD
-## 🎯 Objetivo del Hito
-
-Breve descripción del objetivo principal de este hito (ej: Núcleo de Datos e Interfaz CLI).
-
-## 🛠 Decisiones Previas (ADRs)
-
-Lista de decisiones de arquitectura que deben estar resueltas antes o durante este hito:
-
-- [ ] ADR-XXX: Título del ADR
-
-## 📑 Épicas Incluidas
-
-- [ ] Épica E-X: Título de la épica
-- [ ] Épica E-Y: Título de la épica
-
-## 🏁 Criterio de Finalización
-
-¿Qué debe ser funcional para dar este hito por cerrado?
-=======
 ## 🚀 Descripción del Hito
 
 > Describe en 2-3 oraciones el objetivo estratégico del hito y qué capacidad nueva entrega al producto.
@@ -96,6 +76,5 @@ Lista de decisiones de arquitectura que deben estar resueltas antes o durante es
 
 <!-- Links a documentación relevante, ADRs, diagramas, etc. -->
 
-- PRD: `PRD/Plan_Requerimientos_Producto_Pro.pdf`
+- PRD: `docs/plan_desarrollo_detallado.md`
 - ADRs relacionados: ADR-00X, ADR-00X
->>>>>>> 80a8c9eb0d184f16ccdc72196c550e11496b4d95

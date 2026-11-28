@@ -1,6 +1,6 @@
-# Diagrama Utiles
+# Diagramas Útiles
 
-## Diagrama de clases
+## Diagrama de Clases
 
 ```mermaid
 classDiagram
@@ -9,6 +9,7 @@ classDiagram
     SquliteJugadorRepositorio --|> JugadorRepositorio : Implementa
     SqliteUsuarioRepositorio --|> UsuarioRepositorio : Implementa
     SqliteCompetenciaRepositorio --|> CompetenciaRepositorio : Implementa
+
     ClubRepositorio ..> Club : usa
     ClubRepositorio ..> UsuarioClub : usa
     CompetenciaRepositorio ..> Competencia : usa
@@ -21,183 +22,185 @@ classDiagram
     JugadorRepositorio ..> Jugador : usa
     JugadorRepositorio ..> JugadorClub : usa
 
-namespace Dominio.Repositorios{
-    class ClubRepositorio{
+    class ClubRepositorio {
         <<interface>>
-        + buscar_por_id_usuario(id_usuario) : list[Club]
-        + buscar_por_id(id_club): Club
-        + buscar_por_nombre(nombre): list[Club]
-        + guardar(club: Club): Club
-        + link_user_to_club(us_club: UsuarioClub): UsuarioClub
+        +buscar_por_id_usuario(id_usuario) list
+        +buscar_por_id(id_club) Club
+        +buscar_por_nombre(nombre) list
+        +guardar(club) Club
+        +link_user_to_club(us_club) UsuarioClub
     }
-    class CompetenciaRepositorio{
+
+    class CompetenciaRepositorio {
         <<interface>>
-        + guardar_competencia(compe: Competencia): Competencia
-        + buscar_competencia_por_id(idCompetencia): Competencia
-        + obtener_todas_competencias(): list[Competencia]
-        + guardar_categoria(cat: Categoria): Categoria
-        + obtener_categorias(): list[Categoria]
-        + guardar_inscripcion(inscripcion: Inscripcion): Inscripcion
-        + buscar_inscripcion_por_id(idInscripcion): Inscripcion
-        + obtener_inscripciones_por_club(idClub): list[Inscripcion]
-        + guardar_lista_buena_fe(listaBF: ListaBuenaFe): ListaBuenaFe
-        + obtener_lista_por_inscripcion(idInscripcion): ListaBuenaFe
-        + agregar_jugador_lista(idJugador, idListaBuenaFe): JugadorListaBuenaFe
-        + obtener_jugadores_lista(idListaBuenaFe): list[JugadorListaBuenaFe]
+        +guardar_competencia(compe) Competencia
+        +buscar_competencia_por_id(idCompetencia) Competencia
+        +obtener_todas_competencias() list
+        +guardar_categoria(cat) Categoria
+        +obtener_categorias() list
+        +guardar_inscripcion(inscripcion) Inscripcion
+        +buscar_inscripcion_por_id(idInscripcion) Inscripcion
+        +obtener_inscripciones_por_club(idClub) list
+        +guardar_lista_buena_fe(listaBF) ListaBuenaFe
+        +obtener_lista_por_inscripcion(idInscripcion) ListaBuenaFe
+        +agregar_jugador_lista(idJugador, idListaBuenaFe) JugadorListaBuenaFe
+        +obtener_jugadores_lista(idListaBuenaFe) list
     }
-    class UsuarioRepositorio{
+
+    class UsuarioRepositorio {
         <<interface>>
-        + encontrar_por_mail(email): Usuario
-        + encontrar_por_id(id): Usuario
-        + guardar(us_aux: Usuario): Usuario
+        +encontrar_por_mail(email) Usuario
+        +encontrar_por_id(id) Usuario
+        +guardar(us_aux) Usuario
     }
-    class JuegoRepositorio{
+
+    class JuegoRepositorio {
         <<interface>>
-        + buscar_por_club(id_club): list[Partido]
-        + buscar_por_id(idPartido): Partido
-        + guardar_partido(partido: Partido): Partido
-        + guardar_boxscore(boxscore: JugadorPartido): JugadorPartido
+        +buscar_por_club(id_club) list
+        +buscar_por_id(idPartido) Partido
+        +guardar_partido(partido) Partido
+        +guardar_boxscore(boxscore) JugadorPartido
     }
-    class JugadorRepositorio{
+
+    class JugadorRepositorio {
         <<interface>>
-        + buscar_por_id(id_jugador): Jugador
-        + buscar_por_dni(dni_jugador): Jugador
-        + buscar_por_club(idClub): list[Jugador]
-        + guardar(jugador: Jugador): Jugador
-        + link_to_club(jc: JugadorClub): JugadorClub
-        + club_activo(id_jugador): Club
+        +buscar_por_id(id_jugador) Jugador
+        +buscar_por_club(idClub) list
+        +guardar(jugador) Jugador
+        +link_to_club(jc) JugadorClub
+        +club_activo(id_jugador) Club
     }
-}
-namespace Dominio.Entidades{
-    class Club{
-        <<Dataclass>>
-        + nombre: str
-        + idClub: int
+
+    class Club {
+        +str nombre
+        +int idClub
     }
-    class UsuarioClub{
-        <<Dataclass>>
-        + rol : str
-        + idUsuario: int
-        + idClub: int
+
+    class UsuarioClub {
+        +str rol
+        +int idUsuario
+        +int idClub
     }
-    class Competencia{
-        <<Dataclass>>
-        + nombre
-        + anio
-        + tipo
-        + idCompetencia
+
+    class Competencia {
+        +str nombre
+        +int anio
+        +str tipo
+        +int idCompetencia
     }
-    class Categoria{
-        <<Dataclass>>
-        + nombre
-        + idCategoria
+
+    class Categoria {
+        +str nombre
+        +int idCategoria
     }
-    class Inscripcion{
-        <<Dataclass>>
-        + idClub
-        + idCategoria
-        + idCompetencia
-        + idInscripcion
+
+    class Inscripcion {
+        +int idClub
+        +int idCategoria
+        +int idCompetencia
+        +int idInscripcion
     }
-    class ListaBuenaFe{
-        <<Dataclass>>
-        + fechaPresentacion
-        + idInscripcion
-        + idListaBuenaFe
+
+    class ListaBuenaFe {
+        +str fechaPresentacion
+        +int idInscripcion
+        +int idListaBuenaFe
     }
-    class Usuario{
-        <<Dataclass>>
-        + nombre
-        + email
-        + pw
-        + idUsuario
+
+    class Usuario {
+        +str nombre
+        +str email
+        +str pw
+        +int idUsuario
     }
-    class JugadorPartido{
-        <<Dataclass>>
-        + idJugador
-        + idPartido
-        + idClub
-        + minutosJugados
-        + puntos
-        + t2c
-        + t2l
-        + t3c
-        + t3l
-        + t1c
-        + t1l
-        + rebotesDef
-        + rebotesOf
-        + asistencias
-        + recuperos
-        + perdidas
-        + taponesRecibidos
-        + taponesRealizados
-        + faltasRecibidas
-        + faltasCometidas
+
+    class JugadorPartido {
+        +int idJugador
+        +int idPartido
+        +int idClub
+        +int minutosJugados
+        +int puntos
+        +int t2c
+        +int t2l
+        +int t3c
+        +int t3l
+        +int t1c
+        +int t1l
+        +int rebotesDef
+        +int rebotesOf
+        +int asistencias
+        +int recuperos
+        +int perdidas
+        +int taponesRecibidos
+        +int taponesRealizados
+        +int faltasRecibidas
+        +int faltasCometidas
     }
-    class Partido{
-        <<Dataclass>>
-        + fecha
-        + estadio
-        + idCompetencia
-        + idClubLocal
-        + idClubVisitante
-        + idPartido
+
+    class Partido {
+        +str fecha
+        +str estadio
+        +int idCompetencia
+        +int idClubLocal
+        +int idClubVisitante
+        +int idPartido
     }
-    class Jugador{
-        <<Dataclass>>
-        + nombre
-        + apellido
-        + dni
-        + anioNacimiento
-        + idJugador
+
+    class Jugador {
+        +str nombre
+        +str apellido
+        +int anioNacimiento
+        +int idJugador
     }
-    class JugadorClub{
-        <<Dataclass>>
-        + fechaDesde
-        + fechaHasta
-        + idJugador
-        + idClub
+
+    class JugadorClub {
+        +str fechaDesde
+        +str fechaHasta
+        +int idJugador
+        +int idClub
     }
-}
-namespace Infraestructura.Repositorios{
-    class SqliteClubRepositorio{
-        + conexion
+
+    class SqliteClubRepositorio {
+        +conexion
     }
-    class SqliteJuegoRepositorio{
-        + conexion
+
+    class SqliteJuegoRepositorio {
+        +conexion
     }
-    class SquliteJugadorRepositorio{
-        + conexion
+
+    class SquliteJugadorRepositorio {
+        +conexion
     }
-    class SqliteUsuarioRepositorio{
-        + conexion
-        + _row_to_entity(row)
+
+    class SqliteUsuarioRepositorio {
+        +conexion
+        +_row_to_entity(row)
     }
-    class SqliteCompetenciaRepositorio{
-        + conexion
-        + _row_to_entity(row)
+
+    class SqliteCompetenciaRepositorio {
+        +conexion
+        +_row_to_entity(row)
     }
-}
-namespace Infraestructura.Persistencia{
-    class SQLiteManager{
-        + db_path
-        + schema_path
-        + views_path
-        + seed_path
-        + limpieza_path
-        + conexion
-        + connect()
-        + inicializar_schema()
-        + cargar_seed()
-        + get_connection()
-        + close_connection()
-        + limpieza()
+
+    class SQLiteManager {
+        +db_path
+        +schema_path
+        +views_path
+        +seed_path
+        +limpieza_path
+        +conexion
+        +connect()
+        +inicializar_schema()
+        +cargar_seed()
+        +get_connection()
+        +close_connection()
+        +limpieza()
     }
-}
 ```
 
-## Diagrama Patron repositorio
+---
+
+## Diagrama Patrón Repositorio
 
 ```mermaid
 flowchart LR
@@ -208,6 +211,7 @@ flowchart LR
     repoJuego["SqliteJuegoRepositorio"]
     repoClub["SqliteClubRepositorio"]
     repoCompetencias["SQL Repositorio Competencia"]
+
     U[(USUARIO)]
     C[(CLUB)]
     UC[(USUARIOCLUB)]
@@ -222,84 +226,85 @@ flowchart LR
     JP[(JUGADORPARTIDO)]
 
     subgraph conexion
-    db-->|"Genera una conexion <br> a la base de datos"|dbManager
+        db -->|"Genera una conexion"| dbManager
     end
 
     subgraph Repositorios
-    dbManager -->|"Conexion Unica"| repoUsuario
-    dbManager -->|"Conexion Unica"| repoJugador
-    dbManager -->|"Conexion Unica"| repoJuego
-    dbManager -->|"Conexion Unica"| repoClub
-    dbManager -->|"Conexion Unica"| repoCompetencias
+        dbManager --> repoUsuario
+        dbManager --> repoJugador
+        dbManager --> repoJuego
+        dbManager --> repoClub
+        dbManager --> repoCompetencias
     end
 
     subgraph EntidadesDB
-    repoUsuario -->|"Maneja"|U
-    repoClub -->|"Maneja"|C
-    repoClub -->|"Maneja"|UC
-    repoCompetencias -->|"Maneja"|COM
-    repoCompetencias -->|"Maneja"|CAT
-    repoCompetencias -->|"Maneja"|I
-    repoCompetencias -->|"Maneja"|LBF
-    repoCompetencias -->|"Maneja"|JLBF
-    repoJuego -->|"Maneja"|P
-    repoJuego -->|"Maneja"|JP
-    repoJugador -->|"Maneja"|J
-    repoJugador -->|"Maneja"|JC
+        repoUsuario --> U
+        repoClub --> C
+        repoClub --> UC
+        repoCompetencias --> COM
+        repoCompetencias --> CAT
+        repoCompetencias --> I
+        repoCompetencias --> LBF
+        repoCompetencias --> JLBF
+        repoJuego --> P
+        repoJuego --> JP
+        repoJugador --> J
+        repoJugador --> JC
     end
 ```
 
-## DER
+---
+
+## DER (Diagrama Entidad Relación)
 
 ```mermaid
 erDiagram
-    u[usuario] {
+    usuario {
         int idUsuario PK
         varchar nombre
         varchar email
         varchar contrasenia
     }
-    us[usuarioClub] {
-        int idUsuario FK,PK
-        int idClub FK,PK
+    usuarioClub {
+        int idUsuario PK,FK
+        int idClub PK,FK
         varchar rolEntrenador
     }
-    c[club] {
+    club {
         int idClub PK
         varchar nombre
     }
-    jc[jugadorClub] {
-        int idJugador FK,PK
-        int idClub FK,PK
+    jugadorClub {
+        int idJugador PK,FK
+        int idClub PK,FK
         date fechaDesde PK
         date fechaHasta
     }
-    j[jugador] {
+    jugador {
         int idJugador PK
         varchar nombre
-        int dni
-        year anioNacimiento
+        int anioNacimiento
     }
-    jlbf[jugadorListaBuenaFe] {
+    jugadorListaBuenaFe {
         int idJugador PK,FK
         int idListaBuenaFe PK,FK
     }
-    lbf[listaBuenaFe] {
+    listaBuenaFe {
         int idListaBuenaFe PK
         date fechaPresentacion
-        int idInscripcion FK,UK
+        int idInscripcion FK
     }
-    ins[inscripcion] {
+    inscripcion {
         int idInscripcion PK
         int idClub FK
         int idCategoria FK
         int idCompetencia FK
     }
-    cat[categoria] {
+    categoria {
         int idCategoria PK
         varchar nombre
     }
-    p[partido] {
+    partido {
         int idPartido PK
         date fecha
         varchar estadio
@@ -309,7 +314,7 @@ erDiagram
         int puntosLocalFinal
         int puntosVisitanteFinal
     }
-    jp[jugadorPartido] {
+    jugadorPartido {
         int idJugador PK,FK
         int idPartido PK,FK
         int idClub FK
@@ -331,26 +336,27 @@ erDiagram
         int FaltasRecibidas
         int FaltasCometidas
     }
-    cop[competencia] {
+    competencia {
         int idCompetencia PK
         varchar nombre
-        year anio
+        int anio
         varchar tipo
     }
-    u ||--o{ us : tiene
-    c ||--o{ us : pertenece
-    c ||--o{ jc : tiene
-    c ||--o{ ins : tiene
-    c ||--o{ p : "es local en"
-    c ||--o{ p : "es visitante en"
-    j ||--o{ jc : pertenece
-    j ||--o{ jlbf : pertenece
-    j ||--o{ jp : participa
-    lbf ||--o{ jlbf : tiene
-    cat ||--o{ ins : tiene
-    cop ||--o{ ins : tiene
-    ins ||--|| lbf : tiene
-    p ||--o{ jp : tiene
-    c ||--o{ jp : participa
-    cop ||--o{ p : tiene
+
+    usuario ||--o{ usuarioClub : tiene
+    club ||--o{ usuarioClub : pertenece
+    club ||--o{ jugadorClub : tiene
+    club ||--o{ inscripcion : tiene
+    club ||--o{ partido : local
+    club ||--o{ partido : visitante
+    jugador ||--o{ jugadorClub : pertenece
+    jugador ||--o{ jugadorListaBuenaFe : pertenece
+    jugador ||--o{ jugadorPartido : participa
+    listaBuenaFe ||--o{ jugadorListaBuenaFe : tiene
+    categoria ||--o{ inscripcion : tiene
+    competencia ||--o{ inscripcion : tiene
+    inscripcion ||--|| listaBuenaFe : tiene
+    partido ||--o{ jugadorPartido : tiene
+    club ||--o{ jugadorPartido : participa
+    competencia ||--o{ partido : tiene
 ```

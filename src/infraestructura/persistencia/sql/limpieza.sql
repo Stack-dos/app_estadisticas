@@ -4,6 +4,9 @@ BEGIN TRANSACTION;
 -- Borrar estadísticas de jugadores (Restricción RESTRICT)
 DELETE FROM jugadorPartido;
 
+-- Borrar puntos por cuarto
+DELETE FROM partidoCuarto;
+
 -- Borrar relación Jugador-Lista de buena fe
 DELETE FROM jugadorListaBuenaFe;
 
@@ -12,6 +15,9 @@ DELETE FROM listaBuenaFe;
 
 -- Borrar Inscripciones
 DELETE FROM inscripcion;
+
+-- Borrar categorias habilitadas por competencia (US-107): despues de las inscripciones, que las referencian
+DELETE FROM competenciaCategoria;
 
 -- 2. Borrar datos de tablas base con filtros específicos del SEED
 -- Borrar partidos

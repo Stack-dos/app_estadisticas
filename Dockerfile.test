@@ -1,10 +1,23 @@
-FROM python:3.13-slim
+# Version de Python de la imagen: se elige al construir, ej.
+#   docker build -f Dockerfile.test --build-arg PYTHON_VERSION=3.13 -t app-estadisticas-tests .
+ARG PYTHON_VERSION=3.12
+FROM python:${PYTHON_VERSION}-slim
+
+# uv (instalador de dependencias), copiado desde su imagen oficial
+COPY --from=ghcr.io/astral-sh/uv:0.12.9 /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-COPY requerimientos.txt .
+# Copiar en copias separadas solo lo necesario para instalar dependencias:
+# mientras no cambien pyproject.toml/uv.lock, Docker reusa esta capa cacheada.
+COPY pyproject.toml uv.lock ./
 
-RUN pip install -r requerimientos.txt
+# --locked: falla si uv.lock no coincide con pyproject.toml (garantiza versiones exactas).
+# --no-install-project: instala solo las dependencias, el codigo se usa desde src/ (ver [tool.pytest.ini_options] en pyproject.toml).
+RUN uv sync --locked --no-install-project
+
+# El entorno virtual que creo uv queda en el PATH: los comandos usan sus herramientas directo.
+ENV PATH="/app/.venv/bin:$PATH"
 
 COPY . .
 

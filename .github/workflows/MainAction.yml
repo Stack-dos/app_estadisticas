@@ -1,0 +1,280 @@
+name: MainAction
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  # Ademas de main/develop, las ramas de integracion (feature/epica2, feature/hito1...): sus corridas son la
+  # referencia contra la que el resumen de la PR compara cobertura y benchmarks (las PRs de trabajo apuntan ahi).
+  push:
+    branches: [main, develop, "feature/epica*", "feature/hito*"]
+
+# Permisos minimos del GITHUB_TOKEN: los jobs solo pueden LEER el repositorio.
+# Si un job necesita mas, lo declara el mismo.
+permissions:
+  contents: read
+
+# Una sola corrida por PR (o por rama): si llega un push nuevo, se cancela la anterior.
+# Solo se cancela en Pull Requests: en main/develop se deja terminar cada corrida
+# para tener el resultado de cada commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check_dep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v10.1.0
+
+      - name: Exportar dependencias fijadas (uv.lock) a un archivo de requisitos
+        run: uv export --locked --no-emit-project --no-hashes -o requirements-audit.txt
+
+      - name: Run pip-audit check
+        uses: pypa/gh-action-pip-audit@v1.1.0
+        with:
+          inputs: requirements-audit.txt
+
+  # pip-audit revisa las dependencias que YA estan; este job revisa las que la PR AGREGA o cambia
+  # (vulnerabilidades conocidas y licencias). Corre siempre para que "ci-ok" no lo vea salteado en un push,
+  # pero solo revisa algo en las PRs: compara contra la rama base, que en un push no existe.
+  dependency-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Revisar las dependencias que agrega la PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/dependency-review-action@v5.0.1
+        with:
+          fail-on-severity: moderate
+          # El resultado va al comentario de resumen; sin esto la action publicaria otro comentario aparte
+          comment-summary-in-pr: never
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run style check
+        uses: ./.github/actions/style/ruff
+
+      # Reusa el uv y el grupo "dev" que instalo el paso anterior. En ubuntu-latest viene shellcheck,
+      # asi que actionlint tambien revisa los scripts de los "run:".
+      - name: Revisar los workflows (actionlint)
+        run: uv run --no-sync actionlint
+
+  # mypy corre una sola vez, contra la version de Python mas vieja que se prueba en "tests-linux":
+  # si el codigo usa algo que esa version no tiene, lo marca.
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run static check
+        uses: ./.github/actions/style/mypy
+        with:
+          python-version: "3.12"
+
+  # Unico job con matriz de versiones de Python: Docker y Windows corren una sola vez (3.13).
+  tests-linux:
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run tests and coverage on Linux
+        uses: ./.github/actions/coverage/linux
+        with:
+          python-version: ${{ matrix.python-version }}
+
+  tests-docker:
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run tests inside Docker
+        uses: ./.github/actions/coverage/docker
+        with:
+          python-version: "3.13"
+
+  # Windows corre con una sola version (3.13, sin matriz): alcanza para detectar problemas propios del
+  # sistema operativo (rutas, saltos de linea, SQLite). Las demas versiones de Python se prueban en Linux.
+  tests-windows:
+    runs-on: windows-latest
+    needs: lint
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Run tests and coverage on Windows
+        uses: ./.github/actions/coverage/windows
+        with:
+          python-version: "3.13"
+
+  # Informativo: no esta en "ci-ok", porque los runners compartidos varian demasiado para bloquear un merge.
+  # Corre tambien en los push, para que la rama base tenga contra que comparar.
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Instalar uv y Python 3.13
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Instalar dependencias
+        run: uv sync --locked
+
+      # -m benchmark pisa el "-m 'not benchmark'" de pyproject.toml (gana el ultimo).
+      # max-time 0.5: medio segundo por consulta y escala alcanza para cientos de rondas en las rapidas.
+      - name: Correr benchmarks
+        run: |
+          uv run --no-sync pytest tests/benchmarks -m benchmark --benchmark-only --benchmark-max-time=0.5 \
+            --benchmark-json=bench.json
+
+      - name: Guardar resultados para el resumen de la PR
+        uses: actions/upload-artifact@v7
+        with:
+          name: resultados-benchmark
+          path: bench.json
+          retention-days: 90
+
+  # Publica (o edita) UN comentario en la PR con el resultado de todos los jobs. No esta en "ci-ok":
+  # si falla al comentar, la PR no se pone en rojo por algo que no es del codigo.
+  resumen-pr:
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    needs: [check_dep, dependency-review, lint, static, tests-linux, tests-docker, tests-windows, benchmark]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # bajar los artifacts de la corrida de la rama base
+      issues: read # buscar la HU de la PR
+      pull-requests: write # publicar el comentario
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      BASE: ${{ github.base_ref }}
+    steps:
+      # fetch-depth 0: diff-cover y la lista de archivos cambiados comparan contra la rama base
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Instalar uv y Python 3.13
+        uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Instalar diff-cover (grupo dev)
+        run: uv sync --locked --only-group dev
+
+      # Cada artifact queda en su subcarpeta: resultados/resultados-ruff/ruff.json, etc.
+      - name: Bajar los resultados de esta corrida
+        uses: actions/download-artifact@v8
+        with:
+          pattern: resultados-*
+          path: resultados
+
+      # La ultima corrida de un push a la rama base (aunque haya fallado algun job: los artifacts sirven igual).
+      # Si no hay (rama nueva, o artifacts vencidos), el resumen lo dice y sigue sin delta.
+      - name: Bajar los resultados de la rama base
+        run: |
+          run_id=$(gh run list -R "$REPO" --workflow MainAction --branch "$BASE" --event push --status completed \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$run_id" ]; then
+            gh run download "$run_id" -R "$REPO" --pattern 'resultados-*' --dir base || echo "::notice::Sin artifacts en la corrida $run_id"
+          else
+            echo "::notice::No hay corridas de push en $BASE para comparar"
+          fi
+
+      - name: Cobertura de las lineas cambiadas (diff-cover)
+        run: |
+          xml=resultados/resultados-linux-py3.13/coverage.xml
+          if [ -f "$xml" ]; then
+            uv run --no-sync diff-cover "$xml" --compare-branch="origin/$BASE" --format json:diff-cover.json
+          fi
+
+      - name: Armar el resumen
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          CUERPO: ${{ github.event.pull_request.body }}
+          RAMA: ${{ github.head_ref }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        # Dos archivos: resumen.md (siempre) y benchmark.md (solo si el job benchmark dejo resultados)
+        run: |
+          python3 .github/scripts/resumen_pr.py resumen.md benchmark.md
+          cat resumen.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -f benchmark.md ]; then cat benchmark.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      # Sticky comments: cada archivo empieza con su marca (<!-- resumen-ci -->, <!-- resumen-benchmark -->);
+      # se edita el comentario que tiene esa marca y, si no existe, se crea. Dependabot y las PRs desde forks
+      # reciben un token de solo lectura: ahi el resumen queda solo en la pagina de la corrida (paso anterior).
+      - name: Publicar los comentarios en la PR
+        if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          comentarios=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[] | {id, body}')
+          for archivo in resumen.md benchmark.md; do
+            [ -f "$archivo" ] || continue
+            marca=$(head -n 1 "$archivo")
+            # -s junta los objetos en una lista y [0] toma el primero (sin "| head": con pipefail puede romper el paso)
+            id=$(jq -rs --arg m "$marca" 'map(select(.body | startswith($m)))[0].id // empty' <<< "$comentarios")
+            if [ -n "$id" ]; then
+              gh api -X PATCH "repos/$REPO/issues/comments/$id" -F body=@"$archivo" > /dev/null
+            else
+              gh pr comment "$PR" -R "$REPO" --body-file "$archivo"
+            fi
+          done
+
+  # Job agregador: es el UNICO que hay que marcar como "required status check" en GitHub
+  # (Settings > Branches). Depende de todos los demas y falla si alguno fallo, se cancelo o se salteo
+  # (ej. si falla "lint", los tests se saltean: eso tambien cuenta como rojo).
+  # always(): corre aunque un job anterior falle; sin esto se saltearia y GitHub lo tomaria como aprobado.
+  ci-ok:
+    if: ${{ always() }}
+    needs: [check_dep, dependency-review, lint, static, tests-linux, tests-docker, tests-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verificar que todos los jobs terminaron bien
+        env:
+          RESULTADOS: ${{ toJSON(needs) }}
+          HAY_ROJO: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "$RESULTADOS"
+          if [ "$HAY_ROJO" = "true" ]; then
+            echo "::error::Al menos un job del CI no termino en verde"
+            exit 1
+          fi

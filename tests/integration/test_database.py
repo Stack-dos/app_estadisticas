@@ -7,34 +7,10 @@ from infraestructura.persistencia.database_manager import SQLiteManager
 
 
 def test_schema_sql_ejecuta_sin_errores():
-    """
-    Testea que se ejecute el schema en una DB vacia sin generar excepciones
-    """
-    conexion = sqlite3.connect(":memory:")
-    conexion.execute("PRAGMA foreign_keys = ON;")
-    with open(ruta.SCHEMA_SQL, "r", encoding="utf-8") as f:
-        conexion.executescript(f.read())
-    conexion.close()
-
-
-def test_view_sql_ejecuta_sin_errores():
-    """
-    Testea que se ejecute el view en una DB vacia sin generar excepciones
-    """
-    conexion = sqlite3.connect(":memory:")
-    conexion.execute("PRAGMA foreign_keys = ON;")
-    with open(ruta.SCHEMA_SQL, "r", encoding="utf-8") as f:
-        conexion.executescript(f.read())
-    with open(ruta.VISTA_SQL, "r", encoding="utf-8") as f:
-        conexion.executescript(f.read())
-    conexion.close()
-
-
-def test_schema_sql_ejecuta_sin_errores():
     """Smoke test: schema.sql se aplica en DB vacía sin excepciones."""
     conexion = sqlite3.connect(":memory:")
     conexion.execute("PRAGMA foreign_keys = ON;")
-    with open(ruta.SCHEMA_SQL, "r", encoding="utf-8") as f:
+    with open(ruta.SCHEMA_SQL, encoding="utf-8") as f:
         conexion.executescript(f.read())
     conexion.close()
 
@@ -42,9 +18,9 @@ def test_schema_sql_ejecuta_sin_errores():
 def test_views_sql_ejecuta_sin_errores():
     """Smoke test: views.sql se aplica luego del schema sin excepciones."""
     conexion = sqlite3.connect(":memory:")
-    with open(ruta.SCHEMA_SQL, "r", encoding="utf-8") as f:
+    with open(ruta.SCHEMA_SQL, encoding="utf-8") as f:
         conexion.executescript(f.read())
-    with open(ruta.VISTA_SQL, "r", encoding="utf-8") as f:
+    with open(ruta.VISTA_SQL, encoding="utf-8") as f:
         conexion.executescript(f.read())
     conexion.close()
 
@@ -70,10 +46,12 @@ def test_database_schema(db_conexion_sin_seed):
         "jugador",
         "jugadorClub",
         "competencia",
+        "competenciaCategoria",
         "inscripcion",
         "listaBuenaFe",
         "jugadorListaBuenaFe",
         "partido",
+        "partidoCuarto",
         "jugadorPartido",
         "categoria",
     }
@@ -119,7 +97,30 @@ def test_referential_integrity(db_conexion_sin_seed):
         )
 
 
-def test_check_constraints(db_conexion_sin_seed):
+@pytest.mark.parametrize(
+    "sentencia, parametros",
+    [
+        pytest.param(
+            """
+            INSERT INTO jugadorPartido
+            (idJugador, idPartido, idClub, minutosJugados, T2C, T2L, T3C)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (1, 1, 1, 20, -20, -10, -30),
+            id="estadisticas-negativas",
+        ),
+        pytest.param(
+            """
+            INSERT INTO jugadorPartido
+            (idJugador, idPartido, idClub, minutosJugados)
+            VALUES (?, ?, ?, ?)
+            """,
+            (1, 1, 1, 49),
+            id="registro-incompleto-con-minutos-mayores-a-48",
+        ),
+    ],
+)
+def test_check_constraints(db_conexion_sin_seed, sentencia, parametros):
     """
     Test destinado a verificar que se cumplan los CHECK definidos en la DB
     """
@@ -127,27 +128,8 @@ def test_check_constraints(db_conexion_sin_seed):
     db_cursor = db_conexion_sin_seed.cursor()
     db_cursor.execute("PRAGMA foreign_keys = OFF;")
 
-    # 1. Probar puntos negativos
     with pytest.raises(sqlite3.IntegrityError):
-        db_cursor.execute(
-            """
-            INSERT INTO jugadorPartido
-            (idJugador, idPartido, idClub, minutosJugados, T2C, T2L, T3C)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (1, 1, 1, 20, -20, -10, -30),
-        )
-
-    # 2. Probar insertar registros incompletos
-    with pytest.raises(sqlite3.IntegrityError):
-        db_cursor.execute(
-            """
-            INSERT INTO jugadorPartido
-            (idJugador, idPartido, idClub, minutosJugados)
-            VALUES (?, ?, ?, ?)
-            """,
-            (1, 1, 1, 49),
-        )
+        db_cursor.execute(sentencia, parametros)
 
 
 def test_close_connection_cierra_la_conexion():
@@ -205,10 +187,10 @@ def test_division_by_zero_devuelve_cero_en_vistas():
     cursor = conexion.cursor()
     cursor.execute(
         """
-        INSERT INTO jugador (nombre, apellido, dni, anioNacimiento)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO jugador (nombre, apellido, anioNacimiento)
+        VALUES (?, ?, ?)
         """,
-        ("Jugador", "Cero", 99999999, 2000),
+        ("Jugador", "Cero", 2000),
     )
     id_jugador = cursor.lastrowid
 
@@ -264,51 +246,51 @@ def test_division_by_zero_devuelve_cero_en_vistas():
     assert porcentaje_t1 == 0.0
 
 
-def test_business_constraints(db_conexion_sin_seed):
-    db_cursor = db_conexion_sin_seed.cursor()
-
-    # Pre-requisitos: Clubes y Competencia
-    db_cursor.execute("INSERT INTO club (nombre) VALUES ('Atenas')")
-    db_cursor.execute("INSERT INTO club (nombre) VALUES ('Instituto')")
-    db_cursor.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026', 2026)")
-
-    # 1. Probar que el local no sea igual al visitante
-    with pytest.raises(sqlite3.IntegrityError):
-        db_cursor.execute(
-            """
-            INSERT INTO partido (fecha, idCompetencia, idClubLocal, idClubVisitante)
-            VALUES (?, ?, ?, ?)
-            """,
-            ("2026-01-01", 1, 1, 1),  # ID local == ID visitante
-        )
-
-    # 2. Probar que tiros convertidos no superen a los lanzados (T2C <= T2L)
-    # Pre-requisito: Jugador y Partido
-    db_cursor.execute("INSERT INTO jugador (nombre, apellido) VALUES ('Facundo', 'Campazzo')")
-    db_cursor.execute(
-        """
-        INSERT INTO partido (fecha, idCompetencia, idClubLocal, idClubVisitante)
-        VALUES (?, ?, ?, ?)
-        """,
-        ("2026-01-01", 1, 1, 2),
+@pytest.fixture
+def db_con_datos_base(db_conexion_sin_seed):
+    """Datos previos para las restricciones: 2 clubes, 1 competencia, 1 categoria, 1 jugador y 1 partido."""
+    cursor = db_conexion_sin_seed.cursor()
+    cursor.execute("INSERT INTO club (nombre) VALUES ('Atenas')")
+    cursor.execute("INSERT INTO club (nombre) VALUES ('Instituto')")
+    cursor.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026', 2026)")
+    cursor.execute("INSERT INTO categoria (nombre) VALUES ('U21')")
+    cursor.execute("INSERT INTO jugador (nombre, apellido) VALUES ('Facundo', 'Campazzo')")
+    cursor.execute(
+        "INSERT INTO partido (fecha, idCompetencia, idCategoria, idClubLocal, idClubVisitante) VALUES (?, ?, ?, ?, ?)",
+        ("2026-01-01", 1, 1, 1, 2),
     )
-    with pytest.raises(sqlite3.IntegrityError):
-        db_cursor.execute(
-            """
-            INSERT INTO jugadorPartido (idJugador, idPartido, idClub, T2C, T2L)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (1, 1, 1, 10, 5),  # 10 convertidos, 5 lanzados (IMPOSIBLE)
-        )
+    return db_conexion_sin_seed
 
-    # 3. Año de competencia > 1900
+
+@pytest.mark.parametrize(
+    "sentencia, parametros",
+    [
+        pytest.param(
+            "INSERT INTO partido (fecha, idCompetencia, idCategoria, idClubLocal, idClubVisitante) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("2026-01-01", 1, 1, 1, 1),  # ID local == ID visitante
+            id="club-local-igual-al-visitante",
+        ),
+        pytest.param(
+            "INSERT INTO jugadorPartido (idJugador, idPartido, idClub, T2C, T2L) VALUES (?, ?, ?, ?, ?)",
+            (1, 1, 1, 10, 5),  # 10 convertidos, 5 lanzados (IMPOSIBLE)
+            id="tiros-convertidos-mayores-a-lanzados",
+        ),
+        pytest.param(
+            "INSERT INTO competencia (nombre, anio) VALUES (?, ?)",
+            ("Torneo Prehistorico", 1850),
+            id="anio-de-competencia-muy-anterior-a-1900",
+        ),
+        pytest.param(
+            "INSERT INTO competencia (nombre, anio) VALUES (?, ?)",
+            ("Torneo 1900", 1900),  # el CHECK es anio > 1900: el limite mismo se rechaza (igual que la entidad)
+            id="anio-de-competencia-igual-a-1900",
+        ),
+    ],
+)
+def test_business_constraints(db_con_datos_base, sentencia, parametros):
     with pytest.raises(sqlite3.IntegrityError):
-        db_cursor.execute(
-            """
-            INSERT INTO competencia (nombre, anio)
-            VALUES ('Torneo Prehistórico', 1850)
-            """
-        )
+        db_con_datos_base.execute(sentencia, parametros)
 
 
 def test_foreign_key_behavior(db_conexion_sin_seed):
@@ -318,11 +300,14 @@ def test_foreign_key_behavior(db_conexion_sin_seed):
     cursor.execute("INSERT INTO club (nombre) VALUES ('Atenas')")
     cursor.execute("INSERT INTO categoria (nombre) VALUES ('U21')")
     cursor.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026', 2026)")
+    cursor.execute("INSERT INTO competenciaCategoria (idCompetencia, idCategoria) VALUES (1, 1)")  # US-107
     cursor.execute("INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (1, 1, 1)")
 
-    # 1. CASCADE: Al borrar competencia, se debe borrar la inscripción automáticamente
+    # 1. CASCADE: Al borrar competencia, se borran la inscripción y sus categorías habilitadas automáticamente
     cursor.execute("DELETE FROM competencia WHERE idCompetencia = 1")
     cursor.execute("SELECT COUNT(*) FROM inscripcion WHERE idCompetencia = 1")
+    assert cursor.fetchone()[0] == 0
+    cursor.execute("SELECT COUNT(*) FROM competenciaCategoria WHERE idCompetencia = 1")
     assert cursor.fetchone()[0] == 0
 
     # 2. RESTRICT: No se puede borrar un club si tiene registros en jugadorPartido
@@ -331,10 +316,10 @@ def test_foreign_key_behavior(db_conexion_sin_seed):
     cursor.execute("INSERT INTO competencia (nombre, anio) VALUES ('Liga 2026 B', 2026)")  # idCompetencia = 2
     cursor.execute(
         """
-        INSERT INTO partido (fecha, idCompetencia, idClubLocal, idClubVisitante)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO partido (fecha, idCompetencia, idCategoria, idClubLocal, idClubVisitante)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        ("2026-01-01", 2, 1, 2),  # Local=1, Visitante=2
+        ("2026-01-01", 2, 1, 1, 2),  # Local=1, Visitante=2
     )
     cursor.execute("INSERT INTO jugador (nombre, apellido) VALUES ('John', 'Doe')")
     cursor.execute(
@@ -367,8 +352,13 @@ def test_view_semantics_and_cardinality():
         "estadio",
         "competencia",
         "anio_competencia",
+        "categoria",
+        "id_club_local",
         "club_local",
+        "id_club_visitante",
         "club_visitante",
+        "puntos_local",
+        "puntos_visitante",
     }
     assert len(datos) > 0  # Hay partidos en el seed
 

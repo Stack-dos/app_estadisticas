@@ -1,0 +1,1774 @@
+# GUI con Flet — programación por eventos, pantallas y rutas
+
+> Guía de referencia para trabajar en la interfaz gráfica (US-105 en adelante). Está pensada
+> para alguien que nunca hizo frontend: arranca por los conceptos y termina en el código real de
+> `src/infraestructura/ui/flet/`. Todo lo que dice de Flet se verificó contra la versión fijada en
+> `pyproject.toml` (1.1.2).
+
+## Índice
+
+- [GUI con Flet — programación por eventos, pantallas y rutas](#gui-con-flet--programación-por-eventos-pantallas-y-rutas)
+  - [Índice](#índice)
+  - [1. Qué es Flet](#1-qué-es-flet)
+  - [2. Programa lineal vs. programa por eventos](#2-programa-lineal-vs-programa-por-eventos)
+  - [3. Handlers: los manejadores de eventos](#3-handlers-los-manejadores-de-eventos)
+  - [4. Pantallas: `ft.View` y `page.views`](#4-pantallas-ftview-y-pageviews)
+  - [5. Rutas: `page.route` y `page.navigate`](#5-rutas-pageroute-y-pagenavigate)
+  - [6. `on_route_change`: el handler que une todo](#6-on_route_change-el-handler-que-une-todo)
+    - [La ruta protegida](#la-ruta-protegida)
+  - [7. Cómo está armado en el proyecto](#7-cómo-está-armado-en-el-proyecto)
+    - [Composition root](#composition-root)
+    - [`Dependencias`: lo que usan las pantallas](#dependencias-lo-que-usan-las-pantallas)
+    - [Tabla de rutas y router](#tabla-de-rutas-y-router)
+    - [`resolver_ruta`: la ruta protegida como función pura](#resolver_ruta-la-ruta-protegida-como-función-pura)
+  - [8. Hilos y la conexión a SQLite](#8-hilos-y-la-conexión-a-sqlite)
+  - [9. Errores en los handlers](#9-errores-en-los-handlers)
+    - [Qué pasa si un handler lanza una excepción](#qué-pasa-si-un-handler-lanza-una-excepción)
+    - [Error esperado o bug](#error-esperado-o-bug)
+    - [El manejador común: `errores.py`](#el-manejador-común-errorespy)
+  - [10. Formularios](#10-formularios)
+    - [Los controles](#los-controles)
+    - [Leer los valores al hacer clic](#leer-los-valores-al-hacer-clic)
+    - [Un mismo handler en dos eventos](#un-mismo-handler-en-dos-eventos)
+    - [La pantalla no valida](#la-pantalla-no-valida)
+    - [La pantalla de registro completa](#la-pantalla-de-registro-completa)
+  - [11. Login, inicio y cerrar sesión](#11-login-inicio-y-cerrar-sesión)
+    - [El recorrido completo](#el-recorrido-completo)
+    - [Login: un solo mensaje para los dos errores](#login-un-solo-mensaje-para-los-dos-errores)
+    - [Inicio: la barra superior (`ft.AppBar`)](#inicio-la-barra-superior-ftappbar)
+    - [Cerrar sesión](#cerrar-sesión)
+  - [12. Sesión recordada, club activo y pantallas que cambian (US-106)](#12-sesión-recordada-club-activo-y-pantallas-que-cambian-us-106)
+    - [Qué pasa al abrir la app](#qué-pasa-al-abrir-la-app)
+    - [Casilla "Recordarme": `ft.Checkbox`](#casilla-recordarme-ftcheckbox)
+    - [Una barra superior para todas las pantallas](#una-barra-superior-para-todas-las-pantallas)
+    - [Una pantalla que cambia sin navegar](#una-pantalla-que-cambia-sin-navegar)
+    - [Renglones de una lista: `ft.ListTile`](#renglones-de-una-lista-ftlisttile)
+    - [Lambdas dentro de un bucle](#lambdas-dentro-de-un-bucle)
+  - [13. Cómo se testea](#13-cómo-se-testea)
+    - [Testear una pantalla sin abrir la ventana](#testear-una-pantalla-sin-abrir-la-ventana)
+    - [Testear el router con una `page` falsa](#testear-el-router-con-una-page-falsa)
+    - [Ningún test abre la ventana](#ningún-test-abre-la-ventana)
+    - [El smoke test del CI: `import main`](#el-smoke-test-del-ci-import-main)
+  - [14. Errores comunes](#14-errores-comunes)
+  - [15. Checklist: agregar una pantalla nueva](#15-checklist-agregar-una-pantalla-nueva)
+  - [16. Base visual: tema, página y formulario (US-111)](#16-base-visual-tema-página-y-formulario-us-111)
+  - [17. Empaquetar la app: `flet build` (US-109)](#17-empaquetar-la-app-flet-build-us-109)
+  - [18. Formularios densos: la carga de partido (US-113)](#18-formularios-densos-la-carga-de-partido-us-113)
+  - [19. Editar con la misma pantalla, rutas con id y texto en Markdown (US-114)](#19-editar-con-la-misma-pantalla-rutas-con-id-y-texto-en-markdown-us-114)
+  - [20. Usar el ancho: tablas estiradas, secciones plegables y grillas chicas (US-114)](#20-usar-el-ancho-tablas-estiradas-secciones-plegables-y-grillas-chicas-us-114)
+  - [21. Un asistente por pasos, filtros con SegmentedButton y color con intención (US-114)](#21-un-asistente-por-pasos-filtros-con-segmentedbutton-y-color-con-intención-us-114)
+
+---
+
+## 1. Qué es Flet
+
+**Flet** es una librería para hacer interfaces gráficas en Python. Por debajo usa **Flutter**, el
+framework de Google para apps, pero no hace falta saber Flutter ni Dart: todo se escribe en Python.
+
+Por dentro funciona como cliente y servidor en la misma máquina:
+
+- **Tu código Python** es el "servidor": dice qué hay que mostrar.
+- **La ventana** (hecha con Flutter, el paquete `flet-desktop`) es el "cliente": dibuja y avisa
+  lo que hace el usuario.
+- Se comunican por un socket local.
+
+Por eso existe `page.update()`: cuando cambiás algo de la pantalla, tenés que avisarle al cliente
+que lo redibuje.
+
+**Vocabulario básico:**
+
+| Término   | Qué es                                                                           |
+| --------- | -------------------------------------------------------------------------------- |
+| `ft.Page` | La ventana. Flet te la entrega al arrancar                                       |
+| Control   | Cualquier elemento visible: `ft.Text`, `ft.TextField`, `ft.Button`, `ft.Column`… |
+| `ft.View` | Una pantalla completa (login, inicio…) con sus controles adentro                 |
+| Evento    | Algo que pasó: un clic, una tecla, un cambio de ruta, el cierre de la ventana    |
+| Handler   | Una función tuya que Flet llama cuando ocurre un evento                          |
+| Ruta      | El nombre de una pantalla, como `"/login"` o `"/inicio"`                         |
+
+**El punto de entrada** es `ft.run(main)`. Arranca la ventana, llama una vez a `main(page)` y se
+queda esperando eventos hasta que se cierra la ventana. En Flet 1.x **ya no existe
+`ft.app(target=main)`**, que es lo que muestran casi todos los tutoriales viejos (serie 0.x).
+
+---
+
+## 2. Programa lineal vs. programa por eventos
+
+**La CLI que tenía el proyecto era lineal.** Arrancaba, leía los argumentos, ejecutaba el comando y
+terminaba. El orden lo decidía el programa:
+
+```text
+main() → parse_args() → auth_login.ejecutar() → print(...) → fin
+```
+
+**Una GUI no puede funcionar así**, porque no sabe qué va a hacer el usuario ni cuándo: puede
+escribir, hacer clic, cerrar la ventana o no hacer nada durante diez minutos. Entonces el programa se
+invierte:
+
+1. Al arrancar, se arma la ventana y **se deja anotado qué hacer si pasa cada cosa**.
+2. El programa **se queda esperando**. Eso es lo que hace `ft.run(...)`.
+3. Cuando el usuario hace algo, Flet busca lo que se anotó para ese caso y lo ejecuta.
+
+Esto se llama **programación orientada a eventos**: el flujo no lo decide el programa, lo deciden los
+eventos que llegan.
+
+```mermaid
+flowchart LR
+    subgraph Lineal["CLI (lineal)"]
+        direction TB
+        A1[Arranca] --> A2[Lee argumentos] --> A3[Ejecuta comando] --> A4[Termina]
+    end
+    subgraph Eventos["GUI (por eventos)"]
+        direction TB
+        B1[Arranca y registra handlers] --> B2{Espera un evento}
+        B2 -- clic, tecla, ruta --> B3[Llama al handler]
+        B3 --> B2
+        B2 -- cierre de ventana --> B4[Termina]
+    end
+```
+
+---
+
+## 3. Handlers: los manejadores de eventos
+
+Un **handler** (manejador de eventos) es **una función tuya que Flet llama cuando ocurre un evento**.
+Se llama así porque "maneja" ese evento: es la respuesta a "¿qué hago si pasa esto?".
+
+Vos no la llamás: se la **entregás** a Flet y Flet la llama cuando corresponde. Todos los atributos
+`on_algo` de Flet (`on_click`, `on_change`, `on_route_change`…) son lugares para enchufar un handler.
+
+```python
+def al_hacer_clic() -> None:
+    print("hicieron clic")
+
+ft.Button("Ingresar", on_click=al_hacer_clic)   # sin paréntesis: se entrega la función, no se ejecuta
+```
+
+`on_click=al_hacer_clic` se lee "cuando hagan clic, llamá a esto".
+
+**Ya lo conocés de otros lados:**
+
+- **Interrupciones de un microcontrolador.** Es la misma idea que una rutina de servicio de
+  interrupción (ISR): el programa principal hace su vida y, cuando llega la interrupción, el hardware
+  salta a la rutina que registraste. Evento = interrupción, handler = ISR.
+- **La CLI retirada.** `set_defaults(func=auth_login.ejecutar)` registraba un handler: "si el comando
+  es `auth login`, lo atiende esta función". No la llamaba en ese momento, la dejaba anotada.
+
+**Con o sin parámetro.** Flet cuenta los parámetros del handler: si no tiene ninguno, lo llama sin
+argumentos; si tiene uno, le pasa el evento (`e`), con datos como qué control lo disparó. En el
+proyecto se usan handlers sin parámetros cuando el evento no aporta nada.
+
+---
+
+## 4. Pantallas: `ft.View` y `page.views`
+
+- **`ft.View`** es **una pantalla completa**: el login es una `View`, el inicio es otra. Adentro tiene
+  sus controles.
+- **`page.views`** es **una lista de `View`**, y la ventana **muestra la última**. Es como un mazo de
+  cartas boca arriba: se ve la de arriba.
+
+Para cambiar lo que se ve, se cambia esa lista y se pide redibujar:
+
+```python
+page.views.clear()                  # saco todas las cartas
+page.views.append(vista_de_login)   # pongo la del login
+page.update()                       # sin esto, la ventana no cambia
+```
+
+En la US-105 la lista tiene siempre **una sola** `View`. Tener varias apiladas sirve para navegación
+jerárquica con botón "atrás" (por ejemplo club → jugadores → detalle), que se maneja con el evento
+`page.on_view_pop`. Todavía no se usa.
+
+---
+
+## 5. Rutas: `page.route` y `page.navigate`
+
+- **Una ruta** es **un nombre para cada pantalla**: `"/login"`, `"/registro"`, `"/inicio"`. Es la
+  misma idea que la URL de una web (`/inbox`, `/settings`). La barra inicial es convención.
+- **`page.route`** es **un string con la pantalla actual**, como un cartel de "usted está aquí".
+  Al arrancar vale `"/"`.
+- **`page.navigate("/inicio")`** **pide** cambiar la ruta. **No dibuja nada**: cambia el cartel y
+  dispara el evento "cambió la ruta". Es la versión síncrona de `page.push_route(...)`, que es
+  `async`; por eso es la que se usa dentro de un `on_click` común. En Flet 1.x `page.go()` ya no
+  existe.
+
+**¿Por qué no cambiar `page.views` directo desde cada botón?** Funciona, pero:
+
+- cada botón tendría que saber construir la pantalla de destino, así que cada pantalla conocería a
+  todas las demás;
+- la ruta protegida (no entrar sin sesión) habría que copiarla en cada botón;
+- `page.route` dejaría de coincidir con lo que se ve.
+
+Con rutas, **el botón solo dice adónde quiere ir** y **un único lugar decide** qué pantalla
+corresponde y si se puede entrar.
+
+---
+
+## 6. `on_route_change`: el handler que une todo
+
+`page.on_route_change` es el evento **"cambió la ruta"**. Su handler es la función que mira
+`page.route` y arma `page.views` en consecuencia. Es el **router** de la aplicación.
+
+Cada clic que cambia de pantalla pasa por **dos handlers en cadena**:
+
+1. el del botón, que solo pide ir a otra ruta;
+2. el de `on_route_change`, que decide y dibuja.
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant F as Flet
+    participant B as Handler del botón<br/>(pantalla de login)
+    participant R as Handler on_route_change<br/>(al_cambiar_ruta en app.py)
+
+    U->>F: clic en "Ir a registro"
+    F->>B: evento clic
+    B->>F: page.navigate("/registro")
+    F->>F: page.route = "/registro"
+    F->>R: evento "cambió la ruta"
+    R->>R: resolver_ruta("/registro", sin sesión) → "/registro"
+    R->>F: page.views = [vista de registro]<br/>page.update()
+    F->>U: redibuja: se ve el registro
+```
+
+### La ruta protegida
+
+Como todo cambio de pantalla pasa por el handler de `on_route_change`, la ruta protegida vive ahí y
+**no hay forma de saltearla**. Si se pide una pantalla a la que no se puede entrar, el handler
+**cambia la ruta** (no solo la pantalla) y Flet lo vuelve a llamar con la ruta corregida:
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant F as Flet
+    participant R as Handler on_route_change
+
+    U->>F: clic en "Ir a inicio" (sin sesión)
+    F->>R: evento: page.route = "/inicio"
+    R->>R: resolver_ruta("/inicio", sin sesión) → "/login"
+    R->>F: page.navigate("/login") y return
+    F->>R: evento: page.route = "/login"
+    R->>R: resolver_ruta("/login", sin sesión) → "/login"
+    R->>F: page.views = [vista de login]<br/>page.update()
+    F->>U: sigue en el login
+```
+
+**Regla: la pantalla que se ve siempre coincide con `page.route`.** Si el handler dibujara el login
+sin cambiar la ruta, `page.route` quedaría en `"/inicio"`. Cuando el usuario iniciara sesión y se
+llamara a `page.navigate("/inicio")`, la ruta no cambiaría, Flet no dispararía el evento y la
+pantalla se quedaría en el login.
+
+---
+
+## 7. Cómo está armado en el proyecto
+
+```text
+src/
+├── main.py                    ← punto de entrada: solo llama a ejecutar()
+└── infraestructura/ui/flet/
+    ├── app.py                 ← composition root + rutas + ruta protegida + router
+    ├── errores.py             ← manejador común de errores de los handlers (sección 9)
+    └── screens/
+        ├── login_screen.py       crear_login_view(page, login_uc, sesion) -> ft.View
+        ├── registro_screen.py    crear_registro_view(page, registrar_uc, sesion) -> ft.View
+        └── inicio_screen.py      crear_inicio_view(page, sesion) -> ft.View
+```
+
+Se abre con `uv run python src/main.py`. `main.py` no arma nada: importa `ejecutar` de `app.py` y lo
+llama. Así el punto de entrada no cambia aunque cambie la interfaz (antes ahí vivía todo el parser de
+la CLI) y el armado queda en un solo lugar.
+
+### Composition root
+
+El **composition root** es el único lugar donde se eligen las clases concretas (SQLite, PBKDF2) y
+se conectan entre sí. En el proyecto es `ejecutar()` de `app.py`:
+
+1. abre la conexión e inicializa el esquema;
+2. `construir_dependencias(conexion, hasher)` arma el repositorio, la sesión y los casos de uso;
+3. corre `ft.run(lambda page: _main(page, deps))`;
+4. en el `finally` cierra la conexión, aunque algo falle.
+
+La lambda del paso 3 existe porque `ft.run` necesita una función que reciba **solo** `page`, y
+`_main` necesita además `deps`. La lambda "recuerda" `deps` (es una _closure_) y entrega una función
+de un solo parámetro.
+
+### `Dependencias`: lo que usan las pantallas
+
+```python
+@dataclass
+class Dependencias:
+    sesion: SessionManager
+    registrar_uc: RegistrarEntrenadorUseCase
+    login_uc: LoginLocalUseCase
+```
+
+- Solo tiene **la sesión y casos de uso**. La conexión, los repositorios y el hasher son materiales
+  de construcción y quedan como variables locales de `ejecutar()`. Si una pantalla tuviera el
+  repositorio, podría guardar datos salteándose las validaciones del caso de uso.
+- Crece un campo por cada caso de uso que use alguna pantalla. Eso no es problema porque **solo la
+  tabla de rutas recibe `Dependencias` entero**: cada pantalla recibe por parámetro únicamente lo que
+  usa. Si en algún momento se vuelve incómodo, se parte por área (`DepsAuth`, `DepsClubes`…).
+
+### Tabla de rutas y router
+
+Dentro de `_main`:
+
+```python
+rutas: dict[str, Callable[[], ft.View]] = {
+    RUTA_LOGIN: lambda: crear_login_view(page, deps.login_uc, deps.sesion),
+    RUTA_REGISTRO: lambda: crear_registro_view(page, deps.registrar_uc, deps.sesion),
+    RUTA_INICIO: lambda: crear_inicio_view(page, deps.sesion),
+}
+
+def al_cambiar_ruta() -> None:
+    destino = resolver_ruta(page.route, deps.sesion.is_authenticated())
+    if destino != page.route:
+        page.navigate(destino)
+        return
+    page.views.clear()
+    page.views.append(rutas[destino]())
+    page.update()
+
+page.on_route_change = al_cambiar_ruta
+al_cambiar_ruta()  # dibuja la primera pantalla (al arrancar, page.route es "/")
+```
+
+- **Las lambdas** hacen que cada pantalla se construya **recién al navegar** y de nuevo cada vez.
+  Así, al volver al login, el formulario aparece vacío.
+- **La última línea** llama al handler a mano una vez para dibujar la primera pantalla, como hace el
+  ejemplo oficial de Flet.
+- **Las pantallas no se conocen entre sí:** navegan por ruta, nunca importando otra pantalla. Es el
+  mismo desacople que daba el Command Pattern en la CLI retirada
+  ([06-patron-command.md](06-patron-command.md)).
+
+### `resolver_ruta`: la ruta protegida como función pura
+
+```python
+def resolver_ruta(ruta: str, autenticado: bool) -> str:
+    if autenticado:
+        return ruta if ruta in RUTAS_INTERNAS else RUTA_INICIO
+    return ruta if ruta in RUTAS_PUBLICAS else RUTA_LOGIN
+```
+
+| Sesión | Ruta pedida                                  | Destino   |
+| ------ | -------------------------------------------- | --------- |
+| No     | `/login`, `/registro`                        | la misma  |
+| No     | cualquier otra (`/`, `/inicio`, desconocida) | `/login`  |
+| Sí     | `/inicio` (rutas internas)                   | la misma  |
+| Sí     | cualquier otra (`/`, `/login`, `/registro`…) | `/inicio` |
+
+Es una **función pura**: no toca la ventana y para las mismas entradas da siempre el mismo
+resultado. Por eso se testea sin abrir nada.
+
+---
+
+## 8. Hilos y la conexión a SQLite
+
+`sqlite3` no deja usar una conexión desde un hilo distinto del que la creó (`ProgrammingError: SQLite
+objects created in a thread can only be used in that same thread`).
+
+En **Flet 1.x** eso no es un problema con el diseño actual:
+
+- `ft.run` usa `asyncio.run(...)`: el bucle de eventos corre en el **hilo principal**;
+- `_main` y los handlers **síncronos** se ejecutan dentro de ese bucle, en el mismo hilo.
+
+Entonces una sola conexión, abierta en `ejecutar()`, sirve para toda la app. En Flet 0.x los handlers
+corrían en un pool de hilos, por eso hay material viejo que dice lo contrario.
+
+**Letra chica:**
+
+- Un handler síncrono **bloquea la interfaz** mientras corre. Para una consulta a SQLite son
+  milisegundos; para algo largo (importar un Excel, US-201) habrá que pensarlo.
+- Si se usa `page.run_thread(...)` o se crean hilos a mano, la conexión vuelve a ser un problema.
+
+---
+
+## 9. Errores en los handlers
+
+### Qué pasa si un handler lanza una excepción
+
+En la CLI, `main()` atrapaba `ErrorDeDominio`, mostraba el mensaje y **terminaba el programa**. En
+una GUI eso no sirve: si el email está repetido, el usuario tiene que ver el aviso y corregirlo, con
+la app abierta.
+
+Y si nadie atrapa la excepción, es peor: Flet la registra y le manda a la ventana un mensaje
+`SESSION_CRASHED` con el **traceback completo**. La sesión queda rota y el usuario ve un error de
+Python. Por eso **todo handler que llama a un caso de uso tiene que atrapar las excepciones**.
+
+### Error esperado o bug
+
+| Clase                                       | Ejemplo                                              | Qué ve el usuario         | Qué queda en el log    |
+| ------------------------------------------- | ---------------------------------------------------- | ------------------------- | ---------------------- |
+| `ErrorDeDominio` (el usuario se equivocó)   | contraseña corta, email repetido                     | El mensaje del error      | Un `warning` corto     |
+| Cualquier otra excepción (un bug)           | `TypeError`, `RuntimeError` de `usuario_actual()`    | Un mensaje genérico       | El traceback completo  |
+
+- Todas las excepciones de negocio heredan de `ErrorDeDominio` (`src/dominio/exceptions.py`), así
+  que un solo `except ErrorDeDominio` las atrapa a todas, y su mensaje ya está escrito para el
+  usuario.
+- Atrapar `Exception` en general es mala práctica porque esconde bugs. Acá se justifica porque es
+  **el borde de la aplicación**: el último lugar antes de que el error rompa la sesión. El bug no se
+  esconde: queda en `~/.statspro/logs/app.log` con `logger.exception(...)`.
+- Al usuario nunca se le muestra `str(e)` de un bug: puede tener detalles internos (rutas, SQL).
+
+### El manejador común: `errores.py`
+
+Para no repetir el `try/except` en cada pantalla, la acción se **envuelve** (_wrapper_): se le pasa
+"lo que hay que hacer" como función a otra función que hace el `try/except`. Es la misma idea de
+entregarle un handler a Flet, pero ahora a código propio.
+
+```python
+def ejecutar_mostrando_errores(accion: Callable[[], None], etiqueta: ft.Text, *, nombre: str) -> None:
+    etiqueta.value = ""                      # borra el error del intento anterior
+    with nueva_accion(nombre):               # US-110: un correlation_id para todo este clic (ver la seccion 22)
+        try:
+            accion()
+        except ErrorDeDominio as e:
+            logger.warning("Error de dominio en la GUI: %s", e)
+            etiqueta.value = str(e)
+        except Exception:
+            logger.exception("Error inesperado en la GUI")
+            etiqueta.value = MENSAJE_ERROR_INESPERADO
+        # (la version real tambien loguea el inicio y el fin, con resultado y duracion)
+```
+
+Cómo lo usa una pantalla:
+
+```python
+etiqueta_error = crear_etiqueta_error()     # ft.Text con el color de error del tema, debajo del formulario
+
+def al_hacer_clic_registrar() -> None:
+    def accion() -> None:
+        usuario = registrar_uc.ejecutar(RegistrarDTO(...))
+        sesion.iniciar_sesion(usuario)
+        page.navigate("/inicio")             # adentro de la acción: si el caso de uso falla, no se navega
+    ejecutar_mostrando_errores(accion, etiqueta_error, nombre="registro.registrar")
+    page.update()
+```
+
+- **El error se muestra en un `ft.Text` debajo del formulario**, no en el campo que falló
+  (`TextField.error_text`): para eso habría que mapear cada excepción a su campo, y
+  `DatoInvalidoError` no dice qué campo falló. Tampoco en un `SnackBar` (el aviso flotante que se
+  borra solo): sirve para confirmaciones, no para un error que hay que corregir.
+- **`ejecutar_mostrando_errores` no llama a `update()`**: lo hace el handler de la pantalla. Un
+  control que no está en ninguna ventana da error si se le llama `update()`, y así la función se
+  testea con un `ft.Text()` suelto.
+
+---
+
+## 10. Formularios
+
+Un formulario es un grupo de campos que el usuario completa y envía con un botón. El primero del
+proyecto es el de registro (`screens/registro_screen.py`).
+
+### Los controles
+
+| Control / parámetro                         | Qué hace                                                                             |
+| ------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `ft.TextField(label="Email")`               | Un campo de texto. `label` es el título que se ve en el campo                        |
+| `campo.value`                               | **Lo que escribió el usuario.** Flet lo actualiza solo mientras se tipea             |
+| `password=True`                             | Muestra `•••` en vez del texto                                                       |
+| `can_reveal_password=True`                  | Agrega el ícono del ojo para ver la contraseña                                       |
+| `autofocus=True`                            | El cursor arranca en ese campo                                                       |
+| `keyboard_type=ft.KeyboardType.EMAIL`       | En el celular muestra el teclado con `@` (en escritorio no cambia nada)              |
+| `on_submit`                                 | Evento "apretó Enter" en el campo                                                    |
+| `ft.Button("...")` / `ft.TextButton("...")` | Botón con fondo / botón que parece un enlace (para acciones secundarias)             |
+| `ft.Column([...])`                          | Control de **layout** (disposición): apila otros controles en vertical               |
+
+Un `View` ya apila sus controles en vertical, así que `ft.Column` solo hace falta para agrupar (por
+ejemplo, darle un ancho máximo a un formulario y centrarlo).
+
+### Leer los valores al hacer clic
+
+Hay dos estilos para saber qué escribió el usuario:
+
+- **Leer en el momento del envío:** el handler del botón hace `nombre.value`, `email.value`… Es el
+  que usa el proyecto.
+- **Escuchar cada tecla** (`on_change` en cada campo) y guardar una copia aparte. Sirve para validar
+  mientras se escribe, y eso no le corresponde a la pantalla.
+
+**`campo.value` leído al construir la pantalla vale `""`**: el usuario todavía no escribió nada. Se
+lee adentro del handler.
+
+### Un mismo handler en dos eventos
+
+```python
+def registrar() -> None:
+    ...
+
+password.on_submit = registrar                      # Enter en la contraseña
+ft.Button("Registrarme", on_click=registrar)        # clic en el botón
+```
+
+Un handler es una función común: se puede enchufar en todos los eventos que se quiera.
+
+### La pantalla no valida
+
+El formulario de registro **no** comprueba campos vacíos, formato del email ni largo de la
+contraseña:
+
+- nombre y email vacíos, y el formato del email, los valida la entidad `Usuario`;
+- el largo mínimo de la contraseña y el email repetido, el caso de uso.
+
+Todo llega como `ErrorDeDominio` y `ejecutar_mostrando_errores` lo muestra. Si la pantalla también
+validara, la regla quedaría escrita dos veces y tarde o temprano las dos copias dirían cosas
+distintas. Es lo que el PRD llama **pantalla fina**.
+
+### La pantalla de registro completa
+
+```python
+def crear_registro_view(page, registrar_uc, sesion) -> ft.View:
+    nombre = ft.TextField(label="Nombre", autofocus=True)
+    email = ft.TextField(label="Email", keyboard_type=ft.KeyboardType.EMAIL)
+    password = ft.TextField(label="Contraseña", password=True, can_reveal_password=True)
+    error = crear_etiqueta_error()
+
+    def registrar() -> None:
+        def accion() -> None:
+            usuario = registrar_uc.ejecutar(RegistrarDTO(nombre=nombre.value, email=email.value, password=password.value))
+            if usuario is None:
+                raise RuntimeError("...")    # el repositorio devuelve None si SQLite falló
+            sesion.iniciar_sesion(usuario)
+            page.navigate("/inicio")
+        ejecutar_mostrando_errores(accion, error)
+        page.update()
+
+    password.on_submit = registrar
+    return ft.View(route="/registro", controls=[ft.Text("Registrarse", size=24), nombre, email,
+                                                password, error,
+                                                ft.Button("Registrarme", on_click=registrar),
+                                                ft.TextButton("Ya tengo cuenta", on_click=lambda: page.navigate("/login"))])
+```
+
+- **`registrar` y `accion` son funciones internas** (definidas dentro de otra función). Pueden usar
+  `nombre`, `email`, `page`… porque son _closures_: recuerdan las variables del lugar donde se
+  crearon. Por eso la pantalla no necesita ser una clase para guardar sus campos.
+- **Al registrarse, el usuario entra directo**: `RegistrarEntrenadorUseCase` devuelve el mismo
+  `UsuarioDTO` que el login, así que se inicia la sesión y se navega a `/inicio`.
+- **El `if usuario is None`**: el caso de uso declara `UsuarioDTO | None` porque el repositorio
+  devuelve `None` si SQLite falla al guardar. No es un error del usuario, así que se trata como bug
+  (mensaje genérico y traceback en el log). mypy obliga a manejarlo: sin ese `if`,
+  `sesion.iniciar_sesion(usuario)` no compila con `--strict`.
+- **Nunca loguear el DTO** (`logger.info(f"{dto}")`): el `repr` de un dataclass incluye todos sus
+  campos, contraseña incluida.
+- **No se limpian los campos después de un error**: el usuario corrige solo lo que falló.
+
+---
+
+## 11. Login, inicio y cerrar sesión
+
+### El recorrido completo
+
+Con las tres pantallas, la sesión y la ruta protegida, la app completa se comporta así:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Login: abrir la app (ruta "/")
+    Login --> Registro: "Crear cuenta"
+    Registro --> Login: "Ya tengo cuenta"
+    Login --> Inicio: credenciales correctas<br/>(iniciar_sesion)
+    Registro --> Inicio: registro correcto<br/>(iniciar_sesion)
+    Login --> Login: error<br/>(mensaje en rojo)
+    Registro --> Registro: error<br/>(mensaje en rojo)
+    Inicio --> Login: "Cerrar sesión"<br/>(cerrar_sesion)
+    Inicio --> [*]: cerrar la ventana<br/>(la sesión se pierde)
+```
+
+Cada flecha es un `page.navigate(...)` dentro de un handler; el router decide qué se dibuja. Las
+flechas de error no navegan: se queda la misma pantalla con el mensaje.
+
+### Login: un solo mensaje para los dos errores
+
+`login_screen.py` tiene la misma forma que el registro (sección 10): dos campos, el handler
+`ingresar` enchufado al botón y al Enter de la contraseña, y la acción envuelta en
+`ejecutar_mostrando_errores`. La diferencia está en el caso de uso: si el email no existe **o** la
+contraseña no coincide, `LoginLocalUseCase` lanza el mismo `CredencialesInvalidasError("Email o
+contraseña incorrectos")`.
+
+- **Por qué un solo mensaje:** si dijera "ese email no está registrado", cualquiera podría probar
+  emails y averiguar quién tiene cuenta. Ese ataque se llama **enumeración de usuarios** (_user
+  enumeration_). Con un mensaje único, el atacante no distingue los dos casos.
+- La pantalla no sabe nada de esto: muestra `str(e)` como con cualquier `ErrorDeDominio`. La regla de
+  seguridad vive en el caso de uso, que es donde se testea.
+
+### Inicio: la barra superior (`ft.AppBar`)
+
+> **Desde la US-106** la barra no se arma en cada pantalla: la arma `crear_barra_superior` (ver la
+> [sección 12](#una-barra-superior-para-todas-las-pantallas)) y el handler de cerrar sesión vive ahí.
+> El código de abajo es la versión de la US-105, que sirve para entender `ft.AppBar`.
+
+```python
+def crear_inicio_view(page, sesion) -> ft.View:
+    usuario = sesion.usuario_actual()
+
+    def cerrar_sesion() -> None:
+        sesion.cerrar_sesion()
+        page.navigate("/login")
+
+    return ft.View(
+        route="/inicio",
+        appbar=ft.AppBar(
+            title=ft.Text("StatsPro"),
+            actions=[ft.TextButton("Cerrar sesión", on_click=cerrar_sesion)],
+        ),
+        controls=[ft.Text(f"Hola, {usuario.nombre}", size=24)],
+    )
+```
+
+- **`ft.AppBar`** es la barra de arriba de la pantalla. Se le pasa al `View` en `appbar=`, **no** en
+  `controls`. `title` va a la izquierda; `actions` es una lista de controles que van a la derecha.
+  Es el lugar estándar para acciones de toda la pantalla, como cerrar sesión.
+- **`sesion.usuario_actual()` se llama al construir la pantalla**, no en un handler: el nombre no
+  cambia mientras la pantalla está abierta. Si no hay sesión lanza `RuntimeError`, pero eso no puede
+  pasar porque la ruta protegida nunca construye `/inicio` sin sesión. Si pasara, es un bug y conviene
+  que explote.
+- **No tiene menú todavía:** no hay secciones a las que ir. Desde la US-106 la barra tenía "Inicio"
+  y "Clubes", y desde la US-111 están en el menú lateral ([sección 16](#el-menú-lateral-ftnavigationrail));
+  las pantallas de gestión llegan con las US-107 y US-112.
+
+### Cerrar sesión
+
+El handler hace dos cosas, en este orden:
+
+1. `sesion.cerrar_sesion()`: el `SessionManager` vuelve a "nadie".
+2. `page.navigate("/login")`: Flet cambia la ruta y llama al router. El router ve que no hay
+   sesión y que `/login` es pública, así que lo dibuja. Se construye **de nuevo**, con los campos
+   vacíos.
+
+Si el orden fuera al revés, el router recibiría `/login` con la sesión todavía abierta y
+`resolver_ruta` lo mandaría de vuelta a `/inicio`. No hace falta borrar `page.views` a mano: el router
+siempre reemplaza la pantalla.
+
+---
+
+## 12. Sesión recordada, club activo y pantallas que cambian (US-106)
+
+### Qué pasa al abrir la app
+
+Con "Recordarme", la sesión se guarda en `~/.statspro/session.json`. Al abrir la app, **antes** de
+abrir la ventana, `construir_dependencias` la restaura con `RestaurarSesionUseCase`:
+
+```mermaid
+sequenceDiagram
+    participant E as ejecutar()
+    participant C as construir_dependencias
+    participant R as RestaurarSesionUseCase
+    participant A as JsonSesionAlmacen
+    participant U as repo de usuarios
+    participant S as SessionManager
+    participant F as Flet (router)
+
+    E->>C: conexión, hasher, almacén
+    C->>R: ejecutar()
+    R->>A: cargar()
+    A-->>R: SessionDTO(usuario_id=1, email, club_activo_id=7) o None
+    R->>U: encontrar_por_id(1)
+    U-->>R: Usuario (o None)
+    Note over R: ¿existe y coincide el email? Si no: borrar() y fin
+    R->>S: iniciar_sesion(usuario, recordar=True)
+    R->>S: set_active_club(club revalidado)
+    C-->>E: Dependencias (con la sesión ya abierta)
+    E->>F: ft.run(...)
+    F->>F: resolver_ruta("/", autenticado=True) → "/inicio"
+```
+
+- **El router no cambió.** Si la sesión ya está abierta al arrancar, la ruta protegida manda sola a
+  `/inicio`; si no, al login. La sesión recordada se "enchufa" antes de la ventana, no adentro.
+- **El archivo no es de confianza:** cualquiera lo puede editar. Por eso se vuelve a buscar el
+  usuario en la base, se exige que coincida el email (si la base se recreó, el id 1 puede ser de otra
+  persona) y el club se revalida con `CambiarClubActivoUseCase`.
+- **La pantalla nunca ve el archivo.** El login solo le dice al `SessionManager` `recordar=True`; quién
+  y cómo escribe el JSON es asunto del puerto `SesionAlmacen` y su adaptador.
+
+### Casilla "Recordarme": `ft.Checkbox`
+
+```python
+recordar = ft.Checkbox(label="Recordarme", value=False)
+...
+sesion.iniciar_sesion(usuario, recordar=bool(recordar.value))
+```
+
+- **`value` es `bool | None`**, no `bool`: un `Checkbox` de Flet admite un tercer estado,
+  "indeterminado" (`tristate=True`), que se representa con `None`. Acá no se usa, pero el tipo lo
+  permite: `bool(...)` lo convierte y deja contento a mypy.
+- **Se lee adentro del handler**, igual que un `TextField`: al construir la pantalla vale `False`.
+- **No necesita `on_change`**: nadie tiene que reaccionar al tildarla; importa su valor al hacer clic
+  en "Ingresar".
+
+### Una barra superior para todas las pantallas
+
+Todas las pantallas internas muestran el club activo y la misma navegación. En vez de copiar la
+`AppBar` en cada una, una función la arma (`ui/flet/barra_superior.py`):
+
+```python
+def crear_barra_superior(page, sesion) -> ft.AppBar:
+    club = sesion.club_activo()
+
+    def cerrar_sesion() -> None:
+        sesion.cerrar_sesion()
+        page.navigate("/login")
+
+    return ft.AppBar(
+        title=ft.Text(f"StatsPro · {club.nombre if club is not None else SIN_CLUB}"),
+        actions=[
+            ft.TextButton("Inicio", on_click=lambda: page.navigate("/inicio")),
+            ft.TextButton("Clubes", on_click=lambda: page.navigate("/clubes")),
+            ft.TextButton("Cerrar sesión", on_click=cerrar_sesion),
+        ],
+    )
+```
+
+Cada pantalla interna hace `ft.View(..., appbar=crear_barra_superior(page, sesion), ...)`.
+
+> **Desde la US-111** "Inicio" y "Clubes" ya no están en la barra sino en el menú lateral, y las
+> pantallas no arman la `View` a mano: lo hace `crear_vista_interna`, que pone la barra y el menú
+> (ver la [sección 16](#cómo-se-arma-una-pantalla)). La barra conserva el club activo y "Cerrar sesión".
+
+- **No hay que "avisarle" a la barra que cambió el club.** El router construye la `View` de nuevo en
+  cada cambio de ruta, y con ella la barra, que lee `sesion.club_activo()` en ese momento. Por eso
+  "Usar este club" termina con `page.navigate("/inicio")`: al navegar, la barra se redibuja con el
+  club nuevo.
+- **Una función y no un control propio** (una clase que herede de `ft.AppBar`): no tiene estado que
+  guardar entre dibujos, así que una función que la arma alcanza.
+
+### Una pantalla que cambia sin navegar
+
+Hasta ahora, cada cambio de pantalla pasaba por el router. La pantalla de clubes es la primera que
+**cambia en el lugar**: al crear un club, la lista tiene que mostrar el nuevo sin salir de `/clubes`.
+
+```python
+lista = ft.Column()
+
+
+def refrescar() -> None:
+    clubes = listar_clubes_uc.ejecutar(usuario.idUsuario)
+    lista.controls = [renglon(c) for c in clubes] or [ft.Text(SIN_CLUBES)]
+
+
+def crear() -> None:
+    def accion() -> None:
+        crear_club_uc.ejecutar(CrearClubDTO(nombre=nombre.value), usuario.idUsuario)
+        nombre.value = ""
+        refrescar()
+
+    ejecutar_mostrando_errores(accion, error)
+    page.update()  # recién acá Flet manda los cambios a la ventana
+
+
+refrescar()  # al construir: la pantalla todavía no se dibujó, no hace falta update()
+```
+
+- **`ft.Column`** apila controles verticalmente; su `.controls` es una lista común que se puede
+  reemplazar. Cambiarla no muestra nada hasta el próximo `page.update()`.
+- **¿Por qué no `page.navigate("/clubes")` para refrescar?** Porque ya estás en `/clubes`: la ruta no
+  cambia, Flet no dispara `on_route_change` y nada se reconstruye.
+- **El campo se vacía solo si salió bien.** Ante un error (nombre repetido), el usuario corrige lo que
+  escribió en vez de tipearlo de nuevo.
+
+### Renglones de una lista: `ft.ListTile`
+
+```python
+ft.ListTile(
+    title=ft.Text(club.nombre),
+    trailing=ft.Text("✓ En uso") if en_uso else ft.TextButton("Usar este club", on_click=lambda: usar(club)),
+)
+```
+
+`ListTile` es el renglón estándar de una lista: `title` (y opcionalmente `subtitle`) a la izquierda,
+`leading` antes del título (un ícono, por ejemplo) y `trailing` a la derecha (un botón, un estado).
+Ahorra armar a mano una `ft.Row` con espaciado.
+
+### Lambdas dentro de un bucle
+
+Un error clásico de Python que en una GUI aparece enseguida:
+
+```python
+# MAL: todos los botones usan el ÚLTIMO club
+for club in clubes:
+    renglones.append(ft.TextButton("Usar", on_click=lambda: usar(club)))
+```
+
+La lambda no guarda el **valor** de `club` cuando se crea: guarda la **variable**, y la lee recién
+cuando se hace clic. Para ese momento el `for` ya terminó y `club` es el último de la lista
+(_late binding_). En el proyecto se evita armando cada renglón en una función aparte,
+`renglon(club)`: cada llamada tiene su propio `club`, y la lambda recuerda ese. Hay un test de
+regresión (`test_cada_boton_usa_su_propio_club`).
+
+---
+
+## 13. Cómo se testea
+
+Flet no trae una herramienta madura para testear la ventana. La estrategia del proyecto es tener
+**pantallas finas** (sin lógica de negocio) y testear todo lo que no depende de la ventana:
+
+| Qué                                  | Test                                     | Tipo        |
+| ------------------------------------ | ---------------------------------------- | ----------- |
+| `SessionManager`                     | `tests/unit/test_session_manager.py`     | Unitario    |
+| `resolver_ruta` (ruta protegida)     | `tests/unit/test_navegacion.py`          | Unitario    |
+| Manejador de errores (`errores.py`)  | `tests/unit/test_errores.py`             | Unitario    |
+| Pantalla de registro (sin ventana)   | `tests/unit/test_registro_screen.py`     | Unitario    |
+| Pantalla de login (sin ventana)      | `tests/unit/test_login_screen.py`        | Unitario    |
+| Pantalla de inicio (sin ventana)     | `tests/unit/test_inicio_screen.py`       | Unitario    |
+| Pantalla de clubes (sin ventana)     | `tests/unit/test_clubes_screen.py`       | Unitario    |
+| Barra superior compartida            | `tests/unit/test_barra_superior.py`      | Unitario    |
+| Restaurar la sesión al abrir         | `tests/unit/test_uc_restaurar_sesion.py` | Unitario    |
+| Archivo de la sesión (JSON)          | `tests/integration/test_json_sesion_almacen.py` | Integración |
+| Router (`_main`) con `page` falsa    | `tests/unit/test_navegacion.py`          | Unitario    |
+| Cableado de `construir_dependencias` y reabrir la app | `tests/integration/test_sesion_flujo.py` | Integración |
+| Todos los casos de uso juntos        | `tests/integration/test_flujo_casos_de_uso.py` | Integración |
+| Cómo se ven las pantallas            | Prueba manual guiada                     | Manual      |
+
+`test_navegacion.py` incluye un test que comprueba que **el destino es estable**: aplicar
+`resolver_ruta` dos veces da lo mismo que una. Si alguien rompe eso, el router entraría en un bucle
+de redirecciones infinito.
+
+Importar `app.py` **no abre la ventana ni la base**: todo eso pasa dentro de `ejecutar()`. Por eso
+los tests pueden importar `construir_dependencias` y `resolver_ruta` sin efectos secundarios.
+
+Para revisar qué se escribió en el log, pytest trae la fixture **`caplog`**, que captura los
+registros de `logging` durante el test (`caplog.records`, `caplog.text`). `test_errores.py` la usa
+para comprobar que un bug deja su traceback en el log y que la contraseña nunca aparece.
+
+### Testear una pantalla sin abrir la ventana
+
+Una pantalla se puede testear sin ventana gracias a dos decisiones de diseño:
+
+- **recibe `page` por parámetro**, así que en el test se le pasa un `MagicMock(spec=ft.Page)` y
+  después se pregunta si se llamó a `page.navigate("/inicio")`;
+- **sus handlers no tienen parámetros**, así que el test puede llamarlos directo, como haría Flet
+  al recibir el clic.
+
+Los pasos de un test (`tests/unit/test_registro_screen.py`, igual en login e inicio):
+
+1. Armar la pantalla con mocks: `crear_registro_view(page_mock, registrar_uc_mock, SessionManager())`.
+2. Cargar los campos a mano: `campo.value = "profe@test.com"` (es lo que haría el usuario al tipear).
+3. "Hacer clic": `boton.on_click()`.
+4. Verificar:
+   - que se llamó al caso de uso con el DTO correcto (`assert_called_once_with(RegistrarDTO(...))`);
+   - que se inició la sesión y se navegó;
+   - en los casos de error (`registrar_uc.ejecutar.side_effect = EmailYaRegistradoError(...)`), que
+     el mensaje quedó en la etiqueta y que **no** se navegó (`page.navigate.assert_not_called()`).
+
+Para encontrar los controles dentro del `View`, los tests usan `tests/unit/ayudantes_flet.py`, que
+los busca **por tipo y por texto**, no por posición, así no se rompen si se reordena el formulario:
+
+```python
+def controles(raiz: ft.BaseControl) -> Iterator[ft.BaseControl]:
+    """Recorre en profundidad `raiz` y todos sus descendientes (desde la US-111)."""
+    yield raiz
+    for atributo in ("appbar", "controls", "content", "leading", "title", "subtitle", "trailing", "actions"):
+        valor = getattr(raiz, atributo, None)
+        for hijo in valor if isinstance(valor, list) else [valor]:
+            if isinstance(hijo, ft.BaseControl):
+                yield from controles(hijo)
+
+
+def campo(vista: ft.View, label: str) -> ft.TextField:
+    return next(c for c in controles(vista) if isinstance(c, ft.TextField) and c.label == label)
+
+
+def boton(vista: ft.View, texto: str) -> ft.Button | ft.TextButton:
+    return next(c for c in controles(vista) if isinstance(c, ft.Button | ft.TextButton) and c.content == texto)
+```
+
+- **Por qué recorren el árbol** (US-111): con `crear_pagina` y `crear_formulario`, los campos ya no
+  están en `vista.controls` sino varios niveles adentro (`Row` → `Column` → `Container` →
+  `Column`...). Buscando en todo el árbol, el test no depende de cómo está anidada la pantalla.
+
+- **`ft.TextButton` no hereda de `ft.Button`** (en Flet 1.1.2 son clases hermanas). Por eso `boton`
+  pregunta por los dos tipos: con `isinstance(c, ft.Button)` solo, "Cerrar sesión" no se encontraría.
+- **El recorrido también entra en la `AppBar`** (`appbar` → `actions`): el botón de cerrar sesión
+  no está en `controls`.
+- **El texto de un botón está en `content`**: `ft.Button("Ingresar")` guarda `"Ingresar"` en
+  `boton.content`.
+- También están `casilla(vista, "Recordarme")` (un `ft.Checkbox` por su `label`) y `textos(vista)`
+  (los textos sueltos de la pantalla).
+- **Probar el orden de dos llamadas.** Para comprobar que "Cerrar sesión" cierra **antes** de navegar,
+  `test_barra_superior.py` le pone a `page.navigate` un `side_effect` que anota si la sesión seguía
+  abierta en ese momento: `page.navigate.side_effect = lambda _r: anotado.append(sesion.is_authenticated())`.
+- Los tests lo importan con `from ayudantes_flet import campo, boton`: pytest agrega la carpeta del
+  test al `sys.path`, así que funciona sin `__init__.py`.
+
+Lo que estos tests **no** cubren es cómo se ve la pantalla (tamaños, colores, que el botón no quede
+tapado). Eso sigue siendo prueba manual.
+
+### Testear el router con una `page` falsa
+
+El router (`_main`) no se puede testear llamando a un botón: reacciona a `page.on_route_change`, que
+en la app real llama Flet. En el test **el test hace de Flet**: arma una `page` falsa con una ruta y
+una lista de pantallas reales, y después cambia `page.route` y llama al handler a mano.
+
+```python
+@pytest.fixture
+def page():
+    page = MagicMock(spec=ft.Page)
+    page.route = "/"
+    page.views = []          # lista real: así se puede mirar qué pantalla quedó dibujada
+    return page
+
+
+def test_sin_sesion_inicio_redirige_al_login_sin_dibujar(page, deps):
+    _main(page, deps)
+    page.navigate.reset_mock()     # olvidar la redirección del arranque ("/" -> "/login")
+    page.route = "/inicio"
+
+    page.on_route_change()         # "Flet avisa que cambió la ruta"
+
+    page.navigate.assert_called_once_with("/login")
+    assert page.views == []
+```
+
+```mermaid
+sequenceDiagram
+    participant T as Test (hace de Flet)
+    participant P as page falsa (MagicMock)
+    participant R as al_cambiar_ruta (router)
+    T->>R: _main(page, deps) registra el handler
+    T->>P: page.route = "/inicio"
+    T->>R: page.on_route_change()
+    R->>R: resolver_ruta("/inicio", False) = "/login"
+    R->>P: page.navigate("/login") (solo queda registrado)
+    T->>P: assert navigate("/login") y views == []
+```
+
+`page.navigate` en el mock **no** cambia la ruta ni vuelve a llamar al router (eso lo haría Flet). Por
+eso el test controla cada paso a mano y puede revisar el estado en el medio.
+
+### Ningún test abre la ventana
+
+`ft.run(...)` abre la ventana y **se queda esperando hasta que alguien la cierre**. Si un test lo
+llamara (por ejemplo, llamando a `main.main()`), la suite quedaría colgada; en el CI nadie cerraría
+la ventana y el job moriría por _timeout_. Pasó de verdad: un test viejo de la CLI llamaba a
+`main.main()` y, con la GUI, abrió la ventana en medio de la corrida.
+
+La protección está en `tests/conftest.py`:
+
+```python
+@pytest.fixture(autouse=True)
+def prohibir_abrir_la_ventana(monkeypatch):
+    def _falla(*args, **kwargs):
+        raise RuntimeError("Un test intento abrir la ventana de Flet (ft.run): testear sin ventana")
+
+    monkeypatch.setattr("flet.run", _falla)
+```
+
+- **`autouse=True`** hace que la fixture se aplique a **todos** los tests sin que la pidan.
+- **`monkeypatch.setattr("flet.run", ...)`** reemplaza `ft.run` solo durante el test. Funciona
+  porque `app.py` llama a `ft.run(...)` buscándolo en el módulo `flet` en el momento de la llamada.
+- Un test que intente abrir la ventana falla enseguida con un mensaje claro, en vez de colgarse.
+
+### El smoke test del CI: `import main`
+
+El CI corre `uv run --locked python -c "import main"` antes de los tests. Importar `main` importa
+toda la app (pantallas, casos de uso, repositorios): si falta una dependencia o hay un import roto,
+falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ejecutar()`, y
+`main.py` solo lo llama bajo `if __name__ == "__main__":`. Antes, con la CLI, el paso era
+`python src/main.py --help`; con la GUI, ejecutar `main.py` abriría una ventana.
+
+---
+
+## 14. Errores comunes
+
+- **`on_click=funcion()` con paréntesis.** Ejecuta la función en ese momento y le entrega a Flet lo
+  que devuelve (`None`). Va sin paréntesis, o con una lambda: `on_click=lambda: page.navigate("/x")`.
+- **Olvidar `page.update()`** después de cambiar `page.views` o un control. No se redibuja nada.
+- **Redirigir dibujando otra pantalla sin cambiar la ruta.** Ver la regla de la
+  [sección 6](#la-ruta-protegida).
+- **Olvidar el `return` después de `page.navigate`** en el router. Se dibuja la pantalla vieja y
+  enseguida la nueva.
+- **Construir las pantallas una sola vez** (`{"/login": crear_login_view(page, ...)}`, sin lambda). Al
+  volver, el formulario conserva lo que se escribió antes.
+- **Que una pantalla importe otra pantalla** para navegar. Se navega por ruta.
+- **Que una pantalla importe repositorios o `infraestructura.persistencia`.** Las pantallas reciben
+  casos de uso; el cableado vive solo en `app.py`.
+- **Abrir la conexión a nivel de módulo** (fuera de una función). Se abriría con solo importar
+  `app.py`, incluido en los tests y en el smoke test del CI.
+- **Copiar ejemplos de Flet 0.x** (`ft.app(target=...)`, `page.go(...)`). En 1.x no existen.
+- **Llamar a un caso de uso desde un handler sin `ejecutar_mostrando_errores`.** El primer error
+  del usuario rompe la sesión. Ver la [sección 9](#9-errores-en-los-handlers).
+- **`except Exception` sin `logger.exception`.** El bug desaparece en silencio.
+- **Olvidar limpiar el mensaje de error** al reintentar: el error viejo queda visible aunque el
+  segundo intento salga bien (`ejecutar_mostrando_errores` ya lo limpia).
+- **Navegar antes de que termine la acción que puede fallar.** `page.navigate` va adentro de la
+  acción, después del caso de uso.
+- **Leer `campo.value` al construir la pantalla** en vez de adentro del handler: vale `""`.
+- **Validar en la pantalla lo que ya valida el dominio.** La regla queda duplicada.
+- **Loguear un DTO con contraseña.** El `repr` del dataclass la incluye.
+- **Mensajes distintos para "email inexistente" y "contraseña incorrecta".** Permiten averiguar
+  qué emails tienen cuenta. Ver la [sección 11](#login-un-solo-mensaje-para-los-dos-errores).
+- **Cerrar sesión navegando antes de `sesion.cerrar_sesion()`.** La ruta protegida todavía ve la
+  sesión abierta y vuelve a `/inicio`.
+- **Poner la `AppBar` en `controls`.** Va en el parámetro `appbar=` del `View`.
+- **Buscar botones con `isinstance(c, ft.Button)`.** No encuentra los `ft.TextButton`.
+- **Una lambda adentro de un `for`** que usa la variable del bucle: todos los botones terminan usando
+  el último elemento. Ver la [sección 12](#lambdas-dentro-de-un-bucle).
+- **Navegar a la ruta en la que ya estás para "refrescar".** No pasa nada: la ruta no cambió. Se
+  reemplaza `.controls` y se llama a `page.update()`.
+- **Pasar `checkbox.value` directo como `bool`.** Es `bool | None`.
+- **Copiar la `AppBar` en cada pantalla interna.** Va `crear_barra_superior(page, sesion)`.
+- **Guardar el club activo en una variable de la pantalla.** Se lee siempre de la sesión: así la
+  barra, el inicio y la pantalla de clubes muestran lo mismo.
+- **Llamar a `main.main()` o a `ejecutar()` en un test.** Abre la ventana real (la fixture
+  `prohibir_abrir_la_ventana` lo corta con un error).
+- **Escribir un color o un número de espaciado en una pantalla** (`color="#2E6389"`, `spacing=12`).
+  Sale de `estilo.py` (US-111); los colores, como roles (`ft.Colors.PRIMARY`).
+- **Definir `page.theme` y no `page.dark_theme`.** Con Windows en oscuro, Flet usa su paleta por
+  defecto y el tema propio no se ve.
+- **`assets_dir` relativa.** Depende de la carpeta desde la que se lanza la app; va absoluta
+  (`config/rutas.py`).
+- **Centrar en vertical una `Column` con scroll.** No se puede: o se saca el scroll o se centra desde
+  afuera.
+- **Conectar `on_submit` a mano en una pantalla que usa `crear_formulario`.** Ya lo hace el componente
+  con el último campo.
+
+---
+
+## 15. Checklist: agregar una pantalla nueva
+
+1. Crear `screens/<nombre>_screen.py` con `crear_<nombre>_view(page, <solo lo que usa>) -> ft.View`,
+   con `route=` igual a su ruta.
+2. Si usa casos de uso nuevos: armarlos en `construir_dependencias` y agregarlos como campos de
+   `Dependencias`.
+3. En `app.py`: agregar la constante de la ruta, sumarla a `RUTAS_PUBLICAS` o `RUTAS_INTERNAS`, y
+   agregar su entrada en la tabla de rutas.
+4. Arma su contenido con `crear_pagina(titulo, controles, ...)` y lo devuelve con
+   `crear_vista_interna(page, sesion, ruta, contenido)` (barra y menú lateral incluidos); los
+   formularios, con `crear_formulario` (ver la [sección 16](#16-base-visual-tema-página-y-formulario-us-111)).
+   Si es una sección nueva, suma su fila a `DESTINOS` en `components/menu_lateral.py`. Ningún color ni
+   espaciado escrito a mano: todo sale de `estilo.py`.
+5. Cada handler que llame a un caso de uso lo hace a través de `ejecutar_mostrando_errores`, con una
+   etiqueta de `crear_etiqueta_error()` debajo del formulario y el nombre de la acción para el log
+   (`nombre="pantalla.que_hace"`, US-110).
+6. Agregar los casos de la ruta nueva a `tests/unit/test_navegacion.py`.
+7. Si tiene formulario: `tests/unit/test_<nombre>_screen.py` con mocks (camino feliz, un error de
+   dominio y un error inesperado; ver la [sección 13](#testear-una-pantalla-sin-abrir-la-ventana)),
+   usando `campo`, `boton` y `etiqueta_error` de `tests/unit/ayudantes_flet.py`.
+8. Probarla a mano: entrar, salir, provocar cada error del formulario y, si es interna, comprobar
+   que sin sesión redirige al login.
+
+---
+
+## 16. Base visual: tema, página y formulario (US-111)
+
+### Qué problema resuelve
+
+Hasta la US-106 cada pantalla apilaba sus controles a su manera: un `ft.Text(..., size=24)` de
+título, los campos uno abajo del otro y los botones donde cayeran. Funcionaba, pero cada pantalla
+nueva copiaba números (24, 16...) y decisiones (¿el error va arriba o abajo?). Con 15 pantallas
+por venir, cambiar el color o el tamaño del título habría sido tocar 15 archivos.
+
+La US-111 junta todo lo visual en **un tema** (`estilo.py`) y **tres componentes** (`pagina.py`,
+`formulario.py`, `menu_lateral.py`). Es el mismo patrón que `crear_barra_superior` y
+`crear_etiqueta_error`, llevado a todo lo visual: las pantallas dicen **qué** muestran; **cómo**
+se ve lo decide un solo lugar.
+
+### La combinación elegida
+
+Se eligió en el muestrario de la US-111 el 2026-11-09 (propuesta "Pizarra", modificada):
+
+| Perilla        | Elección                        | Dónde vive                                             |
+| -------------- | ------------------------------- | ------------------------------------------------------ |
+| Color          | Semilla `#4A5866`, tonal        | `COLOR_SEMILLA` en `estilo.py`                         |
+| Formato        | Menú lateral                    | `crear_vista_interna` + `crear_menu_lateral`           |
+| Densidad       | Cómoda: 8 / 16 / 24, título 24  | `ESPACIO_CHICO`, `ESPACIO`, `ESPACIO_GRANDE`, `TAMANIO_TITULO` |
+| Tablas         | Filas alternadas                | La aplica `tabla_datos.py` (US-107)                    |
+| Campos         | Con relleno                     | `input_decoration_theme` del tema                      |
+| Botón principal| Ancho completo                  | `crear_formulario`                                     |
+| Esquinas       | Suaves, 8 px                    | `RADIO`                                                |
+| Letra          | IBM Plex Sans                   | `FUENTE`, empaquetada en `src/assets/fuentes/`         |
+
+### `ft.Theme` y el color semilla
+
+**Concepto.** Material 3 (el sistema de diseño de Google que usa Flet) no pide los colores de a uno:
+pide **un color semilla** y calcula una paleta entera, con **roles**: `PRIMARY` (botón principal),
+`ON_PRIMARY` (el texto encima del principal), `SURFACE` (fondo), `SURFACE_CONTAINER_LOW` (un fondo
+apenas distinto, para paneles), `ERROR`, `ON_SURFACE_VARIANT` (texto secundario), etc.
+
+```python
+page.theme = ft.Theme(color_scheme_seed="#4A5866", font_family="IBM Plex Sans")
+page.dark_theme = ft.Theme(color_scheme_seed="#4A5866", font_family="IBM Plex Sans")
+```
+
+```mermaid
+flowchart LR
+    S["Semilla #4A5866"] --> M["Material 3<br/>(variante tonal)"]
+    M --> C["Modo claro<br/>PRIMARY = azul pizarra oscuro"]
+    M --> O["Modo oscuro<br/>PRIMARY = celeste claro"]
+    C --> P["Las pantallas usan roles:<br/>ft.Colors.PRIMARY, ft.Colors.ERROR..."]
+    O --> P
+```
+
+- **Las pantallas usan roles, nunca colores.** `ft.Colors.PRIMARY` es azul oscuro en claro y celeste
+  en oscuro; un `"#2E6389"` escrito a mano quedaría mal en uno de los dos.
+- **"Tonal" no respeta el color exacto.** Toma el tono de la semilla y le pone su propia
+  intensidad: con `#4A5866` (gris azulado) el principal sale **más azul** que la semilla. Es lo
+  mismo que se vio en el muestrario.
+- **`dark_theme` con la misma semilla.** Si Windows está en modo oscuro y la app no define
+  `dark_theme`, Flet usa su paleta por defecto (otro azul) y el tema propio no se ve. Lo demás del
+  modo oscuro (elegirlo a mano, revisar cada pantalla) es de la US-401.
+- **El resto del tema** también va en `ft.Theme`: `input_decoration_theme` (campos con relleno y
+  esquinas), `filled_button_theme`/`button_theme`/`text_button_theme` (esquinas de los botones) y
+  `card_theme`. Así ninguna pantalla pasa `border_radius=8` a mano.
+
+### Letras e imágenes: `assets_dir`
+
+**Problema.** La app tiene que funcionar sin internet, pero IBM Plex Sans no viene con Windows y el
+logo es un archivo. Flet los sirve desde una carpeta, la de **assets**.
+
+- `ft.run(main, assets_dir=r.ASSETS_DIR)` dice cuál es esa carpeta: `src/assets/` (la misma que
+  busca `flet build`, sección 17). Va **absoluta** (`config/rutas.py`): relativa, Flet la buscaría
+  desde la carpeta en la que se lanzó la app.
+- Adentro, las rutas son **relativas a esa carpeta**:
+  - `page.fonts = {"IBM Plex Sans": "fuentes/IBMPlexSans.ttf"}` registra la letra con un nombre, y
+    `ft.Theme(font_family="IBM Plex Sans")` la usa en toda la app. La letra tiene licencia OFL
+    (`fuentes/OFL.txt`), que permite empaquetarla.
+  - `ft.Image(src="logo/statspro-isotipo.svg", width=44, height=44)` muestra el logo. Flet dibuja
+    SVG directo, así que el logo se ve nítido en cualquier tamaño.
+- **Si falta el archivo, la app no se rompe:** la imagen queda vacía y la letra cae a la del sistema.
+
+### Acomodar: `ft.Container`, `expand` y el scroll
+
+**`ft.Container`** es una caja que envuelve **un** control (`content=`) y le agrega lo que el control
+no tiene: margen interno (`padding`), fondo (`bgcolor`), esquinas (`border_radius`), un ancho fijo
+(`width`) o un **ancho máximo** (`max_width`), y dónde ubicar al hijo (`alignment`).
+
+```python
+ft.Container(content=columna, padding=24)   # crear_pagina
+```
+
+- **`max_width`** limita el ancho para que en una ventana maximizada el contenido no se estire de
+  borde a borde. `crear_pagina` lo usó hasta la US-113 (1100 px) y se sacó: las tablas y la planilla
+  del partido quedaban apretadas en el medio con media pantalla vacía. Ahora el contenido ocupa todo
+  el ancho y cada formulario se acomoda con `ResponsiveRow` (sección 18).
+- **`expand=True`** (o un número) en un hijo de `Row`/`Column` hace que ocupe el espacio que sobra.
+  Con números se reparte: en el login, `expand=2` para la marca y `expand=3` para el formulario.
+- **Alineación:** en una `Column`, `alignment` es la vertical y `horizontal_alignment` la
+  horizontal (en una `Row`, al revés). `ft.CrossAxisAlignment.STRETCH` estira a los hijos: así el
+  botón principal de `crear_formulario` ocupa todo el ancho, igual que los campos.
+- **Scroll:** `ft.Column(..., scroll=ft.ScrollMode.AUTO, expand=True)` muestra la barra de
+  desplazamiento solo si el contenido no entra. Lo tiene el contenido de las pantallas internas.
+
+> **Una `Column` con scroll no puede centrar en vertical.** Adentro de un scroll la altura no tiene
+> límite, así que no hay "centro": el formulario del login quedaba pegado arriba. Por eso el lado del
+> formulario es una `Column` **sin** scroll con `alignment=ft.MainAxisAlignment.CENTER` (el registro,
+> el formulario más alto, entra en el alto mínimo de la ventana).
+
+### Cómo se arma una pantalla
+
+Dos formas, una para las pantallas con sesión y otra para login y registro:
+
+```mermaid
+flowchart TB
+    subgraph I["Pantalla interna: crear_vista_interna(page, sesion, ruta, contenido)"]
+        A["appbar: crear_barra_superior<br/>StatsPro · club activo ... Cerrar sesión"]
+        R["Row (expand)"]
+        R --> MN["crear_menu_lateral<br/>ft.NavigationRail: logo, Inicio, Clubes"]
+        R --> D["VerticalDivider"]
+        R --> SC["Column con scroll (expand)"]
+        SC --> PG["crear_pagina: Container a todo el ancho<br/>título · subtítulo · controles · panel lateral"]
+    end
+    subgraph AC["Login y registro: crear_vista_acceso(ruta, titulo, subtitulo, formulario)"]
+        R2["Row (expand)"]
+        R2 --> MK["Marca (expand 2, fondo PRIMARY)<br/>logo blanco · StatsPro · lema"]
+        R2 --> FM["Column centrada (expand 3)<br/>título · subtítulo · crear_formulario"]
+    end
+```
+
+Una pantalla interna queda así (`clubes_screen.py`):
+
+```python
+alta = ft.Column(
+    [ft.Text("Nuevo club", weight=ft.FontWeight.W_600),
+     crear_formulario([nombre], error, "Crear club", crear, ancho=None)],
+    spacing=ESPACIO,
+)
+contenido = crear_pagina("Mis clubes", [lista], lateral=alta)
+return crear_vista_interna(page, sesion, "/clubes", contenido)
+```
+
+y una de acceso (`login_screen.py`):
+
+```python
+formulario = crear_formulario(
+    [email, password, recordar], error, "Ingresar", ingresar,
+    secundarios=[ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro"))],
+)
+return crear_vista_acceso("/login", "Iniciar sesión", "Entrá para cargar y ver...", formulario)
+```
+
+### `crear_formulario`: todos los formularios iguales
+
+- Orden fijo: **campos → etiqueta de error → botón principal (`ft.FilledButton`, ancho completo) →
+  secundarios** (`ft.TextButton`).
+- **Conecta el Enter**: le pone `on_submit = al_enviar` al **último** `ft.TextField`. En el login,
+  Enter en la contraseña ingresa; Enter en el email no, para no enviar a medio completar. La pantalla
+  ya no escribe `password.on_submit = ingresar`.
+- `ancho=None` hace que ocupe el ancho de donde se lo ponga (el panel de "Nuevo club").
+- `ft.FilledButton` es el botón destacado de Material 3 (fondo `PRIMARY`). **Sí hereda de
+  `ft.Button`**, así que el ayudante `boton()` de los tests lo encuentra.
+
+### El menú lateral: `ft.NavigationRail`
+
+**Concepto.** Una columna angosta a la izquierda con un destino por sección (ícono + texto) y el
+elegido marcado. Reemplaza a los botones "Inicio" y "Clubes" que tenía la barra.
+
+```python
+DESTINOS = (
+    Destino("/inicio", "Inicio", ft.Icons.HOME_OUTLINED, ft.Icons.HOME),
+    Destino("/clubes", "Clubes", ft.Icons.SHIELD_OUTLINED, ft.Icons.SHIELD),
+)
+
+menu = ft.NavigationRail(
+    selected_index=rutas.index(ruta_actual),
+    leading=ft.Image(src=LOGO, width=44, height=44),   # el logo arriba
+    destinations=[ft.NavigationRailDestination(icon=..., selected_icon=..., label=...) for d in DESTINOS],
+    on_change=al_elegir,
+)
+```
+
+- **`selected_index`** marca la pantalla actual. Como el router reconstruye la `View` en cada
+  navegación, el menú siempre sale con la marca correcta, sin "avisarle" nada (igual que la barra).
+- **`on_change`**: cuando el usuario hace clic, Flet **primero** actualiza `selected_index` y
+  **después** llama al handler, que lee el índice y navega:
+  `page.navigate(rutas[menu.selected_index])`. El handler no recibe parámetros: lee el menú de la
+  clausura (la variable `menu` de la función que lo armó).
+- **Agregar una sección** es sumar una fila a `DESTINOS` (las US-107, US-112... lo hacen).
+- Necesita alto definido: va dentro de una `Row` con `expand=True`.
+
+### Testear pantallas armadas con componentes
+
+- **Los ayudantes recorren el árbol completo.** Antes buscaban solo en `vista.controls`; ahora los
+  campos están adentro de `Container`, `Column` y `Row`. `controles(raiz)` recorre en profundidad los
+  atributos donde Flet guarda hijos (`controls`, `content`, `appbar`, `actions`, `leading`,
+  `title`...), y `campo`, `boton`, `casilla`, `textos` y `etiqueta_error` buscan ahí. Por eso los
+  tests de las pantallas no cambiaron lo que verifican (AC4).
+- **Un control sin texto propio se busca por `key`:** la lista de clubes tiene
+  `key=LISTA_CLUBES` y el test usa `por_clave(vista, LISTA_CLUBES)`.
+- **`MagicMock(spec=ft.Page)` no tiene `window`**: en Flet es un campo con valor por defecto, no un
+  atributo de la clase, y `spec` solo copia los de la clase. Los tests que llaman a `_main` (que
+  aplica el tema y el tamaño de la ventana) agregan `page.window = MagicMock()`.
+- **Lo que los tests no ven** sigue siendo el aspecto: se revisa a mano con la app abierta, en
+  1366×768 y maximizada, en claro y en oscuro.
+
+---
+
+## 17. Empaquetar la app: `flet build` (US-109)
+
+### Qué problema resuelve
+
+Con `uv run python src/main.py`, la app necesita el repo, `uv` y Python instalados. Un entrenador no tiene nada de eso: necesita un
+instalador. **`flet build`** convierte la app en un programa nativo de cada sistema operativo (un `.exe` con sus bibliotecas en
+Windows, un ejecutable en Linux, un `.apk` en Android) que trae **su propio Python** adentro.
+
+### Cómo funciona
+
+Flet ya usa Flutter para dibujar la ventana. `flet build` arma un proyecto de Flutter que, al arrancar, levanta un Python embebido y
+corre nuestro `main.py`:
+
+```mermaid
+flowchart LR
+  A["src/ (main.py, paquetes,<br/>.sql, assets/)"] --> B["flet build"]
+  P["pyproject.toml<br/>[project] + [tool.flet]"] --> B
+  B --> C["1. compila src/ a .pyc"]
+  B --> D["2. baja un Python 3.14 e<br/>instala las dependencias"]
+  B --> E["3. íconos desde<br/>assets/icon.svg"]
+  C & D & E --> F["4. flutter build"]
+  F --> G["build/windows/ o build/linux/<br/>(StatsPro.exe + bibliotecas)"]
+```
+
+- **De dónde saca cada cosa:** `[project]` da la versión, la descripción y las dependencias; `[tool.flet]`, el nombre visible y el del
+  ejecutable; `[tool.flet.app] path = "src"`, dónde está `main.py`.
+- **La carpeta de assets** (`src/assets/`) entra entera al paquete: la letra, el logo y el ícono viajan con la app. Por eso `assets_dir`
+  apunta ahí (sección 16).
+- **El ícono:** `flet build` busca `assets/icon.*` (o `icon_windows.*`, `icon_linux.*`). Acepta SVG: lo rasteriza y genera el `.ico` de
+  Windows y los `.png` de Linux y Android. Sin ese archivo, pone el ícono de Flet.
+- **El resultado es una carpeta, no un archivo.** El instalador (Inno Setup), el `.zip` y el `.deb` se arman después, a partir de esa
+  carpeta (`empaquetado/` y `release.yml`).
+
+### Ejemplo: lo que hay adentro del build de Linux
+
+```text
+build/linux/
+├── StatsPro          ← el ejecutable (Flutter)
+├── lib/  data/       ← bibliotecas y recursos de Flutter
+├── python3.14/       ← el Python embebido
+├── site-packages/    ← flet, pandas... compilados
+└── app/              ← nuestro src/: main.pyc, aplicacion/, dominio/, infraestructura/, config/, assets/
+```
+
+### Lo que cambia en una app empaquetada
+
+- **La carpeta de la app es de solo lectura** (`Program Files`, `/opt`): la base, los logs y la sesión van en `~/.statspro/`
+  (`config/rutas.py`). Una app que escribe al lado de su código funciona en desarrollo y se rompe instalada.
+- **No hay `.py`, solo `.pyc`:** un traceback del log muestra líneas pero no el código.
+- **El Python es otro:** el del paquete (3.14), no el de tu máquina. Por eso `release.yml` prueba la suite con 3.14.
+
+### Errores comunes
+
+- **Compilar en el sistema equivocado:** `flet build windows` solo corre en Windows (y necesita Visual Studio con C++), `flet build linux`
+  solo en Linux. No hay compilación cruzada: por eso el release usa un runner de cada uno.
+- **El ícono de Flet en el ejecutable:** falta `src/assets/icon.svg` (o tiene otro nombre).
+- **`UnicodeEncodeError` al final del build en Windows:** la consola de Python está en cp1252 y flet-cli no puede escribir el `√` con el
+  que Flutter avisa que terminó. Se corre con `PYTHONUTF8=1`.
+- **Escribir rutas relativas al directorio actual:** instalada, la app arranca desde cualquier carpeta. Las rutas salen de `config/rutas.py`.
+
+---
+
+## 18. Formularios densos: la carga de partido (US-113)
+
+### Qué problema resuelve
+
+La primera carga de partido era un formulario de tres pasos, angosto y en columna: para un partido
+con 12 jugadores y 16 estadísticas por jugador había que bajar y bajar, y el rival no se podía
+escribir. Un entrenador anota el partido en una planilla de Excel: una fila por jugador, una
+columna por estadística. La US-113 copia esa forma con controles que hasta ahora no usábamos.
+
+### `ft.ResponsiveRow`: columnas que se acomodan al ancho
+
+Una `Row` pone a sus hijos uno al lado del otro y, si no entran, se cortan (o hay que poner
+`wrap=True`). Una **`ResponsiveRow`** divide el ancho en **12 columnas** (como Bootstrap en la web) y
+cada hijo dice cuántas ocupa según el tamaño de la ventana con `col`:
+
+```python
+ft.ResponsiveRow(
+    controls=[
+        ft.Container(dd_torneo, col={"sm": 12, "md": 6, "xl": 4}),
+        ft.Container(campo_fecha, col={"sm": 6, "md": 3, "xl": 2}),
+    ]
+)
+```
+
+`sm`, `md`, `xl` son los cortes de ancho (chico, mediano, extra grande). En una ventana chica la
+competencia ocupa toda la fila (12) y la fecha media; maximizada entran las cinco cosas en una línea.
+
+### `ft.Dropdown` editable: elegir o escribir
+
+Un `Dropdown` común solo deja elegir una opción. Con **`editable=True`** se puede escribir, y con
+**`enable_filter=True`** las opciones se filtran mientras se escribe (autocompletar):
+
+```python
+dd_rival = ft.Dropdown(label="Rival", options=[...], editable=True, enable_filter=True)
+dd_rival.on_select = al_elegir_rival        # eligió una opción: dd_rival.value es su key
+dd_rival.on_text_change = al_escribir_rival  # escribió: el texto llega en e.data
+```
+
+La clave es que **`value` y el texto son cosas distintas**. Si se elige "Pesca", `value` es `"2"` (el
+id). Si se escribe "Pesca nuevo", no hay `value`: hay que guardarse el texto del evento. Por eso la
+pantalla tiene `texto_rival` y, al guardar, decide: si hay un club con ese nombre (sin tildes ni
+mayúsculas) lo usa; si no, lo crea.
+
+### `ft.SegmentedButton`: dos o tres opciones a la vista
+
+Para "Local / Visitante" o "Solo totales / Boxscore" un desplegable esconde las opciones y un par de
+casillas permitiría marcar las dos. Un **`SegmentedButton`** muestra todas y deja una elegida:
+
+```python
+seg = ft.SegmentedButton(
+    segments=[ft.Segment(value="local", label="Local"), ft.Segment(value="visitante", label="Visitante")],
+    selected=["local"],
+)
+seg.on_change = lambda: actualizar_marcador()
+```
+
+`selected` es una **lista** (el control también sirve para elegir varias), así que se lee
+`seg.selected[0]`.
+
+### `ft.DatePicker`: un calendario que se abre como diálogo
+
+El `DatePicker` no se pone en la pantalla: es un **diálogo**, como el de confirmación. Se abre con
+`page.show_dialog(picker)` y, cuando el usuario elige, `on_change` deja la fecha en `picker.value`
+(un `datetime`). El campo de texto sigue existiendo, porque escribir `2026-09-01` es más rápido que
+navegar meses:
+
+```python
+campo_fecha.suffix_icon = ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, on_click=lambda: page.show_dialog(picker))
+```
+
+`suffix_icon` y no `suffix`: `suffix` solo se ve cuando el campo tiene el foco.
+
+### Íconos con descripción: `IconButton(tooltip=...)`
+
+En una tabla con muchas filas, tres botones de texto por fila ("Editar", "Dar de baja", "Eliminar")
+ocupan más que los datos. Un **`ft.IconButton`** con `tooltip` muestra solo el ícono y el texto al
+pasar el mouse. En Flet 1.x `ft.Tooltip` no es un control que envuelve a otro: es la propiedad
+`tooltip=` del control.
+
+### Diálogos como formularios
+
+Un `ft.AlertDialog` no es solo para "¿Seguro?": su `content` puede ser una `Column` con campos. El
+alta de jugador y la baja (con su fecha) son diálogos: la tabla queda a todo el ancho y el formulario
+aparece solo cuando se usa. El diálogo se cierra con `page.pop_dialog()` **solo si salió bien**; si el
+caso de uso lanzó un error, se muestra adentro del diálogo y el usuario corrige sin perder lo escrito.
+
+### Ejemplo: la planilla del partido
+
+`components/planilla_boxscore.py` arma la planilla con piezas conocidas: una `Row` por jugador con un
+`TextField` angosto por estadística (cada uno con `key="Pepe Argento · T2C"`, para encontrarlo en los
+tests) y una fila "Equipo" de `ft.Text` que se recalcula en cada `on_change`. Toda la planilla va
+dentro de **una sola** `Row(scroll=AUTO)`, así el encabezado, los jugadores y el total se desplazan
+juntos en una ventana angosta.
+
+### Errores comunes
+
+- **Leer `dd.value` de un desplegable editable y esperar el texto:** si el usuario escribió, `value`
+  está vacío. El texto viene en el evento `on_text_change`.
+- **`selected` como string:** `seg.selected = "local"` no funciona; es `["local"]`.
+- **Poner el `DatePicker` en `controls`:** no se ve. Es un diálogo: `page.show_dialog`.
+- **Un scroll horizontal por fila:** cada fila se desplaza por su cuenta y las columnas dejan de
+  coincidir con el encabezado. Un solo scroll para toda la planilla.
+- **Cerrar el diálogo antes de saber si el caso de uso anduvo:** si falla, el usuario pierde lo que
+  escribió.
+
+## 19. Editar con la misma pantalla, rutas con id y texto en Markdown (US-114)
+
+### Qué problema resuelve
+
+Después de la US-113 un partido mal cargado no se podía corregir, la planilla mostraba toda la lista
+de buena fe (a veces 15 o más) y no había ayuda dentro de la app. La US-114 suma cuatro ideas nuevas
+de Flet: una ruta que lleva un dato (el id del partido), una pantalla que sirve para crear y para
+editar, casillas generadas en un bucle con su propio handler y un texto largo escrito en Markdown.
+
+### Rutas con un id: `/partidos/editar/5`
+
+Hasta ahora cada ruta era fija (`/partidos`, `/clubes`) y la tabla de rutas de `app.py` era un
+diccionario `ruta → función sin argumentos`. Para editar hace falta saber **qué** partido: el id va al
+final de la ruta, como en una web (`/partidos/editar/5`). `separar_ruta` lo corta:
+
+```python
+def separar_ruta(ruta: str) -> tuple[str, int | None]:
+    base, _, ultimo = ruta.rpartition("/")   # "/partidos/editar/5" -> ("/partidos/editar", "/", "5")
+    if base in RUTAS_CON_ID and ultimo.isdigit():
+        return base, int(ultimo)
+    return ruta, None
+```
+
+Las rutas con id tienen su propia tabla, `rutas_con_id: dict[str, Callable[[int], ft.View]]`, y el
+router elige: si `separar_ruta` devolvió un id, llama a esa función con el id; si no, a la de siempre.
+El guard (`resolver_ruta`) usa la **base** para decidir si hace falta sesión y club activo.
+
+`str.isdigit()` evita que `/partidos/editar/abc` rompa con `int("abc")`: esa ruta no existe y va al inicio.
+
+### Una pantalla para crear y editar
+
+`crear_carga_partido_view(..., id_partido=None)` arma siempre la misma pantalla. Con `id_partido`,
+al final la **llena** con lo guardado (`_precargar`) y cambia el título y el botón ("Guardar cambios").
+Al guardar, el `PartidoDTO` lleva ese `idPartido` y el repositorio hace UPDATE en vez de INSERT.
+
+Para poder llenarla, los componentes suman métodos que escriben en sus campos:
+`PlanillaBoxscore.poner_valores(id_jugador, valores)`, `FilaTotalesEquipo.poner_valores(puntos, valores)`
+y `BloquePuntosPorCuarto.cargar_cuartos(cuartos, id_local, id_visitante)` (que agrega las prórrogas
+que hagan falta). Los valores salen de `dataclasses.asdict(fila)`: los nombres de las columnas de la
+planilla son los mismos que los campos del DTO, así que no hay que traducir nada.
+
+Error común: llenar la pantalla **antes** de que exista la planilla del torneo. El orden importa:
+primero se elige la inscripción y se arma la planilla, después se ponen los valores.
+
+### Casillas en un bucle: `functools.partial`
+
+Los convocados son un `ft.Checkbox` por jugador de la lista. Cada casilla tiene que avisar **qué**
+jugador cambió. Con una `lambda` escrita en el `for` pasa lo de siempre (todas recuerdan el último
+jugador), y la vieja receta `lambda e, j=j: ...` depende de si Flet manda o no el evento. La opción
+limpia es `functools.partial`, que "congela" el argumento:
+
+```python
+from functools import partial
+
+ft.Checkbox(label=j.nombre_completo, data=j.id, on_change=partial(al_marcar_convocado, j.id))
+```
+
+`partial(al_marcar_convocado, 7)` es una función nueva que, al llamarla sin argumentos, ejecuta
+`al_marcar_convocado(7)`. Flet mira cuántos argumentos acepta el handler: `partial` no acepta ninguno
+más, así que lo llama sin el evento.
+
+**Revertir una casilla:** si ya hay 12 marcados, el handler no agrega al jugador y vuelve a dibujar
+las casillas desde el conjunto `convocados`: la casilla 13 queda desmarcada aunque el usuario la
+haya tocado. La fuente de verdad es el conjunto, no el `value` de cada casilla.
+
+### Confirmar antes de guardar: "¿Guardar igual?"
+
+Un aviso (menos de 5 jugadores, partido repetido) no es un error: el usuario puede tener razón. La
+pantalla arma primero todo lo que va a mandar (un `_Guardado`) y, si hay avisos, abre
+`pedir_confirmacion(..., texto_confirmar="Guardar igual")` con `partial(_guardar, guardado)` como
+acción. Si no hay avisos, guarda directo. Así la validación no se repite y lo que se confirma es
+exactamente lo que se guarda.
+
+### `ft.Markdown`: un texto largo sin armarlo con controles
+
+La guía de uso tiene títulos, listas y negritas. Armarla con `ft.Text` sería un montón de controles y
+cada corrección tocaría Python. **`ft.Markdown`** dibuja texto en formato Markdown (el de los README):
+
+```python
+ft.Markdown(Path(r.GUIA_MD).read_text(encoding="utf-8"), selectable=True,
+            extension_set=ft.MarkdownExtensionSet.GITHUB_WEB)
+```
+
+`GITHUB_WEB` activa lo mismo que GitHub (tablas, listas de tareas). El archivo vive en `src/assets/`,
+junto al logo, así `flet build` lo empaqueta. Si falta, `leer_guia` devuelve un aviso en vez de romper
+la pantalla.
+
+### Un botón fijo abajo del menú
+
+`NavigationRail` tiene `trailing`, pero queda pegado debajo del último destino, no abajo de todo. Para
+que "Guía" quede en la esquina inferior izquierda, `crear_vista_interna` pone el menú y el botón en
+una `Column`: el menú dentro de un `Container(expand=True)` (ocupa todo el alto que sobra) y el botón
+debajo.
+
+### Errores comunes
+
+- **`int(ultimo)` sin chequear:** una ruta escrita a mano (`/partidos/editar/x`) rompe el router.
+- **Pasar `id_partido` y olvidarse del UPDATE:** guardar crearía un partido nuevo y quedarían dos.
+- **Recrear las filas de la planilla al cambiar los convocados:** se pierde lo que ya se escribió. Por
+  eso `cargar_jugadores` reusa la fila de cada jugador que ya estaba.
+- **Leer el archivo de la guía con la codificación por defecto:** en Windows no es UTF-8 y las tildes
+  salen mal. Siempre `encoding="utf-8"`.
+
+## 20. Usar el ancho: tablas estiradas, secciones plegables y grillas chicas (US-114)
+
+### Qué problema resuelve
+
+Al probar la US-114 en la ventana real se veían tres problemas:
+
+- **Tablas angostas:** mucho espacio vacío entre cada tabla y el panel lateral.
+- **Convocados:** 14 casillas, una debajo de la otra, que ocupaban toda la pantalla.
+- **Cuartos:** el rótulo "Visitante Q1" no entraba en un casillero de 74 px y se partía en varias líneas.
+
+Los tests no lo detectaban, porque miran qué controles hay y no cómo se dibujan.
+
+### Una `DataTable` mide lo que su contenido
+
+`ft.DataTable` no se estira sola: mide lo que miden sus columnas. Para que ocupe el ancho de la
+pantalla, `crear_tabla_datos` la pone en una `Row` con `expand=True`:
+
+```python
+tabla = ft.DataTable(key=clave, expand=True, columns=..., rows=...)
+return ft.Row([tabla])
+```
+
+¿Por qué una `Row`? `expand` significa "ocupá lo que sobra **en la dirección de tu contenedor**". En una
+`Column` (donde viven las tablas) sería el alto, no el ancho. Dentro de una `Row` es el ancho. Cuando
+la tabla recibe más ancho del que necesita, Flutter reparte lo que sobra entre las columnas.
+
+Error común: poner `expand=True` en la tabla sin la `Row`. Así la tabla se estira para abajo o, en una
+pantalla con scroll, Flet tira un error porque el alto es infinito.
+
+### `ft.ExpansionTile`: una sección que se pliega
+
+Un `ExpansionTile` es un renglón con título, subtítulo y una flecha. Al tocarlo muestra u oculta sus
+`controls`. Es lo mismo que el "Ver más" de muchas apps.
+
+```python
+ft.ExpansionTile(
+    title=contador_convocados,                  # "Convocados: 5/12" se ve aun plegado
+    subtitle=ft.Text(AYUDA_CONVOCADOS),
+    controls=[casillas_convocados],
+    expanded=not convocados,                    # abierta solo si hay que elegir
+    maintain_state=True,
+)
+```
+
+- **`expanded`:** el estado de entrada. En la carga de partido viene plegada si ya están todos marcados
+  (lista de 12 o menos) y abierta si hay que elegir.
+- **`maintain_state=True`:** no destruye las casillas al plegar. Igual la fuente de verdad sigue siendo
+  el conjunto `convocados` (sección 19).
+- **`shape` y `collapsed_shape`:** el borde redondeado, abierta y plegada.
+
+### `ResponsiveRow` + `col`: varias casillas por fila
+
+Para no tener una casilla por renglón, las casillas van en una `ResponsiveRow`. Cada una dice cuántas
+de las **12 columnas** ocupa según el ancho de la ventana:
+
+```python
+COL_CASILLA_CONVOCADO = {"xs": 6, "sm": 4, "md": 3, "xl": 2}   # 2, 3, 4 o 6 por fila
+ft.Checkbox(label=j.nombre_completo, col=COL_CASILLA_CONVOCADO, ...)
+```
+
+En una pantalla grande (`xl`) cada casilla ocupa 2 de 12 columnas, así que entran 6 por fila. Es la
+misma idea que la grilla de Bootstrap.
+
+mypy pide el tipo exacto del diccionario (`dict[str | ft.ResponsiveRowBreakpoint, int | float]`). Si
+no, infiere `dict[str, int]` y no lo acepta como `col`.
+
+### Una grilla con encabezados en vez de rótulos dentro del casillero
+
+Un `TextField` angosto con `label` largo queda feo: el rótulo no entra y se parte. Cuando hay varios
+casilleros iguales (Q1, Q2, Q3...), conviene escribir el período **una vez, arriba**, como en una
+planilla:
+
+```
+             Q1    Q2    Q3    Q4
+Atenas      [18]  [  ]  [  ]  [  ]   Agregar prórroga
+Instituto   [  ]  [  ]  [  ]  [  ]
+```
+
+`BloquePuntosPorCuarto` arma tres `Row` con anchos fijos e iguales (`ANCHO_NOMBRE_EQUIPO`,
+`ANCHO_CASILLERO_CUARTO`), así las columnas quedan alineadas sin usar una tabla:
+
+- **Encabezados:** un `Container` vacío del ancho del nombre y un `Text` centrado por período.
+- **Equipos:** el nombre (cortado con "…" si es largo) y un casillero sin `label`, con el número centrado.
+
+Como los casilleros ya no tienen rótulo, los tests los buscan por `key`:
+`clave_casillero_cuarto("local", 1)` devuelve `"cuarto · local · Q1"`.
+
+### Errores comunes
+
+- **Confiar solo en los tests para lo visual:** un test confirma que el control existe, no que se vea
+  bien. Ante un cambio de diseño, mirá la ventana.
+- **`wrap=True` en filas que tienen que quedar alineadas:** si una fila se parte y la otra no, la grilla
+  se desarma. Los cuartos no usan `wrap` en sus filas; el que baja de renglón es el botón de prórroga.
+- **Plegar algo que el usuario tiene que completar sí o sí:** si con más de 12 jugadores la sección
+  viniera plegada, el entrenador no sabría por qué la planilla está vacía.
+
+## 21. Un asistente por pasos, filtros con SegmentedButton y color con intención (US-114)
+
+### Qué problema resuelve
+
+Al comparar las pantallas con la maqueta (el muestrario de la US-111) faltaban cosas:
+
+- **Carga de partido:** se hacía en una sola pantalla larguísima. La maqueta la pide **paso a paso**.
+- **Detalle de un partido:** se abría debajo del listado. La maqueta lo tiene como pantalla aparte.
+- **Jugadores:** no tenía el selector "Del club / En todos los clubes".
+- **Clubes:** les faltaban las iniciales y el resumen.
+- **Detalle:** era gris, sin nada que guiara la vista.
+
+### Un asistente (*wizard*) sin cambiar de pantalla
+
+Un **asistente** divide un formulario largo en pasos. Hay dos formas de hacerlo:
+
+- **Una ruta por paso:** hay que pasar los datos de una pantalla a otra.
+- **Todos los pasos en la misma pantalla, mostrando uno solo:** es la que usa la carga.
+
+Los controles de los tres pasos se crean una vez y viven siempre en la vista; `_ir_a_paso(n)` solo
+cambia cuál es `visible`:
+
+```python
+def _ir_a_paso(nro: int) -> None:
+    paso_actual[0] = nro
+    for indice, contenedor in enumerate(contenedores_pasos):
+        contenedor.visible = indice == nro
+    boton_atras.visible = nro > 0
+    boton_siguiente.visible = nro < len(PASOS) - 1
+    boton_guardar.visible = nro == len(PASOS) - 1
+```
+
+Como nada se destruye, **"Atrás" no pierde lo escrito**. Un control invisible no se dibuja, pero sigue
+existiendo con su `value`.
+
+"Siguiente" **valida el paso antes de avanzar**:
+
+- **Paso 1:** torneo, fecha y rival.
+- **Paso 2:** arma exactamente lo que se va a guardar (`_Guardado`) y lo deja en `pendiente`.
+- **Paso 3:** muestra ese resumen con los avisos. "Guardar" manda `pendiente`, sin volver a leer nada.
+
+Por eso desapareció el diálogo "¿Guardar igual?": el paso 3 **es** la confirmación.
+
+El indicador de arriba (círculos 1-2-3 con ✓ en los hechos) se redibuja en cada cambio de paso. Es
+un `Row` de `Container` redondos (`border_radius` = la mitad del ancho) unidos por líneas
+(`Container(height=1, expand=True)`).
+
+### Rutas con id, otra vez: el detalle del partido
+
+El detalle pasó a `/partidos/ver/{id}`, con la misma receta de la sección 19:
+
+- se suma `RUTA_DETALLE_PARTIDO` a `RUTAS_CON_ID`;
+- se agrega una entrada en `rutas_con_id`;
+- se suma la subruta en el menú, para que "Partidos" siga marcado.
+
+La pantalla busca el partido **entre los del club activo**. Así, un id escrito a mano de otro club
+muestra "No se encontró el partido".
+
+**Error común: la importación circular.** `partidos_screen` importa `ruta_detalle_partido` del
+detalle. Si el detalle importara algo de `partidos_screen`, Python no podría cargar ninguno de los
+dos. Por eso `filas_cuartos` se mudó al componente de cuartos, que no importa ninguna pantalla.
+
+### `ft.SegmentedButton` como filtro
+
+El selector "Del club / En todos los clubes" es un `SegmentedButton` (el mismo de Local/Visitante):
+
+```python
+ft.SegmentedButton(
+    segments=[ft.Segment(value="club", label="Del club"),
+              ft.Segment(value="todos", label="En todos los clubes")],
+    selected=["club"],
+    show_selected_icon=False,   # sin el ✓ adentro: queda más limpio para un filtro
+)
+```
+
+`selected` es una **lista** (puede haber selección múltiple), así que se compara con `["todos"]`.
+
+El buscador filtra **mientras se escribe**: su `on_change` y el del selector llaman al mismo
+`al_filtrar`. Como el plantel ya está en memoria, filtrar no consulta la base. `coincide()` usa la
+misma regla que el repositorio: todas las palabras, sin mayúsculas ni tildes.
+
+### `ft.CircleAvatar`: el círculo con iniciales
+
+```python
+ft.CircleAvatar(content=ft.Text("AT"), bgcolor=ft.Colors.PRIMARY_CONTAINER, color=ft.Colors.ON_PRIMARY_CONTAINER)
+```
+
+Va en el `leading` de un `ListTile`; el `subtitle` lleva el resumen ("2 categorías · 41 jugadores").
+
+### Color con intención
+
+El color no se agrega "para que haya color": cada uno **dice algo**, y siempre sale del esquema del
+tema (nunca un hex suelto), así que funciona en claro y en oscuro.
+
+| Dónde                          | Color                                      | Qué comunica                       |
+| ------------------------------ | ------------------------------------------ | ---------------------------------- |
+| Encabezado de las tablas       | `SECONDARY_CONTAINER`                      | "esto es el título, no un dato"    |
+| G / Victoria                   | `PRIMARY_CONTAINER` + `ON_PRIMARY_CONTAINER` | resultado bueno                  |
+| P / Derrota                    | `ERROR_CONTAINER` + `ON_ERROR_CONTAINER`   | resultado malo                     |
+| Puntos del ganador (marcador)  | `PRIMARY`, tamaño 44                       | quién ganó, de un vistazo          |
+| PTS y Total en las tablas      | `PRIMARY` en negrita                       | la columna más importante          |
+| Avisos del resumen             | `TERTIARY_CONTAINER`                       | "ojo", sin ser un error            |
+
+**Regla de los pares:** el fondo `X_CONTAINER` siempre va con el texto `ON_X_CONTAINER`. Material los
+calcula para que tengan contraste suficiente. Mezclarlos (por ejemplo, texto `PRIMARY` sobre
+`PRIMARY_CONTAINER`) puede quedar ilegible en un modo y bien en el otro.
+
+### Errores comunes
+
+- **Recrear los controles de un paso al volver:** se pierde lo cargado. Se ocultan, no se rehacen.
+- **Validar todo recién al guardar:** el usuario llena tres pasos y se entera al final de que el
+  primero estaba mal. Cada "Siguiente" valida lo suyo.
+- **Mostrar en el resumen algo distinto de lo que se guarda:** el resumen se arma con el mismo
+  `_Guardado` que después se manda al caso de uso.
+- **Usar color para todo:** si todo resalta, nada resalta.
+
+---
+
+## 22. Una acción, un correlation_id: `ContextVar` y los eventos de Flet (US-110)
+
+**Concepto.** Cada clic del usuario es una **acción** con su `correlation_id` (ver `docs/info_modulo/01-logger.md`). El id viaja en una
+`ContextVar`, y lo que importa para la GUI es **dónde nace** cada acción y **qué contexto** ve cada handler de Flet.
+
+**Problema que resuelve.** Sin esto, en `app.log` las líneas de "Guardar partido" se mezclan con las de la navegación y con las de
+otros clics. Con el id, `jq 'select(.correlation_id=="...")'` muestra solo ese clic, de la pantalla al repositorio.
+
+**Cómo funciona en la app.** Las acciones nacen en tres lugares:
+
+| Dónde | `accion` | Qué cubre |
+| --- | --- | --- |
+| `ejecutar_mostrando_errores(..., nombre="clubes.crear")` | el `nombre` | Cada botón que llama a un caso de uso |
+| `al_cambiar_ruta` en `app.py` | `navegar` | Cada cambio de pantalla (con la ruta como campo `ruta`) |
+| `ejecutar()` en `app.py` | `arranque` | El esquema de la base y la sesión recordada |
+
+```python
+def al_cambiar_ruta() -> None:
+    with nueva_accion("navegar"):
+        logger.info("Navegar a %s", page.route, extra={"evento": "navegar", "ruta": page.route})
+        _dibujar_ruta()
+```
+
+**Detalles técnicos.**
+
+- **Cada evento de Flet arranca con el contexto vacío.** Flet atiende los eventos desde su _event loop_ (asyncio); una tarea nueva
+  copia el contexto **de quien la crea**, que es el loop, no el handler anterior. Por eso dos clics nunca comparten id.
+- **Por eso `ft.run(...)` queda fuera de `nueva_accion("arranque")`**: si estuviera adentro, el loop de Flet nacería con ese contexto y
+  todas sus tareas (todos los clics) lo heredarían.
+- **Acciones anidadas:** "Guardar" llama a `page.navigate(...)`, que puede disparar `al_cambiar_ruta` en el mismo hilo. `nueva_accion`
+  ve que ya hay una abierta y la reutiliza: el clic y la navegación que provocó salen con el mismo id.
+- **El nombre es obligatorio** (`*, nombre: str`): una pantalla nueva que olvide nombrar su acción no pasa mypy ni los tests.
+
+**Errores comunes.**
+
+- Repetir el mismo `nombre` en dos botones distintos de una pantalla: el log ya no dice cuál se tocó.
+- Loguear desde un `threading.Thread` propio esperando el id: el hilo arranca vacío (`contextvars.copy_context().run(...)`).

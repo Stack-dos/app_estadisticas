@@ -25,15 +25,22 @@ class SQLiteManager:
             datos; ``None`` mientras no se haya llamado a :meth:`connect`.
     """
 
-    def __init__(self, db_path, schema_path, views_path, seed_path=None, limpieza_path=None):
+    def __init__(
+        self,
+        db_path: str,
+        schema_path: str,
+        views_path: str,
+        seed_path: str | None = None,
+        limpieza_path: str | None = None,
+    ):
         self.db_path = db_path
         self.schema_path = schema_path
         self.views_path = views_path
         self.seed_path = seed_path
         self.limpieza_path = limpieza_path
-        self.conexion = None
+        self.conexion: sqlite3.Connection | None = None
 
-    def connect(self):
+    def connect(self) -> sqlite3.Connection:
         """Abre la conexión con la base de datos SQLite.
 
         Si la conexión ya está abierta la devuelve directamente sin crear una
@@ -52,7 +59,7 @@ class SQLiteManager:
             self.conexion.row_factory = sqlite3.Row  # Habilito acceso por nombre de columnas
         return self.conexion
 
-    def inicializar_schema(self):
+    def inicializar_schema(self) -> None:
         """Ejecuta los scripts SQL de esquema y vistas sobre la conexión activa.
 
         Carga y ejecuta primero ``schema.sql`` (tablas) y luego ``views.sql``
@@ -66,22 +73,26 @@ class SQLiteManager:
         Returns:
             None
         """
+        if self.conexion is None:
+            logger.error("No se puede inicializar el esquema: La conexion no fue abierta (falta llamar a connect())")
+            return
         try:
             # 1. Cargamos las tablas (schema.sql)
-            with open(self.schema_path, "r", encoding="utf-8") as archivo_sql:
+            with open(self.schema_path, encoding="utf-8") as archivo_sql:
                 schema = archivo_sql.read()
             self.conexion.executescript(schema)
 
             # 2. Cargamos las vistas (views.sql) - si es que hay
-            with open(self.views_path, "r", encoding="utf-8") as archivo_vistas:
+            with open(self.views_path, encoding="utf-8") as archivo_vistas:
                 vistas = archivo_vistas.read()
             self.conexion.executescript(vistas)
 
             logger.info("Esquema de db y vistas creado correctamente")
         except (sqlite3.Error, FileNotFoundError, OSError) as e:
             logger.error(f"Error al crear la vistas o la db: {e}")
+            return
 
-    def cargar_seed(self):
+    def cargar_seed(self) -> None:
         """Carga el script SQL de datos semilla en la base de datos.
 
         Lee el archivo indicado en ``seed_path`` y lo ejecuta con
@@ -95,15 +106,22 @@ class SQLiteManager:
         Returns:
             None
         """
+        if self.conexion is None:
+            logger.error("No se puede inicializar el seed: La conexion no fue abierta (falta llamar a connect())")
+            return
+        if self.seed_path is None:
+            logger.error("No se puede inicializar el seed: Falta el archivo o la ruta al mismo")
+            return
         try:
-            with open(self.seed_path, "r", encoding="utf-8") as archivo_sql:
+            with open(self.seed_path, encoding="utf-8") as archivo_sql:
                 schema = archivo_sql.read()
             self.conexion.executescript(schema)
             logger.info("Seed de datos cargado correctamente")
         except (sqlite3.Error, TypeError) as e:
             logger.error(f"Error al cargar seed de datos: {e}")
+            return
 
-    def get_connection(self):
+    def get_connection(self) -> sqlite3.Connection | None:
         """Devuelve la conexión activa o ``None`` si no fue abierta.
 
         Returns:
@@ -115,7 +133,7 @@ class SQLiteManager:
         else:
             return None
 
-    def close_connection(self):
+    def close_connection(self) -> None:
         """Cierra la conexión con la base de datos y libera el recurso.
 
         Si no hay conexión activa la operación no hace nada. Tras cerrar,
@@ -128,7 +146,7 @@ class SQLiteManager:
             self.conexion.close()
             self.conexion = None
 
-    def limpieza(self):
+    def limpieza(self) -> None:
         """Ejecuta el script SQL de limpieza sobre la base de datos.
 
         Lee el archivo indicado en ``limpieza_path`` y lo ejecuta para eliminar
@@ -141,10 +159,17 @@ class SQLiteManager:
         Returns:
             None
         """
+        if self.conexion is None:
+            logger.error("No se puede inicializar la limpieza: La conexion no fue abierta (falta llamar a connect())")
+            return
+        if self.limpieza_path is None:
+            logger.error("No se puede inicializar la limpieza: falta el archivo o la ruta al mismo")
+            return
         try:
-            with open(self.limpieza_path, "r", encoding="utf-8") as archivo_sql:
+            with open(self.limpieza_path, encoding="utf-8") as archivo_sql:
                 schema = archivo_sql.read()
             self.conexion.executescript(schema)
             logger.info("Limpieza correcta")
         except sqlite3.Error as e:
             logger.error(f"Error al limpiar base de datos: {e}")
+            return

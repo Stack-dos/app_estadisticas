@@ -62,7 +62,7 @@ código — de eso se encarga el equipo. El rol de la IA en este proyecto, al me
   PRD en LaTeX), con la tabla de repositorios corregida y una sección nueva de "Estado real del
   código vs. plan" documentando los 3 hallazgos de arriba.
 - Se creó esta carpeta `docs/context_ia/` con este registro.
-- Se creó `docs/guias/docker-para-tests.md` — guía conceptual de Docker para correr los tests
+- Se creó `docs/info_modulo/10-docker-para-tests.md` — guía conceptual de Docker para correr los tests
   (sin escribir el Dockerfile real, eso lo hace el equipo).
 - Se creó `docs/ideas-aprendizaje.md` — propuestas de funcionalidades chicas pensadas como
   ejercicios de aprendizaje (decorador de retry/backoff, cache simple, exportador CSV, loader de
@@ -83,13 +83,13 @@ rastros de esos archivos en el repo.
   ese hueco de cobertura es la razón por la que los bugs de arriba pasaron desapercibidos.
 - Escribir los 9 ADRs pendientes (tabla en `docs/plan_desarrollo_detallado.md`, sección 5),
   empezando por los que bloquean el hito más próximo.
-- Si les sirve, armar el Dockerfile real siguiendo `docs/guias/docker-para-tests.md`.
+- Si les sirve, armar el Dockerfile real siguiendo `docs/info_modulo/10-docker-para-tests.md`.
 
 ## Dónde está cada cosa (índice rápido para la próxima sesión)
 
 - Plan de trabajo simplificado: `docs/plan_desarrollo_detallado.md`
 - PRD formal completo: `docs/documentacion_app_estadistica/PRD/Plan_Requerimientos_Producto_Pro.tex` (submódulo)
-- Arquitectura en detalle: `docs/arquitectura.md`
-- Vistas SQL explicadas: `docs/vistas_sql.md`
+- Arquitectura en detalle: `docs/info_modulo/04-arquitectura.md`
+- Vistas SQL explicadas: `docs/info_modulo/08-vistas-sql.md`
 - Ideas de aprendizaje: `docs/ideas-aprendizaje.md`
-- Guía de Docker: `docs/guias/docker-para-tests.md`
+- Guía de Docker: `docs/info_modulo/10-docker-para-tests.md`

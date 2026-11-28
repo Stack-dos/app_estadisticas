@@ -1,0 +1,50 @@
+name: "Linter"
+description: "Corriendo linter sobre el codigo"
+
+inputs:
+  python-version:
+    description: "Version de Python con la que se instala el entorno (ej. 3.12)"
+    required: false
+    default: "3.12"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Instalar uv y Python ${{ inputs.python-version }}
+      uses: astral-sh/setup-uv@v10.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: true
+
+    # Solo el grupo "dev": Ruff no necesita las dependencias de la app.
+    # La version de Ruff sale de pyproject.toml / uv.lock (la misma que usa pre-commit).
+    - name: Instalar Ruff (version fijada en el proyecto)
+      shell: bash
+      run: uv sync --locked --only-group dev
+
+    # Las reglas salen de pyproject.toml ([tool.ruff.lint] select): no se repiten aca con --select.
+    # Primero el JSON para el resumen de la PR (--exit-zero: nunca falla); despues el formato "github",
+    # que convierte cada error en una anotacion sobre la linea del diff y es el que hace fallar el job.
+    - name: Ejecutar Ruff (reglas de estilo)
+      shell: bash
+      run: |
+        mkdir -p resultados-ruff
+        uv run --no-sync ruff check . --exit-zero --output-format=json --output-file=resultados-ruff/ruff.json
+        uv run --no-sync ruff check . --output-format=github
+
+    # --check no modifica nada: falla si algun archivo no esta formateado con "ruff format".
+    # !cancelled(): corre aunque haya fallado el paso anterior, para ver los dos problemas en la misma corrida.
+    - name: Verificar formato (ruff format --check)
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        uv run --no-sync ruff format --check . | tee resultados-ruff/ruff-format.txt
+
+    - name: Guardar resultados para el resumen de la PR
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: resultados-ruff
+        path: resultados-ruff/
+        if-no-files-found: warn
+        retention-days: 14

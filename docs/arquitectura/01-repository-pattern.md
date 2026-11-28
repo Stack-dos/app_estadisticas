@@ -41,7 +41,7 @@ Seguimos una regla única y consistente para los tipos de retorno. **Memorizarla
 | Búsqueda de colección | `list[Entidad]` (nunca `None`) | `obtener_todos()` → `[...]` o `[]`          |
 | Escritura exitosa     | `Entidad` (con ID asignado)    | `guardar(j)` → `Jugador(idJugador=42, ...)` |
 | Escritura fallida     | `None` (error de DB)           | `guardar(j)` → `None`                       |
-| Error de negocio      | `raise ErrorDeDominio(...)`    | `guardar(j)` → lanza `DNIDuplicadoError`    |
+| Error de negocio      | `raise ErrorDeDominio(...)`    | una regla de dominio → lanza su excepción |
 
 ---
 
@@ -97,7 +97,7 @@ src/
 │   │   ├── jugador_repositorio.py      # ABC – interfaz pura
 │   │   ├── club_repositorio.py         # ABC – interfaz pura
 │   │   └── partido_repositorio.py      # ABC – interfaz pura
-│   └── exceptions.py           # ErrorDeDominio, DNIDuplicadoError
+│   └── exceptions.py           # ErrorDeDominio y excepciones de dominio
 │
 └── infraestructura/
     ├── logger.py               # get_logger(__name__)

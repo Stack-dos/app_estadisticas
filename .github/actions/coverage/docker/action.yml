@@ -1,0 +1,23 @@
+name: "Test Docker"
+description: "Corre la suite de tests dentro de Docker"
+
+inputs:
+  python-version:
+    description: "Version de Python de la imagen base (ej. 3.12)"
+    required: false
+    default: "3.12"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build imagen de tests (Python ${{ inputs.python-version }})
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+      run: |
+        docker build -f Dockerfile.test --build-arg PYTHON_VERSION="$PYTHON_VERSION" -t app-estadisticas-tests .
+
+    - name: Ejecutar tests en contenedor
+      shell: bash
+      run: |
+        docker run --rm app-estadisticas-tests

@@ -2,7 +2,10 @@
 .coverage/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 .vscode/
+.venv/
+.git/
 logs/
 reportes_cobertura/
 __pycache__/

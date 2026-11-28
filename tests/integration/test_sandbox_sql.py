@@ -1,7 +1,5 @@
 import sqlite3
 
-import pytest
-
 
 def test_conexion(db_conexion_sandbox):
     assert isinstance(db_conexion_sandbox, sqlite3.Connection)
@@ -21,8 +19,8 @@ def test_insert(db_conexion_sandbox):
 
     cursor.execute(
         """
-        INSERT INTO jugador (nombre, apellido, dni, anioNacimiento)
-        VALUES ('Facundo', 'Campazzo', 36123456, 1991)
+        INSERT INTO jugador (nombre, apellido, anioNacimiento)
+        VALUES ('Facundo', 'Campazzo', 1991)
     """
     )
     db_conexion_sandbox.commit()  # Guardamos los cambios
@@ -32,5 +30,4 @@ def test_insert(db_conexion_sandbox):
     facu = cursor.fetchone()
     assert facu["nombre"] == "Facundo"
     assert facu["apellido"] == "Campazzo"
-    assert facu["dni"] == 36123456
     assert facu["anioNacimiento"] == 1991

@@ -113,6 +113,6 @@ Testing Mínimo y archivos a crear — nada resumido.
   `docs/plan_desarrollo_detallado.md`
 - PRD formal completo (LaTeX): `docs/documentacion_app_estadistica/PRD/Plan_Requerimientos_Producto_Pro.tex`
 - Ideas de aprendizaje (ampliadas hoy): `docs/ideas-aprendizaje.md`
-- Guía de Docker: `docs/guias/docker-para-tests.md`
+- Guía de Docker: `docs/info_modulo/10-docker-para-tests.md`
 - Resumen de contexto para otro chat: `docs/context_ia/resumen-conversacion-completa.md`
 - Sesión anterior: `docs/context_ia/2026-07-31-exploracion-inicial.md`

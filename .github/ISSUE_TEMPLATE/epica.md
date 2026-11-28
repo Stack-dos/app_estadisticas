@@ -1,29 +1,11 @@
 ---
 name: Épica
-<<<<<<< HEAD
-about: Plantilla para una Épica que agrupa varias Historias de Usuario
-=======
 about: Plantilla para definir una Épica dentro de un Hito
->>>>>>> 80a8c9eb0d184f16ccdc72196c550e11496b4d95
-title: "[Épica] - "
-labels: epic
+title: "[HN-EM] "
+labels: epica
 assignees: ""
 ---
 
-<<<<<<< HEAD
-## 📋 Descripción de la Épica
-
-Objetivo general de este conjunto de funcionalidades.
-
-## 📌 Historias de Usuario (US)
-
-- [ ] US-XXX: Título de la US
-- [ ] US-YYY: Título de la US
-
-## 🛠 Requerimientos Técnicos Transversales
-
-Componentes de infraestructura o patrones que afectan a toda la épica.
-=======
 ## 🗂️ Descripción de la Épica
 
 > Describe el conjunto de funcionalidades que agrupa esta épica y qué problema resuelve a nivel de módulo o capa del sistema.
@@ -107,4 +89,3 @@ tests/
 
 - Sección PRD: `Hito [N] > Épica H[N]-E[M]`
 - ADRs relacionados: ADR-00X
->>>>>>> 80a8c9eb0d184f16ccdc72196c550e11496b4d95

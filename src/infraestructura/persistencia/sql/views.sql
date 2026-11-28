@@ -1,9 +1,63 @@
 BEGIN TRANSACTION;
 
 DROP VIEW IF EXISTS v_partidos_resumen;
+DROP VIEW IF EXISTS v_totales_equipo_partido;
+DROP VIEW IF EXISTS v_lideres_club;
 DROP VIEW IF EXISTS v_boxscore_completo;
 DROP VIEW IF EXISTS v_jugador_totales_temporada;
 DROP VIEW IF EXISTS v_listas_detalle;
+
+-- Vista 0 (US-113): totales de cada equipo en cada partido, sin importar como se cargaron.
+-- Si el equipo tiene boxscore por jugador (jugadorPartido), se suman sus filas; si no, se leen los totales
+-- cargados a mano (estadisticaEquipoPartido). Pace, posesiones y eficiencias deben leer SIEMPRE de aca.
+CREATE VIEW IF NOT EXISTS v_totales_equipo_partido AS
+SELECT
+    jp.idPartido AS id_partido,
+    jp.idClub AS id_club,
+    'boxscore' AS origen,
+    SUM(jp.puntos) AS puntos,
+    SUM(jp.T2C) AS t2c,
+    SUM(jp.T2L) AS t2l,
+    SUM(jp.T3C) AS t3c,
+    SUM(jp.T3L) AS t3l,
+    SUM(jp.T1C) AS t1c,
+    SUM(jp.T1L) AS t1l,
+    SUM(jp.rebotesDef) AS rebotes_def,
+    SUM(jp.rebotesOf) AS rebotes_of,
+    SUM(jp.asistencias) AS asistencias,
+    SUM(jp.recuperos) AS recuperos,
+    SUM(jp.perdidas) AS perdidas,
+    SUM(jp.taponesRecibidos) AS tapones_recibidos,
+    SUM(jp.taponesRealizados) AS tapones_realizados,
+    SUM(jp.faltasRecibidas) AS faltas_recibidas,
+    SUM(jp.faltasCometidas) AS faltas_cometidas
+FROM jugadorPartido AS jp
+GROUP BY jp.idPartido, jp.idClub
+UNION ALL
+SELECT
+    e.idPartido,
+    e.idClub,
+    'totales',
+    e.puntos,
+    e.T2C,
+    e.T2L,
+    e.T3C,
+    e.T3L,
+    e.T1C,
+    e.T1L,
+    e.rebotesDef,
+    e.rebotesOf,
+    e.asistencias,
+    e.recuperos,
+    e.perdidas,
+    e.taponesRecibidos,
+    e.taponesRealizados,
+    e.faltasRecibidas,
+    e.faltasCometidas
+FROM estadisticaEquipoPartido AS e
+WHERE NOT EXISTS (
+    SELECT 1 FROM jugadorPartido AS jp2 WHERE jp2.idPartido = e.idPartido AND jp2.idClub = e.idClub
+);
 
 -- Vista 1: Resumen de partidos para UI y Pandas
 CREATE VIEW IF NOT EXISTS v_partidos_resumen AS
@@ -13,12 +67,20 @@ SELECT
     p.estadio,
     c.nombre AS competencia,
     c.anio AS anio_competencia,
+    cat.nombre AS categoria,
+    p.idClubLocal AS id_club_local,
     cl.nombre AS club_local,
-    cv.nombre AS club_visitante
+    p.idClubVisitante AS id_club_visitante,
+    cv.nombre AS club_visitante,
+    tl.puntos AS puntos_local,
+    tv.puntos AS puntos_visitante
 FROM partido AS p
     INNER JOIN competencia AS c ON p.idCompetencia = c.idCompetencia
+    INNER JOIN categoria AS cat ON p.idCategoria = cat.idCategoria
     INNER JOIN club AS cl ON p.idClubLocal = cl.idCLub
-    INNER JOIN club AS cv ON p.idClubVisitante = cv.idClub;
+    INNER JOIN club AS cv ON p.idClubVisitante = cv.idClub
+    LEFT JOIN v_totales_equipo_partido AS tl ON tl.id_partido = p.idPartido AND tl.id_club = p.idClubLocal
+    LEFT JOIN v_totales_equipo_partido AS tv ON tv.id_partido = p.idPartido AND tv.id_club = p.idClubVisitante;
 
 -- Vista 2: Boxscore detallado (fuente principal para Pandas)
 CREATE VIEW IF NOT EXISTS v_boxscore_completo AS
@@ -97,5 +159,19 @@ FROM inscripcion i
     INNER JOIN listaBuenaFe lbf ON lbf.idInscripcion = i.idInscripcion
     INNER JOIN jugadorListaBuenaFe jlbf ON jlbf.idListaBuenaFe = lbf.idListaBuenaFe
     INNER JOIN jugador j ON jlbf.idJugador = j.idJugador;
+
+-- Vista 5 (US-113): promedios por jugador y club, para los lideres de la pantalla de Inicio.
+CREATE VIEW IF NOT EXISTS v_lideres_club AS
+SELECT
+    jp.idClub AS id_club,
+    jp.idJugador AS id_jugador,
+    j.nombre || ' ' || j.apellido AS nombre_jugador,
+    COUNT(jp.idPartido) AS partidos_jugados,
+    ROUND(AVG(jp.puntos), 1) AS puntos_promedio,
+    ROUND(AVG(jp.rebotesDef + jp.rebotesOf), 1) AS rebotes_promedio,
+    ROUND(AVG(jp.asistencias), 1) AS asistencias_promedio
+FROM jugadorPartido AS jp
+    INNER JOIN jugador AS j ON jp.idJugador = j.idJugador
+GROUP BY jp.idClub, jp.idJugador;
 
 COMMIT;
