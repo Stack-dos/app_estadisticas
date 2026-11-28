@@ -136,12 +136,50 @@ La aplicación no se cierra por un error: después de cualquiera de estos mensaj
 | Qué | Dónde |
 | --- | --- |
 | Base de datos (SQLite) | `~/.statspro/estadisticas.db`, en la carpeta de tu usuario del sistema operativo (en Windows, `C:\Users\<usuario>\.statspro\`) |
-| Logs | `~/.statspro/logs/app.log` (rota a los 10 MB, conserva 5 archivos) |
+| Logs | `~/.statspro/logs/app.log` (rota a los 10 MB, conserva 5 archivos). Una línea JSON por evento (ver abajo) |
 | Sesión recordada ("Recordarme") | `~/.statspro/session.json`, en la carpeta de tu usuario del sistema operativo (en Windows, `C:\Users\<usuario>\.statspro\`). Guarda id de usuario, email y club activo; nunca la contraseña |
 | Rutas y scripts SQL | `src/config/rutas.py` y `src/infraestructura/persistencia/sql/` |
 
 Todo lo que la app escribe vive en `~/.statspro/`, también cuando se trabaja desde el repo (US-109): instalada, la app no puede escribir en su
 propia carpeta, y así una reinstalación no pisa los datos. Windows y WSL tienen carpetas de usuario distintas: cada uno tiene **su propia** base.
+
+### Leer los logs (US-110)
+
+Cada línea de `app.log` es un JSON:
+
+```json
+{"ts": "2026-11-27T23:10:04.512+00:00", "nivel": "INFO", "logger": "infraestructura.ui.flet.errores",
+ "mensaje": "Fin de clubes.crear: ok", "correlation_id": "b92b...", "accion": "clubes.crear",
+ "evento": "accion_fin", "pantalla": "clubes", "resultado": "ok", "duracion_ms": 3.1}
+```
+
+- **`correlation_id`**: el mismo en todo lo que pasó por un clic (pantalla, caso de uso, repositorio). Las acciones especiales son
+  `arranque` (esquema y sesión recordada) y `navegar` (cada cambio de pantalla).
+- **`evento`**: `accion_inicio` / `accion_fin` (con `resultado` `ok`, `error_dominio` o `error`, y `duracion_ms`), `error_dominio`
+  (WARNING), `error_inesperado` (ERROR, con `exc`), `login_ok`, `login_fallido`, `logout`, `set_active_club`,
+  `partido_transaccion_inicio` / `partido_transaccion_fin`, y altas/ediciones/bajas (`club_creado`, `jugador_actualizado`...).
+- Contraseñas, hashes, tokens y **emails** salen como `***`.
+
+| Variable | Valores | Default | Para qué |
+| --- | --- | --- | --- |
+| `STATSPRO_LOG_SINK` | `archivo`, `consola` | `archivo` | `consola` escribe en la terminal (stderr) en vez del archivo: para mirar en vivo mientras se desarrolla |
+| `STATSPRO_LOG_NIVEL` | `DEBUG`, `INFO`, `WARNING`, `ERROR` | `INFO` | `DEBUG` suma los INSERT de los repositorios |
+
+Un valor desconocido usa el default (no impide abrir la app). Ejemplos:
+
+```bash
+STATSPRO_LOG_SINK=consola STATSPRO_LOG_NIVEL=DEBUG uv run python src/main.py   # bash / WSL
+jq -c 'select(.nivel=="ERROR")' ~/.statspro/logs/app.log                       # solo errores
+jq -c 'select(.correlation_id=="b92b...")' ~/.statspro/logs/app.log            # un clic completo
+```
+
+```powershell
+$env:STATSPRO_LOG_SINK="consola"; uv run python src/main.py
+Get-Content ~/.statspro/logs/app.log | ConvertFrom-Json | Where-Object nivel -eq "ERROR"
+Get-Content ~/.statspro/logs/app.log | ConvertFrom-Json | Where-Object accion -eq "carga_partido.guardar" | Format-Table ts, evento, mensaje
+```
+
+Para reportar un bug: buscar la línea `error_inesperado`, copiar su `correlation_id` y adjuntar todas las líneas con ese id.
 
 - **Si tenías una base de antes (en la raíz del repo, hasta la US-109):** con la app cerrada, movela una sola vez a la carpeta nueva. Si no, la
   app arranca con una base vacía (la vieja sigue ahí, no se borra nada).

@@ -543,10 +543,22 @@ La decisión de **a dónde** ir (`resolver_ruta`) es una función pura, así que
 def test_error_inesperado_deja_el_traceback_en_el_log(caplog):
     etiqueta = crear_etiqueta_error()
 
-    ejecutar_mostrando_errores(lambda: 1 / 0, etiqueta)
+    ejecutar_mostrando_errores(lambda: 1 / 0, etiqueta, nombre="prueba.accion")
 
     assert etiqueta.value == MENSAJE_ERROR_INESPERADO
     assert "ZeroDivisionError" in caplog.text
+```
+
+`caplog` captura los registros **sin** los filtros de la app, así que no tienen `correlation_id`. Para los tests de la US-110 está la
+fixture **`registros_log`** (`tests/conftest.py`): agrega al logger raíz un handler de lista con `FiltroContexto` y `FiltroSecretos`,
+y devuelve la lista de `LogRecord`:
+
+```python
+def test_una_accion_ok_loguea_inicio_y_fin_con_duracion(registros_log):
+    ejecutar_mostrando_errores(lambda: None, crear_etiqueta_error(), nombre="clubes.crear")
+
+    assert [r.evento for r in registros_log] == ["accion_inicio", "accion_fin"]
+    assert len({r.correlation_id for r in registros_log}) == 1
 ```
 
 ### 9.4 La red de seguridad: ningún test abre la ventana

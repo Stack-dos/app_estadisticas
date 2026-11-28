@@ -417,16 +417,18 @@ Para no repetir el `try/except` en cada pantalla, la acción se **envuelve** (_w
 entregarle un handler a Flet, pero ahora a código propio.
 
 ```python
-def ejecutar_mostrando_errores(accion: Callable[[], None], etiqueta: ft.Text) -> None:
+def ejecutar_mostrando_errores(accion: Callable[[], None], etiqueta: ft.Text, *, nombre: str) -> None:
     etiqueta.value = ""                      # borra el error del intento anterior
-    try:
-        accion()
-    except ErrorDeDominio as e:
-        logger.warning(f"Error de dominio en la GUI: {e}")
-        etiqueta.value = str(e)
-    except Exception:
-        logger.exception("Error inesperado en la GUI")
-        etiqueta.value = MENSAJE_ERROR_INESPERADO
+    with nueva_accion(nombre):               # US-110: un correlation_id para todo este clic (ver la seccion 22)
+        try:
+            accion()
+        except ErrorDeDominio as e:
+            logger.warning("Error de dominio en la GUI: %s", e)
+            etiqueta.value = str(e)
+        except Exception:
+            logger.exception("Error inesperado en la GUI")
+            etiqueta.value = MENSAJE_ERROR_INESPERADO
+        # (la version real tambien loguea el inicio y el fin, con resultado y duracion)
 ```
 
 Cómo lo usa una pantalla:
@@ -439,7 +441,7 @@ def al_hacer_clic_registrar() -> None:
         usuario = registrar_uc.ejecutar(RegistrarDTO(...))
         sesion.iniciar_sesion(usuario)
         page.navigate("/inicio")             # adentro de la acción: si el caso de uso falla, no se navega
-    ejecutar_mostrando_errores(accion, etiqueta_error)
+    ejecutar_mostrando_errores(accion, etiqueta_error, nombre="registro.registrar")
     page.update()
 ```
 
@@ -1034,7 +1036,8 @@ falla ahí. **No abre la ventana ni crea la base** porque eso pasa dentro de `ej
    Si es una sección nueva, suma su fila a `DESTINOS` en `components/menu_lateral.py`. Ningún color ni
    espaciado escrito a mano: todo sale de `estilo.py`.
 5. Cada handler que llame a un caso de uso lo hace a través de `ejecutar_mostrando_errores`, con una
-   etiqueta de `crear_etiqueta_error()` debajo del formulario.
+   etiqueta de `crear_etiqueta_error()` debajo del formulario y el nombre de la acción para el log
+   (`nombre="pantalla.que_hace"`, US-110).
 6. Agregar los casos de la ruta nueva a `tests/unit/test_navegacion.py`.
 7. Si tiene formulario: `tests/unit/test_<nombre>_screen.py` con mocks (camino feliz, un error de
    dominio y un error inesperado; ver la [sección 13](#testear-una-pantalla-sin-abrir-la-ventana)),
@@ -1729,3 +1732,43 @@ calcula para que tengan contraste suficiente. Mezclarlos (por ejemplo, texto `PR
 - **Mostrar en el resumen algo distinto de lo que se guarda:** el resumen se arma con el mismo
   `_Guardado` que después se manda al caso de uso.
 - **Usar color para todo:** si todo resalta, nada resalta.
+
+---
+
+## 22. Una acción, un correlation_id: `ContextVar` y los eventos de Flet (US-110)
+
+**Concepto.** Cada clic del usuario es una **acción** con su `correlation_id` (ver `docs/info_modulo/01-logger.md`). El id viaja en una
+`ContextVar`, y lo que importa para la GUI es **dónde nace** cada acción y **qué contexto** ve cada handler de Flet.
+
+**Problema que resuelve.** Sin esto, en `app.log` las líneas de "Guardar partido" se mezclan con las de la navegación y con las de
+otros clics. Con el id, `jq 'select(.correlation_id=="...")'` muestra solo ese clic, de la pantalla al repositorio.
+
+**Cómo funciona en la app.** Las acciones nacen en tres lugares:
+
+| Dónde | `accion` | Qué cubre |
+| --- | --- | --- |
+| `ejecutar_mostrando_errores(..., nombre="clubes.crear")` | el `nombre` | Cada botón que llama a un caso de uso |
+| `al_cambiar_ruta` en `app.py` | `navegar` | Cada cambio de pantalla (con la ruta como campo `ruta`) |
+| `ejecutar()` en `app.py` | `arranque` | El esquema de la base y la sesión recordada |
+
+```python
+def al_cambiar_ruta() -> None:
+    with nueva_accion("navegar"):
+        logger.info("Navegar a %s", page.route, extra={"evento": "navegar", "ruta": page.route})
+        _dibujar_ruta()
+```
+
+**Detalles técnicos.**
+
+- **Cada evento de Flet arranca con el contexto vacío.** Flet atiende los eventos desde su _event loop_ (asyncio); una tarea nueva
+  copia el contexto **de quien la crea**, que es el loop, no el handler anterior. Por eso dos clics nunca comparten id.
+- **Por eso `ft.run(...)` queda fuera de `nueva_accion("arranque")`**: si estuviera adentro, el loop de Flet nacería con ese contexto y
+  todas sus tareas (todos los clics) lo heredarían.
+- **Acciones anidadas:** "Guardar" llama a `page.navigate(...)`, que puede disparar `al_cambiar_ruta` en el mismo hilo. `nueva_accion`
+  ve que ya hay una abierta y la reutiliza: el clic y la navegación que provocó salen con el mismo id.
+- **El nombre es obligatorio** (`*, nombre: str`): una pantalla nueva que olvide nombrar su acción no pasa mypy ni los tests.
+
+**Errores comunes.**
+
+- Repetir el mismo `nombre` en dos botones distintos de una pantalla: el log ya no dice cuál se tocó.
+- Loguear desde un `threading.Thread` propio esperando el id: el hilo arranca vacío (`contextvars.copy_context().run(...)`).

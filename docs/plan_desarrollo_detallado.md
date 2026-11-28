@@ -263,7 +263,7 @@ tests/
 
 - **`casos_uso/`** — un archivo = una acción del usuario. Cada caso de uso recibe sus dependencias (repositorios, servicios) por constructor y expone un único método `ejecutar(dto)`. Ejemplo: `RegistrarJugadorUseCase.ejecutar(dto)` crea la entidad `Jugador` (que valida sus tipos), la persiste con `repo.guardar` y retorna un `JugadorDTO`. Detalle de los casos de uso implementados (17 de la US-103 y 2 de la US-104) en `docs/info_modulo/03-casos-de-uso.md`.
 - **`dtos/`** — dataclasses simples, sin lógica, que viajan entre la GUI y los casos de uso (`CrearJugadorDTO` entra, `JugadorDTO` sale). Un archivo por entidad, con los DTOs de entrada y de salida juntos.
-- **`servicios/`** — servicios transversales que no pertenecen a un caso de uso específico, como `SessionManager` (sesión del usuario y club activo) y `ExecutionContext` (propagación de `correlation_id` para logs).
+- **`servicios/`** — servicios transversales que no pertenecen a un caso de uso específico, como `SessionManager` (sesión del usuario y club activo). El contexto de cada acción (`correlation_id`) **no** quedó acá: vive en `infraestructura/observabilidad.py` y la aplicación solo usa `logging` de la biblioteca estándar (US-110, ADR-011).
 
 **Capa de Infraestructura (`src/infraestructura/`)** — implementa los contratos del dominio con tecnologías concretas. Es la única capa que puede importar `sqlite3`, `pandas`, `flet`, `bcrypt`, etc.
 
@@ -332,7 +332,7 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 2. **US-105:** se crean `Pbkdf2PasswordHasher`, `SessionManager` (en memoria) y los casos de uso de autenticación; se registran las pantallas de login, registro e inicio.
 3. **US-106/107:** se suma la persistencia de la sesión, la pantalla de clubes y las pantallas de gestión con los casos de uso administrativos de la US-103.
 4. **US-108:** se crea `CargarPartidoUseCase` y se registra la pantalla de carga de partido.
-5. **US-110:** se inicializa el `ExecutionContext` en cada acción del usuario y se conecta el logging estructurado.
+5. **US-110:** `logger.py` arma el handler JSON (sink y nivel por variables de entorno); cada acción del usuario abre su `correlation_id` en `ejecutar_mostrando_errores`, cada cambio de pantalla en `al_cambiar_ruta` ("navegar") y el arranque en `ejecutar()` ("arranque").
 6. **Hitos 2 a 4:** cada historia que suma una pantalla la registra acá, con sus casos de uso como dependencias.
 
 **Regla de oro:** si una clase crea sus dependencias con `NombreClase()` dentro de un método que no sea el composition root, hay un problema de acoplamiento que debe corregirse.
@@ -529,6 +529,7 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 | ADR-008 | Estrategia de Backup     | Aprobado (`docs/adr/ADR-008-estrategia-backup.md`)                                        | Exportación/restauración manual con `VACUUM INTO`/backup online de SQLite                                                                          | Hito 4          |
 | ADR-009 | Pipeline CI/CD           | Aprobado, ya implementado (`docs/adr/ADR-009-pipeline-cicd.md`)                           | GitHub Actions (hosted) para lint, tests y cobertura automáticos                                                                                   | US-109          |
 | ADR-010 | Carga del rival          | Aprobado, ya implementado (`docs/adr/ADR-010-carga-rival-y-totales.md`)                   | Boxscore completo solo del club propio; del rival, totales en `estadisticaEquipoPartido` o boxscore con alta automática en la misma transacción   | US-113          |
+| ADR-011 | Logs estructurados       | Aprobado, ya implementado (`docs/adr/ADR-011-logs-estructurados.md`)                      | `logging` de la biblioteca estándar con formatter JSON propio y `ContextVar` para el `correlation_id`; sin structlog ni servicio externo           | US-110          |
 
 Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Alternativas Consideradas → Decisión Tomada → Ventajas y Desventajas. Los ADR escritos viven en `docs/adr/` (no en el submódulo de documentación, que es de otro repositorio). **Estado (2026-10-03): los 9 ADR ya están redactados en `docs/adr/`.** Aprobados sin preguntas
 pendientes: ADR-001, ADR-002, ADR-005, ADR-007, ADR-008, ADR-009. Con preguntas abiertas a
@@ -1414,13 +1415,30 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 
 #### US-110 — Monitoreo y Trazabilidad Operativa
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-107, US-108
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-107, US-108 · **Estado:** ✅ Hecha (2026-11-27), las dos pistas juntas
 - **Antes era la US-108.** El "comando" como unidad de trazabilidad pasa a ser la **acción del usuario** en la GUI (un botón que invoca un caso de uso).
 - **Objetivo Funcional:** proveer observabilidad transversal estructurada para depuración y soporte, con correlación de eventos extremo-a-extremo por acción del usuario.
 - **Reparto en dos pistas:**
   - **Pista B (trabajo suelto, cualquier ronda):** núcleo — `ExecutionContext`, formato JSON, redacción de secretos (AC3) y selección de sink (AC4), con sus tests unitarios.
   - **Pista A (ronda 4):** conectar los eventos a las acciones de las pantallas y a los casos de uso de la lista de eventos obligatorios, y el test de integración del `correlation_id`.
   - **Juntos, antes:** los nombres de los campos del evento (`accion`, `correlation_id`, resultado, duración), que son el contrato entre las dos pistas.
+
+> **Decisiones tomadas (2026-11-27, ver ADR-011):**
+>
+> - **Nombre explícito de cada acción:** `ejecutar_mostrando_errores(accion, etiqueta, nombre="clubes.crear")`, con el formato
+>   `pantalla.que_hace`. Es obligatorio (keyword-only): una pantalla nueva no puede olvidarse de nombrar su acción.
+> - **JSON con la biblioteca estándar:** `FormateadorJson` propio (`json.dumps`), sin `structlog` ni `python-json-logger`.
+> - **Sink por variables de entorno:** `STATSPRO_LOG_SINK=archivo|consola` (default `archivo`, `~/.statspro/logs/app.log`) y
+>   `STATSPRO_LOG_NIVEL` (default `INFO`). Un valor desconocido usa el default: un error de tipeo no impide abrir la app. Sin Seq,
+>   SigNoz ni otro servicio: se evaluó un `docker compose` para desarrollo y se descartó (con `consola` + `jq` alcanza).
+> - **Eventos de entidades en los casos de uso**, con `logging.getLogger(__name__)` de la biblioteca estándar: la aplicación no
+>   importa infraestructura. El `correlation_id` lo agrega el handler, no el que loguea.
+> - **Arranque y navegación también son acciones:** el esquema y la sesión recordada salen con `accion="arranque"`; cada cambio de
+>   pantalla, con `accion="navegar"`. Si una acción abre otra (Guardar navega), sigue el `correlation_id` de la de afuera.
+> - **Los filtros van en el handler**, no en el logger raíz: los filtros de un logger no ven lo que propagan sus hijos.
+> - **Emails tapados** además de los secretos: son dato personal (y los mensajes de dominio a veces los incluyen). El login fallido
+>   se loguea sin el email.
+> - Fuera de alcance por ahora: importación Excel y backup/restore (no existen todavía; se suman en la US-201 y la US-402).
 
 - **Eventos de log obligatorios:** inicio/fin de cada acción del usuario (pantalla, acción, resultado y duración); `LoginLocalUseCase`/cierre de sesión, `SessionManager.set_active_club` (US-104/106), fallos de autenticación; inicio/fin de transacciones críticas (`CargarPartidoUseCase` de US-108; importación Excel y backup/restore cuando existan, US-201 y US-402); creación/actualización de entidades principales; excepciones de dominio y errores de infraestructura, clasificados por severidad.
 - **Criterios de Aceptación:**
@@ -1431,6 +1449,10 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 - **Testing Mínimo:**
   - _Unitario:_ creación y propagación de `execution_context`; redacción de secretos en campos conocidos.
   - _Integración:_ una acción completa (por ejemplo, crear un club con sesión iniciada) → verificar que todos sus eventos tienen el mismo `correlation_id` y que otra acción tiene uno distinto.
+  - _Implementado:_ `tests/unit/test_observabilidad.py` (contexto, anidado, JSON, redacción, sink y nivel, inicio/fin de acción),
+    eventos de login/logout/club activo en `test_uc_auth.py` y `test_session_manager.py`, y
+    `tests/integration/test_observabilidad_flujo.py` (crear un club con SQLite real: pantalla, repositorio y caso de uso con el mismo
+    `correlation_id`; otra acción, otro). La fixture `registros_log` de `tests/conftest.py` captura los registros con los filtros reales.
 
 ### Épica H1-E3: Entorno de Calidad y Pipeline CI/CD
 
@@ -2716,5 +2738,5 @@ fuentes, por si se prefiere consultar esta vista en vez de la de "Registro de De
 
 - **Commits:** `tipo: descripción corta` (`FEAT`, `FIX`, `DOCS`, `STYLE`, `REFACTOR`, `PERF`, `TEST`) — ver `docs/info_modulo/02-reglas.md`.
 - **Interfaces de repositorio:** el proyecto usa `ABC`/`@abstractmethod` en la práctica, **no** `typing.Protocol` como sugiere `docs/info_modulo/07-protocolos.md` (que compara ambas). Ambas son válidas — vale un ADR corto para dejarlo asentado.
-- **Logging:** `infraestructura/logger.py` ya implementado (rotación 10MB, 5 backups, nivel INFO+ a archivo) — ver `docs/info_modulo/01-logger.md`. Es la base sobre la que debería crecer la US-110 (JSON estructurado + `correlation_id`), no un reemplazo.
+- **Logging:** `infraestructura/logger.py` (rotación 10MB, 5 backups) con formato JSON, `correlation_id` y redacción de secretos desde la US-110 (`infraestructura/observabilidad.py`, ADR-011) — ver `docs/info_modulo/01-logger.md`. En la aplicación, `logging.getLogger(__name__)`; en infraestructura, `get_logger(__name__)`.
 - **Análisis estático:** el proyecto usa `ruff` en la práctica (`pyproject.toml`, `.github/workflows/MainAction.yml`), no `flake8`/`pylint` como sugería el borrador original del Acuerdo de Ingeniería (sección 5) — ya reflejado arriba.
