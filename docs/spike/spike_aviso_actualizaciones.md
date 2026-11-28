@@ -2,7 +2,7 @@
 
 | Campo           | Valor                                                                                               |
 | --------------- | --------------------------------------------------------------------------------------------------- |
-| Estado          | Propuesto (no iniciado)                                                                             |
+| Estado          | Implementado (2026-11-28). Falta probar el binario de un `-rc` (sección 10, pendiente)              |
 | Fecha           | 2026-11-14                                                                                          |
 | Rama sugerida   | `spike/aviso-actualizaciones`                                                                       |
 | Timebox         | 1 día. Si se pasa, se corta y se documenta lo aprendido.                                            |
@@ -136,7 +136,7 @@ Respeta las capas de siempre (sección 5 del PRD): la regla (comparar versiones,
 > carpeta temporal.
 
 1. **Rama** `spike/aviso-actualizaciones` desde la rama de integración del momento.
-2. **La API a mano:** `curl -s https://api.github.com/repos/nicopinera/app_estadisticas/releases/latest`. Confirmar que no
+2. **La API a mano:** `curl -s https://api.github.com/repos/Stack-dos/app_estadisticas/releases/latest`. Confirmar que no
    devuelve los `-rc` y qué devuelve si no hay ningún release estable todavía (hoy solo hay pre-releases: debería ser un 404).
 3. **Comparación de versiones** en una función pura, con tests: igual, mayor, menor, `0.10.0` contra `0.9.0`, tag con `v`, tag
    raro (`v1.0`, `latest`) → no avisar.
@@ -168,7 +168,7 @@ Respeta las capas de siempre (sección 5 del PRD): la regla (comparar versiones,
 | El repo se renombra o se transfiere (ya pasó: `nicopinera/…` → `Stack-dos/…`) | GitHub redirige (301) y `urllib` lo sigue; más robusto: usar el id numérico del repo (`/repositories/1181238798/releases/latest`), que no cambia |
 | Alguien publica por error un release sin binarios | `/latest` lo devolvería; el aviso lleva a una página sin descargas. Se corrige borrando el release |
 
-## 9. Entregables al cerrar el spike
+## 9. Entregables al cerrar el spike (resueltos en la sección 10)
 
 - Este documento con la sección 10 completa.
 - La decisión de dónde va en el PRD: **(a)** una US chica nueva en el Hito 1 (por ejemplo, "US-113: Aviso de versión nueva", S,
@@ -178,4 +178,35 @@ Respeta las capas de siempre (sección 5 del PRD): la regla (comparar versiones,
 
 ## 10. Resultados
 
-Pendiente. Al cerrar el spike: qué se probó, qué funcionó, qué no, y la decisión tomada.
+Cerrado el 2026-11-28. La respuesta a la pregunta de la sección 2 es **sí**: la app consulta GitHub en segundo plano, no se
+bloquea ni falla sin internet, y avisa con un link. Se implementó directamente con calidad de producción (no es un prototipo).
+
+### Decisiones
+
+| Punto | Decisión |
+| --- | --- |
+| Dónde va en el PRD (sección 9) | **Ni US nueva ni dentro de la US-404**: entra como parte del Hito 1, para que la v1.0.0 ya salga con el aviso. La versión embebida que se adelantó queda anotada en el AC1 de la US-409 |
+| Versión de la app (4.2) | **(a)** `VERSION = "1.0.0"` en `src/config/version.py`; el job `version` de `release.yml` la compara con el tag, igual que `pyproject.toml` |
+| URL de la API | Por **id** (`/repositories/1181238798/releases/latest`): no cambia si el repo se renombra o se transfiere |
+| Cómo se desactiva (4.6) | Variable de entorno `STATSPRO_SIN_AVISO_VERSION=1` (RUNBOOK, "Aviso de versión nueva"); no hay pantalla de configuración todavía |
+| Estado entre arranques | Archivo propio `~/.statspro/aviso_version.json`, no `session.json`: cerrar sesión borra la sesión pero no tiene que olvidar la versión omitida |
+| Aviso en pantalla | `ft.Banner` y no `ft.SnackBar`: el SnackBar admite un solo botón y se va solo a los 4 s. Botones: Descargar · Omitir esta versión · Ahora no |
+| Si la consulta falla | Igual se guarda la fecha: sin internet tampoco se reintenta en cada arranque (se pierde, como mucho, un día de aviso) |
+
+### Qué se probó y qué dio
+
+| Paso | Resultado |
+| --- | --- |
+| 1. API a mano | `/releases/latest` → **404** (solo existe `v0.1.0-rc.2`, pre-release): los `-rc` no aparecen. El nombre viejo responde **301** hacia el id. Límite: 60 pedidos/hora |
+| 2. Comparar versiones | `dominio/versiones.py`: tuplas de enteros, `fullmatch` y `[0-9]` (no `\d`). Tags raros (`v1.0`, `latest`, `-rc`) → no avisa. Tests: `tests/unit/test_versiones.py` |
+| 3. Adaptador `urllib` | `infraestructura/github_releases_fuente.py`. `urlopen` **lanza** `HTTPError` ante el 404 (no lo devuelve). Contra GitHub real → `None` (404); contra una IP que no responde → `None` a los 3 s; sin conexión y timeout probados con un servidor local. La URL de descarga tiene que empezar con `https://github.com/` |
+| 4. Una vez por día y omitir | `BuscarActualizacionUseCase` y `OmitirVersionUseCase`, con tests sin red (`tests/unit/test_uc_aviso_version.py`) |
+| 5. Versión en el binario | Resuelto por diseño con la constante (no depende de `importlib.metadata`). **Pendiente** probarlo en el binario de un `-rc` |
+| 6. Aviso en la GUI | Con una fuente falsa (`v9.9.9`, 2 s de demora): la ventana se dibuja enseguida, el Banner aparece después y "Descargar" abre el navegador |
+
+### Pendiente
+
+- **Probar el binario de un `-rc`** (Windows y Linux): que el aviso aparezca con una versión publicada mayor y, sobre todo, que el
+  Python empaquetado encuentre los **certificados SSL**. Si no los encuentra, cada consulta falla con `URLError` (queda en el log como
+  `info`) y el aviso nunca aparece, sin ningún error visible.
+- El caso `200` solo se probó con un JSON armado a mano: no hay ningún release estable publicado todavía.

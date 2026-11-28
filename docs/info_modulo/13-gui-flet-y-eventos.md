@@ -57,6 +57,8 @@
   - [19. Editar con la misma pantalla, rutas con id y texto en Markdown (US-114)](#19-editar-con-la-misma-pantalla-rutas-con-id-y-texto-en-markdown-us-114)
   - [20. Usar el ancho: tablas estiradas, secciones plegables y grillas chicas (US-114)](#20-usar-el-ancho-tablas-estiradas-secciones-plegables-y-grillas-chicas-us-114)
   - [21. Un asistente por pasos, filtros con SegmentedButton y color con intención (US-114)](#21-un-asistente-por-pasos-filtros-con-segmentedbutton-y-color-con-intención-us-114)
+  - [22. Una acción, un correlation_id: `ContextVar` y los eventos de Flet (US-110)](#22-una-acción-un-correlation_id-contextvar-y-los-eventos-de-flet-us-110)
+  - [23. Trabajo en segundo plano, un Banner y abrir el navegador (aviso de versión nueva)](#23-trabajo-en-segundo-plano-un-banner-y-abrir-el-navegador-aviso-de-versión-nueva)
 
 ---
 
@@ -1772,3 +1774,74 @@ def al_cambiar_ruta() -> None:
 
 - Repetir el mismo `nombre` en dos botones distintos de una pantalla: el log ya no dice cuál se tocó.
 - Loguear desde un `threading.Thread` propio esperando el id: el hilo arranca vacío (`contextvars.copy_context().run(...)`).
+
+
+## 23. Trabajo en segundo plano, un Banner y abrir el navegador (aviso de versión nueva)
+
+**Concepto.** Algunas cosas tardan y no dependen del usuario: consultar una API por internet, por ejemplo. Se hacen en **otro
+hilo** (_thread_) para que la ventana siga respondiendo, y cuando terminan muestran algo en pantalla.
+
+**Problema que resuelve.** Al abrir la app se consulta GitHub para saber si hay una versión nueva
+(`docs/spike/spike_aviso_actualizaciones.md`). Con una red lenta, eso puede tardar hasta 3 segundos (el timeout). Si se hiciera en el
+mismo hilo que dibuja, la ventana quedaría **congelada** (en blanco o sin responder a los clics) todo ese tiempo.
+
+**Cómo funciona en la app** (`components/aviso_version.py`):
+
+```python
+def buscar_version_en_segundo_plano(page, buscar_uc, omitir_uc) -> None:
+    def buscar() -> None:
+        with nueva_accion("aviso_version.buscar"):
+            try:
+                version = buscar_uc.ejecutar()          # puede tardar: corre en otro hilo
+                if version is not None:
+                    page.show_dialog(crear_aviso_version(page, version, omitir_uc))
+            except Exception:
+                logger.exception("Fallo la busqueda de version nueva: se sigue sin avisar")
+
+    page.run_thread(buscar)                              # vuelve enseguida
+```
+
+Y en `app.py`, **después** de dibujar la primera pantalla:
+
+```python
+al_cambiar_ruta()          # la ventana ya tiene su pantalla
+if aviso_version is not None:
+    aviso_version(page)    # recién ahora se lanza la consulta
+```
+
+**Ejemplo.** Sin internet: la pantalla de login aparece al instante; 3 segundos después el hilo se rinde, deja una línea en el log y no
+pasa nada más. Con una versión nueva publicada: aparece el login y, un momento después, el Banner arriba.
+
+**Detalles técnicos.**
+
+- **`page.run_thread(funcion, *args)`** corre la función en el _executor_ (un grupo de hilos) de la página. Desde ese hilo se puede
+  llamar a `page.show_dialog(...)` y a `page.update()`: Flet manda los cambios a la ventana por su cuenta.
+- **Un error en ese hilo no lo ve nadie.** El executor guarda la excepción y nadie la pide: no aparece en la consola ni en el log. Por
+  eso el `try/except Exception` con `logger.exception`, que sí deja el _traceback_.
+- **El hilo arranca con su propio contexto**, por eso abre su `nueva_accion(...)`: sus líneas de log salen con un `correlation_id`
+  propio (sección 22).
+- **`ft.Banner` y no `ft.SnackBar`.** Los dos son _dialog controls_ (se muestran con `page.show_dialog` y se cierran con
+  `page.pop_dialog`). El SnackBar admite **un solo** botón (`action`) y se va solo a los 4 segundos; el Banner queda arriba hasta que
+  el usuario elige, y admite varios botones en `actions`: "Omitir esta versión", "Ahora no" y "Descargar".
+- **Abrir el navegador: `ft.UrlLauncher`.** En Flet 1.x ya no existe `page.launch_url`: es un **servicio** y es **asíncrono**, así que
+  el handler del botón es `async` y lo espera:
+
+  ```python
+  async def descargar() -> None:
+      page.pop_dialog()
+      await ft.UrlLauncher().launch_url(version.url)
+  ```
+
+  Flet acepta handlers `async` en `on_click` igual que los comunes.
+- **Para testearlo sin ventana:** `page = MagicMock(spec=ft.Page)` y `page.run_thread.side_effect = lambda h, *a: h(*a)` (el "hilo"
+  corre en el acto). El botón `async` se prueba con `asyncio.run(boton.on_click())` y `ft.UrlLauncher` reemplazado por un mock con
+  `launch_url = AsyncMock()` (`tests/unit/test_aviso_version.py`).
+
+**Errores comunes.**
+
+- Hacer la consulta antes de dibujar la primera pantalla: aunque vaya en otro hilo, compite con el arranque. Se lanza después.
+- Lanzar un `threading.Thread` a mano: también funciona, pero `run_thread` es lo que provee Flet y usa el executor de la página.
+- Olvidar el `await` en `launch_url`: la corrutina se crea y no se ejecuta, el navegador nunca se abre (Python avisa con
+  `RuntimeWarning: coroutine ... was never awaited`).
+- Llamar a `page.show_dialog` dos veces con **el mismo** control: lanza `RuntimeError("Dialog is already opened")`. Se arma uno nuevo
+  cada vez.

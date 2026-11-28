@@ -27,6 +27,12 @@
 >
 > Los documentos de `docs/context_ia/` son registros de sesiones pasadas y conservan la
 > numeración y la CLI de su fecha.
+>
+> **Cambio de forma de trabajo (2026-11-27), al cerrar el Hito 1:** desaparece `develop`; cada
+> historia se toma como un ticket y va en una PR chica a `main` (secciones 5 y 15). Las versiones se
+> atan a hitos y épicas (Hito 1 → v1.0.0, cada épica sube el MINOR y la última de cada hito, el
+> MAJOR). Las historias de los Hitos 2 a 4 se dividieron en historias chicas sin pistas A/B. Desde
+> la v1.0.0 la base de un usuario solo cambia con migraciones aditivas (sección 3).
 
 ---
 
@@ -40,10 +46,10 @@
 6. [Reglas de Negocio Consolidadas](#6-reglas-de-negocio-consolidadas)
 7. [Requisitos No Funcionales (NFR)](#7-requisitos-no-funcionales-nfr)
 8. [Registro de Decisiones Arquitectónicas (ADR)](#8-registro-de-decisiones-arquitectónicas-adr)
-9. [Hito 1 — Núcleo de Datos e Interfaz Gráfica Base (v0.1)](#9-hito-1--núcleo-de-datos-e-interfaz-gráfica-base-v01)
-10. [Hito 2 — Motor de Ingesta y Análisis (v0.2)](#10-hito-2--motor-de-ingesta-y-análisis-v02)
-11. [Hito 3 — Visualización Pro y Reporting (v0.3)](#11-hito-3--visualización-pro-y-reporting-v03)
-12. [Hito 4 — Interfaz Multiplataforma y Entrega (v1.0)](#12-hito-4--interfaz-multiplataforma-y-entrega-v10)
+9. [Hito 1 — Núcleo de Datos e Interfaz Gráfica Base (v1.0.0)](#9-hito-1--núcleo-de-datos-e-interfaz-gráfica-base-v100)
+10. [Hito 2 — Motor de Ingesta y Análisis (v2.0.0)](#10-hito-2--motor-de-ingesta-y-análisis-v200)
+11. [Hito 3 — Visualización Pro y Reporting (v3.0.0)](#11-hito-3--visualización-pro-y-reporting-v300)
+12. [Hito 4 — Interfaz Multiplataforma y Entrega (v4.0.0)](#12-hito-4--interfaz-multiplataforma-y-entrega-v400)
 13. [Definición de "Hecho" (DoD)](#13-definición-de-hecho-dod)
 14. [Proceso de Liberación de Versiones](#15-proceso-de-liberación-de-versiones)
 15. [Roadmap Futuro (Hitos 5–9, visión de producto)](#16-roadmap-futuro-hitos-59-visión-de-producto)
@@ -90,7 +96,7 @@ Pilares del producto:
 
 ### 1.3 Metas y no metas
 
-**En el alcance (v1.0):**
+**En el alcance (hasta el Hito 4, v4.0.0):**
 
 - **Ingesta multimodal:**
   - _Automática:_ carga de planillas Excel o PDF de Gesdeportiva (partidos y listados de jugadores).
@@ -99,7 +105,7 @@ Pilares del producto:
 - **Motor estadístico:** análisis de tendencias, PPP, estadistica avanzada y eficiencia con Pandas.
 - **Multiplataforma:** ejecución en Windows, Linux, macOS y dispositivos móviles.
 
-**Fuera de alcance (v1.0):**
+**Fuera de alcance (hasta el Hito 4, v4.0.0):**
 
 - **Carga en vivo:** toma de datos en tiempo real durante el partido — se posterga a versiones post-estables (ver Hito 7 en el roadmap futuro).
 - **Sincronización cloud:** no se contempla almacenamiento en la nube inicialmente.
@@ -160,17 +166,50 @@ El sistema usa una base de datos relacional local (**SQLite**) con esquema norma
 - El historial de afiliaciones de un jugador se mantiene vía `jugadorClub` (N:M con fechas).
 - `jugadorPartido` actúa como **fact table** para el motor de análisis (Pandas lee desde acá vía las vistas SQL).
 
+### Evolución del esquema desde v1.0.0 (regla de producción)
+
+Desde la v1.0.0 hay usuarios con datos reales en `~/.statspro/`. **Una versión nueva nunca puede
+hacerles perder datos.** Por eso, a partir del Hito 2:
+
+- **Prohibido modificar la base, salvo con migraciones aditivas** (agregados en caliente, como las
+  migraciones de Supabase). Las aplica yoyo-migrations (US-204, ADR-004) al abrir la app, una sola
+  vez cada una y en orden.
+- **Permitido en una migración:** `CREATE TABLE`, `CREATE INDEX`, `ALTER TABLE … ADD COLUMN` (que
+  acepte `NULL` o tenga `DEFAULT`; SQLite no deja agregar una columna `PRIMARY KEY`, `UNIQUE` ni
+  `NOT NULL` sin default) e `INSERT` de datos de referencia nuevos.
+- **Prohibido:** `DROP TABLE`, `DROP COLUMN`, `RENAME`, `DELETE`, `UPDATE`, y reconstruir una tabla
+  para cambiarle tipos o restricciones. El CI lo controla (US-209). Si algún día un cambio no
+  aditivo es indispensable, primero va un ADR que lo justifique; recién después se escribe la
+  historia.
+- **Una migración que ya está en `main` no se edita ni se borra:** se corrige con otra migración.
+- **`schema.sql` queda congelado en la v1.0.0** y la US-204 lo convierte en `0001_base_v1_0_0.sql`.
+  Hasta que la US-204 se mergee, ninguna historia toca tablas. Hoy `schema.sql` usa
+  `CREATE TABLE IF NOT EXISTS`: no borra datos, pero un cambio a una tabla que ya existe se ignora en
+  silencio en la base de un usuario, y el código nuevo falla contra ella. Por eso los cambios van por
+  migración.
+- **Las vistas sí se pueden cambiar:** no guardan datos y `views.sql` se recrea en cada arranque,
+  después de las migraciones. Una vista solo usa columnas que ya existen por migración, y quien la
+  cambia ajusta a sus consumidores.
+- **El código tolera filas viejas:** una columna agregada vale `NULL` o su default en las filas
+  anteriores a la migración.
+- **Se terminó "borrar y recrear la base local"** para probar un cambio de tablas (así se hizo en
+  el Hito 1, por ejemplo en las US-107 y US-108): también en desarrollo se hace con una migración.
+- **Antes de migrar se copia la base** (US-208). Una versión vieja de la app nunca toca una base
+  que ya migró una versión más nueva.
+- **Lo mismo vale para los otros archivos del usuario** (sesión, configuración): una versión nueva
+  lee el formato viejo o lo descarta sin error (ej. US-415).
+
 ### Agregados estadísticos: por jugador (existe) y por club (falta, propuesto)
 
 Hoy solo existe un agregado pre-calculado a nivel **jugador**: `v_jugador_totales_temporada` (suma todas sus filas de `jugadorPartido` agrupadas por año). No existe ningún agregado equivalente a nivel **club/equipo** — todo lo que hay hoy sobre clubes es o bien por-partido (`v_partidos_resumen`, un cruce puntual) o inexistente para series de tiempo/competencias.
 
-Para que la app pueda responder "¿cómo viene mi equipo en toda la competencia?" o "¿cómo viene mi equipo este año, sumando todas las competencias?" (ver Hito 2/3, US-202/203/301), hace falta un agregado análogo, sumando **todos los jugadores de un club** en vez de uno solo. Conceptualmente sería una vista (o un cálculo equivalente en Pandas, ver nota de US-203) con esta forma:
+Para que la app pueda responder "¿cómo viene mi equipo en toda la competencia?" o "¿cómo viene mi equipo este año, sumando todas las competencias?" (ver Hito 2/3, US-221, US-227, US-307), hace falta un agregado análogo, sumando **todos los jugadores de un club** en vez de uno solo. Conceptualmente sería una vista (o un cálculo equivalente en Pandas, ver nota de US-203) con esta forma:
 
 - Agrupada por `idClub` + (`idCompetencia` **o** `anio`, según qué recorte se pida — nunca los dos mezclados, para no repetir el bug ya documentado en sección 20).
 - Mismas métricas que `v_jugador_totales_temporada` (puntos, T1/T2/T3, rebotes, asistencias, recuperos, pérdidas, tapones, faltas, porcentajes), sumadas a nivel equipo en vez de individual.
 - No requiere ninguna tabla ni columna nueva — sale enteramente de `jugadorPartido` join `club`, igual que el agregado de jugador.
 
-**No se define el SQL exacto acá a propósito** — es una decisión de implementación para cuando se aborde la US-203, no algo a resolver en esta revisión del PRD.
+**Decidido en el rearmado del 2026-11-27 (US-221):** no se crea una vista nueva. El agregado sale con pandas de `v_totales_equipo_partido` (US-113), que ya junta los totales de cada equipo en cada partido, se haya cargado con boxscore o solo con totales (ADR-010).
 
 ---
 
@@ -305,7 +344,7 @@ La GUI es un único proceso que queda abierto, así que la sesión vive **en mem
 - `email`: email del usuario (para mostrar en la UI).
 - `club_activo_id`: ID del club seleccionado actualmente (`null` si no se seleccionó ninguno).
 
-Sin token ni expiración en v0.1 (ver las decisiones de la US-106); la expiración configurable llega con el hardening de la US-403.
+Sin token ni expiración en v1.0.0 (ver las decisiones de la US-106); la expiración configurable llega con la US-415 (Hito 4).
 
 **¿Cómo se establece el `club_activo_id`?** (US-106)
 
@@ -345,7 +384,32 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 
 - **Diseño precede a la implementación:** no se escribe código sin un diseño previo aprobado (ADR).
 - **Atomicidad:** commits pequeños y lógicos. Formato: `tipo(alcance): descripción`.
-- **Gestión de ramas:** `feature/usXXX` → `feature/epicaN` → `feature/hitoN` → `develop` → `main` (tag `vX.Y.Z`), y `hotfix/descripción`; detalle y estrategia de merge en la sección 15.
+- **Gestión de ramas:** `feature/usNNN-descripcion` desde `main` → PR a `main` (_squash_); tag `vX.Y.Z` en `main` al cerrar cada épica, y `hotfix/descripción` desde el último tag. Detalle en la sección 15.
+
+### Cómo trabajamos (desde el 2026-11-27)
+
+Somos dos y cada historia se toma como un **ticket**: la hace una sola persona, de punta a punta.
+
+- **Qué historia tomar:** cualquiera cuyas dependencias estén todas mergeadas en `main`. Cada hito
+  tiene un **mapa de dependencias** al principio. Antes de arrancar, cada uno se asigna la issue
+  (Project: _En curso_), así los dos no toman la misma.
+- **Rama y PR:** `feature/usNNN-descripcion` desde `main` actualizado; el número de la rama vincula
+  la PR con su issue (US-109 AC18). PR a `main` con _squash_, revisada por el otro integrante.
+- **PR chicas:** una historia apunta a una PR que se lee en una sentada. Si mientras se hace aparece
+  más trabajo del previsto, la parte nueva se anota como una **historia nueva** en este PRD (número
+  nuevo, con objetivo y dependencias) en vez de agrandar la PR.
+- **`main` siempre publicable:** cada PR deja la app andando y los tests en verde. Lo que no está
+  terminado no se ve (una pantalla a medias no entra al menú).
+- **Las historias no se pisan:** cada una dice qué deja hecho para otras (**Entrega**) y de qué
+  depende. Si una historia necesita algo que no existe, se agrega como dependencia o se crea una
+  historia nueva, nunca se hace "de paso" dentro de otra. Dos historias en paralelo solo comparten
+  los puntos de registro: el composition root, el menú lateral y `pyproject.toml`/`uv.lock` (una
+  línea cada una; si el lock choca, se regenera con `uv lock` en vez de resolverlo a mano).
+- **Forma de una historia:** encabezado con _Esfuerzo · Prioridad · Depende de · Toca la base_,
+  después **Objetivo** (una oración), **Entrega**, **Criterios de Aceptación**, **Testing Mínimo** y
+  **Archivos**. "Toca la base" dice si cambia el esquema (solo con una migración aditiva, sección 3)
+  o una vista.
+- **Tamaño:** XS o S de preferencia, M como máximo. Una historia L se divide antes de empezar.
 - **Higiene del repositorio:** prohibido subir binarios, bases SQLite con datos reales, o archivos temporales.
 
 ### Calidad de código y pruebas
@@ -373,7 +437,7 @@ testeable: en los tests se pueden pasar repositorios falsos (mocks) sin modifica
 **Seguimiento en GitHub (desde el 2026-11-22).** Este documento es la fuente de verdad; las issues lo reflejan:
 
 - **Una issue por hito, épica e historia**, con el título `[H1]`, `[H1-E2]` o `[US-107]` y el texto de su sección de este PRD.
-  Jerarquía con **sub-issues** (hito → épica → historia) y **milestone** = hito (`M1 - v0.1` … `M4 - v1.0`).
+  Jerarquía con **sub-issues** (hito → épica → historia) y **milestone** = hito (`M1 - v1.0.0` … `M4 - v4.0.0`; la versión de cada épica está en la sección 15).
 - **Labels:** tipo (`hito`, `epica`, `historia`, `tarea`, `bug`), épica (`H1-E1` … `H4-E4`), capa (`capa:dominio`,
   `capa:aplicacion`, `capa:infraestructura`, `capa:ui`) y `tests`, `ci`, `docs`, `dependencias`. Los de capa y los `US-NNN`
   los ponen solos los workflows en las PRs (US-109 AC18).
@@ -478,7 +542,7 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
     («sobre 4 de 9 partidos»); la regla de muestra chica se aplica a esos 4, no a los 9.
 - **Filtros de estadísticas** (decisión del 2026-11-08): todas las pantallas de estadísticas
   (Líderes, Comparativa, Tablero, Scouting y Perfil de jugador) usan la misma barra de filtros,
-  `components/filtros_estadisticas.py` (nace en la US-205).
+  `components/filtros_estadisticas.py` (nace en la US-225).
   - Tres desplegables encadenados: **Año** → **Competencia** → **Categoría**. Cada uno arranca con
     «Todos/Todas». Elegir un año achica la lista de competencias; elegir una competencia achica la
     de categorías a las habilitadas en ella (`competenciaCategoria`, US-107).
@@ -512,6 +576,7 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 | NFR-5 | Arranque            | Tiempo de inicio de la GUI < 3 seg en entorno objetivo                                   | Alta       |
 | NFR-6 | Offline             | 100% de funcionalidades críticas sin conexión a internet                                 | Bloqueante |
 | NFR-7 | Cobertura de Tests  | ≥80% no críticos; ≥95% en módulos críticos (ver Catálogo de Criticidad)                  | Alta       |
+| NFR-8 | Compatibilidad de datos | Actualizar la app nunca pierde ni rompe los datos del usuario: solo migraciones aditivas (sección 3) | Bloqueante |
 
 ---
 
@@ -522,9 +587,9 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 | ADR-001 | Arquitectura Local-First | Aprobado (`docs/adr/ADR-001-arquitectura-local-first.md`)                                 | SQLite + offline-first                                                                                                                             | Hito 1          |
 | ADR-002 | Framework UI             | Aprobado (`docs/adr/ADR-002-framework-ui.md`)                                             | Flet (Python puro); se descarta Compose Multiplatform. Desde 2026-10-31 es la única interfaz (la CLI se retira)                                    | US-105          |
 | ADR-003 | Protocolo de Ingesta     | Pendiente — propuesta con archivos reales (`docs/adr/ADR-003-protocolo-ingesta-excel.md`) | Mapeo fijo en código, buscando encabezados por texto; falta elegir la librería de PDF                                                              | US-201, US-206  |
-| ADR-004 | Versionado de DB         | Pendiente — pregunta abierta (`docs/adr/ADR-004-versionado-db.md`)                        | Migraciones manuales vs. Alembic — falta decidir si vale agregar SQLAlchemy solo por el runner                                                     | Hito 2          |
+| ADR-004 | Versionado de DB         | Decidido en el PRD (2026-11-27); se formaliza en la US-204 (`docs/adr/ADR-004-versionado-db.md`) | `yoyo-migrations`: SQL plano, sin SQLAlchemy; solo migraciones aditivas (sección 3)                                                                | US-204          |
 | ADR-005 | Reportes PDF             | Aprobado (`docs/adr/ADR-005-reportes-pdf.md`)                                             | `reportlab`; se descarta `weasyprint`                                                                                                              | US-302          |
-| ADR-006 | Seguridad y Cifrado      | Aprobado v0.1 / Pendiente v1.0 (`docs/adr/ADR-006-seguridad-cifrado.md`)                  | Hash de passwords con `pbkdf2_hmac` y salt dinámico; cifrado DB (SQLCipher) y migración a bcrypt/argon2 quedan para Hito 4, con preguntas abiertas | US-104 / Hito 4 |
+| ADR-006 | Seguridad y Cifrado      | Aprobado v1.0.0 / Pendiente Hito 4 (`docs/adr/ADR-006-seguridad-cifrado.md`)              | Hash de passwords con `pbkdf2_hmac` y salt dinámico; cifrado DB (SQLCipher) y migración a bcrypt/argon2 quedan para Hito 4, con preguntas abiertas | US-104 / Hito 4 |
 | ADR-007 | Motor de Visualización   | Aprobado (`docs/adr/ADR-007-motor-visualizacion.md`)                                      | `matplotlib`; se descarta `plotly` para este motor                                                                                                 | US-301          |
 | ADR-008 | Estrategia de Backup     | Aprobado (`docs/adr/ADR-008-estrategia-backup.md`)                                        | Exportación/restauración manual con `VACUUM INTO`/backup online de SQLite                                                                          | Hito 4          |
 | ADR-009 | Pipeline CI/CD           | Aprobado, ya implementado (`docs/adr/ADR-009-pipeline-cicd.md`)                           | GitHub Actions (hosted) para lint, tests y cobertura automáticos                                                                                   | US-109          |
@@ -533,13 +598,13 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 
 Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Alternativas Consideradas → Decisión Tomada → Ventajas y Desventajas. Los ADR escritos viven en `docs/adr/` (no en el submódulo de documentación, que es de otro repositorio). **Estado (2026-10-03): los 9 ADR ya están redactados en `docs/adr/`.** Aprobados sin preguntas
 pendientes: ADR-001, ADR-002, ADR-005, ADR-007, ADR-008, ADR-009. Con preguntas abiertas a
-resolver antes de cerrarlos del todo: ADR-003 (ya hay archivos reales; falta elegir la librería de PDF),
-ADR-004 (manuales vs. Alembic) y ADR-006 (viabilidad de SQLCipher en Android y fuente de la lista
-de contraseñas comprometidas, ambas para la parte de v1.0).
+resolver antes de cerrarlos del todo: ADR-003 (ya hay archivos reales; falta elegir la librería de PDF)
+y ADR-006 (viabilidad de SQLCipher en Android y fuente de la lista
+de contraseñas comprometidas, ambas para el Hito 4).
 
 ---
 
-## 9. Hito 1 — Núcleo de Datos e Interfaz Gráfica Base (v0.1)
+## 9. Hito 1 — Núcleo de Datos e Interfaz Gráfica Base (v1.0.0)
 
 **Objetivo del hito:** construir una base técnica funcional con persistencia robusta, autenticación local, casos de uso operativos, validaciones de integridad, una interfaz gráfica de escritorio (Flet) que cubra la gestión completa y la carga de partidos, y un entorno de calidad que garantice reproducibilidad desde el primer commit.
 
@@ -555,72 +620,14 @@ reales, y después la US-114, con lo que salió de simular el uso de un entrenad
 DNI, en paralelo con el arranque de la US-105) → US-105 → US-106 → US-111 → US-107 → US-112 → US-108 → US-113 → US-114 → US-110. La US-109 (CI/CD) es transversal: no depende de ninguna y se va completando a lo
 largo del hito.
 
-### Plan de trabajo en paralelo (equipo de dos, 2026-10-31)
+### Cómo se trabajó el Hito 1 (historia)
 
-Las dependencias de cada historia se refieren a la historia **completa**. Casi todas tienen una
-parte de backend (casos de uso, repositorios, servicios) que no necesita la GUI y se prueba sola
-con mocks o con SQLite en memoria. Por eso el trabajo se reparte en dos **pistas** que avanzan a la
-vez. **Todas las historias pendientes salvo la US-105** tienen su bloque "Reparto en dos pistas"
-con el detalle. La US-105 es bloqueante para todas las pantallas: la hace la Pista A, y la Pista B
-solo aporta el `SessionManager` en memoria mientras avanza con el backend de las US-106, US-107 y US-112.
-
-- **Pista A — interfaz:** pantallas, navegación y componentes de `ui/flet/`.
-- **Pista B — backend:** casos de uso, DTOs, repositorios y servicios.
-- En las historias **sin interfaz** (US-204, US-202, US-203, US-402, US-403) las dos pistas son de
-  backend y se dividen por componente; cada bloque dice qué es de cada una.
-- Cuando una pista consume lo que produce la otra (un DTO, una firma de función), lo primero de la
-  historia es **acordar ese contrato juntos**; después cada uno avanza con un falso del otro lado.
-
-Las pistas se cruzan a propósito en la ronda 2 (B también hace pantallas), para que los dos
-integrantes pasen por las dos capas.
-
-| Ronda | Pista A                                                                                                                                                               | Pista B                                                                                                                             |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | US-105: esqueleto Flet, pantallas de acceso, retiro de la CLI                                                                                                         | US-105: `SessionManager` en memoria (**primero**); el ajuste previo (quitar el DNI); después backend de las US-106, US-107 y US-112 |
-| 2     | US-106: pantallas de sesión y clubes; US-111: tema y componentes (**primero**, después de los bocetos juntos); US-107: `tabla_datos.py`; US-112: jugadores y partidos | US-111: repaso de las pantallas existentes y guía visual; US-107: pantallas de competencias, inscripciones y listas de buena fe     |
-| 3     | US-108: `CargaPartidoScreen`                                                                                                                                          | US-108: categoría del partido, clubes de terceros, `CargarPartidoUseCase` y sus DTOs                                                |
-| 4     | US-110: conectar los eventos de log a las acciones de las pantallas                                                                                                   | US-204 (migraciones), si el ADR-004 ya está decidido                                                                                |
-
-Las rondas marcan orden, no duración: una ronda termina cuando las dos pistas mergearon.
-
-**Trabajo suelto** (sin dependencias con la GUI, para quien termine antes su parte de una ronda):
-la Pista A de la US-202 (`formulas.py`), la Pista B de la US-110 (núcleo de logging) y la US-109.
-
-**Hitos 2 a 4 — orden y paralelismo entre historias.** Dentro de cada historia, las dos pistas van
-en paralelo. Entre historias se respeta el orden de dependencias, con estas excepciones que permiten
-tener dos historias abiertas a la vez si una pista se queda sin trabajo:
-
-- La **US-206** (listado de jugadores de la CAB) va antes que la US-201: fija la librería de PDF
-  y el servicio que identifica jugadores sin DNI, que la US-201 reusa. Se pueden solapar: apenas
-  se acuerda la firma de `IdentificadorJugadores`, quien termine primero su parte de la US-206
-  arranca el `IngestService` de la US-201 con un falso de ese servicio.
-- El ADR-003 ya tiene archivos reales (`data/`, 2026-10-31): falta elegir la librería de PDF y
-  confirmar el mapeo, pero ya no espera datos. Si igual se traba, la cadena US-201 → US-202 (casos
-  de uso) → US-203 → US-205 espera y se adelantan la US-402 y la US-403, que no dependen de ella.
-- La **US-207** (carga masiva) solo depende de la US-201: puede ir en paralelo con la US-202.
-- La **US-402** (backup) solo depende de la US-204: puede hacerse en cualquier momento después.
-- La **US-403** (seguridad) solo depende de las US-104 y US-106 y del ADR-006: puede hacerse en
-  cualquier momento después del Hito 1.
-- La **US-303** (scouting) solo depende de la US-203: puede ir en paralelo con las US-301 y US-302.
-
-**Decisiones que se toman juntos, antes de la ronda que las necesita:**
-
-| Antes de | Decisión                                                             |
-| -------- | -------------------------------------------------------------------- |
-| Ronda 1  | Versión de Flet y cómo se testean las pantallas (US-105)             |
-| Ronda 2  | Si la sesión se guarda a través de un puerto (US-106)                |
-| Ronda 3  | Los DTOs de carga (US-108), que son el contrato entre las dos pistas |
-| Ronda 4  | ADR-004 (migraciones manuales o Alembic)                             |
-
-**Dónde chocan las dos pistas y cómo evitarlo:**
-
-- `app.py`: los dos registran pantallas en la tabla de rutas → una línea por pantalla y PRs chicos.
-- `pyproject.toml` / `uv.lock`: una sola persona agrega dependencias por ronda; si igual chocan,
-  se regenera con `uv lock` en vez de resolver el lock a mano.
-- `partido_dto.py`: lo tocan la US-112 (`BoxscoreFilaDTO`) y la US-108 → mergea primero la US-112.
-- La CLI y los archivos de jugador: el ajuste previo (Pista B) toca la CLI, la entidad `Jugador` y
-  sus tests, y la US-105 (Pista A) borra la CLI → la Pista A borra la CLI recién cuando el ajuste
-  está mergeado, y mientras tanto avanza con las pantallas.
+Hasta el 2026-11-27 cada historia se repartía en dos **pistas** que avanzaban a la vez (interfaz y
+backend), ordenadas en rondas. Se abandonó: en la práctica cada integrante tomaba una historia
+entera, y las PR pasaban las 1000 líneas, imposibles de revisar. Desde el Hito 2 rige la forma de
+trabajo de la sección 5: historias chicas e independientes, una persona por historia y PR directo a
+`main`. Los bloques "Reparto en dos pistas" de las historias ya hechas se sacaron; el detalle quedó
+en las PR de cada una.
 
 ### Épica H1-E1: Infraestructura y Persistencia
 
@@ -828,13 +835,13 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 **Capa de Infraestructura:**
 
 - **Seguridad:** la interfaz `PasswordHasher` (ABC) vive en `src/dominio/servicios/password_hasher.py` y la implementación `Pbkdf2PasswordHasher` en `src/infraestructura/security/password_hasher.py` (mismo patrón que los repositorios: el caso de uso depende de la interfaz). Solo dos métodos públicos: `hash(password) -> str` y `verify(password, password_hash) -> bool`. El hash guardado tiene el formato `pbkdf2_sha256$iteraciones$salt$hash` (600.000 iteraciones por defecto; `verify` usa las iteraciones guardadas en el propio hash).
-  - **Decisión tomada:** v0.1 usa `hashlib.pbkdf2_hmac` con **salt dinámico** (uno distinto por usuario, generado con `os.urandom` al registrarse y guardado junto al hash en el mismo string) — no salt fijo. Migrar a `bcrypt`/`argon2-cffi` queda para v1.0, sin cambiar la interfaz pública de `PasswordHasher`.
+  - **Decisión tomada:** la v1.0.0 usa `hashlib.pbkdf2_hmac` con **salt dinámico** (uno distinto por usuario, generado con `os.urandom` al registrarse y guardado junto al hash en el mismo string) — no salt fijo. Migrar a `bcrypt`/`argon2-cffi` queda para la US-414 (Hito 4), sin cambiar la interfaz pública de `PasswordHasher`.
 - **CLI (retirada en la US-105):** `stats auth register`, `stats auth login`, `stats auth logout` (`auth_register.py`, `auth_login.py`, `auth_logout.py` en `ui/cli/commands/`). `auth_logout` solo informaba "no hay sesión que cerrar".
 
 **Criterios de Aceptación:**
 
 - **AC1 — Seguridad de Credenciales:** las contraseñas NUNCA se almacenan ni se loguean en texto plano. Hashing con salt dinámico por usuario.
-- **AC2 — Validaciones:** email único (`EmailYaRegistradoError`); contraseña con requisitos mínimos (≥6 caracteres en v0.1; ≥12 con complejidad en v1.0, ver US-403).
+- **AC2 — Validaciones:** email único (`EmailYaRegistradoError`); contraseña con requisitos mínimos (≥6 caracteres en v1.0.0; ≥12 con complejidad desde la US-403, Hito 4).
 
 **Testing Mínimo:**
 
@@ -844,7 +851,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 #### Ajuste previo a la US-105 — Quitar el DNI de los jugadores
 
 - **Decisión (2026-10-31):** los jugadores **no tienen DNI**. No aporta a las estadísticas, los archivos de la CAB no lo traen (US-201, US-206) y pedirlo obligaba a inventar DNIs para los jugadores rivales. Un jugador se identifica por apellido y nombre dentro de su club. El año de nacimiento pasa a ser opcional por el mismo motivo.
-- **Esfuerzo:** S (1-2 días) · **Dependencias:** ninguna · **Lo hace:** la Pista B en la ronda 1, después del `SessionManager` (ver "Plan de trabajo en paralelo").
+- **Esfuerzo:** S (1-2 días) · **Dependencias:** ninguna
 - **Qué cambia:**
   - **Base de datos:** se quita `jugador.dni` de `schema.sql` y de `seed.sql`. Una base vieja sigue funcionando (la columna acepta nulos), así que recrear la base local puede esperar a la US-108, que igual lo pide, y hacerse una sola vez.
   - **Dominio:** `Jugador` sin `dni` y con `anioNacimiento: int | None`; se borra `DNIDuplicadoError`; `JugadorRepositorio` pierde `buscar_por_dni`.
@@ -856,7 +863,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
   - **AC1.** No queda ninguna referencia al DNI en `src/` ni en `tests/` (`grep -rin dni src tests` no devuelve nada).
   - **AC2.** Se puede dar de alta un jugador sin año de nacimiento; si se informa, se sigue validando (mayor a 1900 y no posterior al año actual).
   - **AC3.** Todos los checks del CI pasan.
-- **Qué no entra:** evitar jugadores repetidos ahora que no hay DNI. En el alta manual lo resuelve la US-112 (buscar por nombre antes de dar de alta) y en la importación, la US-206 (`IdentificadorJugadores`).
+- **Qué no entra:** evitar jugadores repetidos ahora que no hay DNI. En el alta manual lo resuelve la US-112 (buscar por nombre antes de dar de alta) y en la importación, la US-211 (`IdentificadorJugadores`).
 
 #### US-105 — Interfaz Gráfica Base (Flet) y Retiro de la CLI
 
@@ -930,7 +937,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 1. **Persistir es opcional:** solo si el usuario marca "Recordarme" en `LoginScreen`. Sin marcarlo, cerrar la app cierra la sesión.
 2. **Dónde se persiste:** archivo **JSON**, no la base SQLite — no compite por locks con la base y permite borrar la sesión a mano sin tocar datos de negocio.
 3. **Ruta única:** `~/.statspro/session.json`, resuelta con `pathlib.Path.home()` (funciona igual en Windows y Linux).
-4. **Sin token ni expiración en v0.1:** `SessionDTO` tiene solo `usuario_id`, `email` y `club_activo_id`. Un token tiene sentido cuando cliente y servidor están en procesos distintos; acá el mismo proceso lee su propio archivo. El archivo **nunca** guarda la contraseña ni su hash. **Riesgo aceptado para v0.1:** con "Recordarme", cualquiera con acceso a esa cuenta del sistema operativo abre la app sin contraseña; la expiración configurable llega con la US-403 (AC7).
+4. **Sin token ni expiración en v1.0.0:** `SessionDTO` tiene solo `usuario_id`, `email` y `club_activo_id`. Un token tiene sentido cuando cliente y servidor están en procesos distintos; acá el mismo proceso lee su propio archivo. El archivo **nunca** guarda la contraseña ni su hash. **Riesgo aceptado para v1.0.0:** con "Recordarme", cualquiera con acceso a esa cuenta del sistema operativo abre la app sin contraseña; la expiración configurable llega con la US-415.
 5. **Configurable, no hardcodeado:** loader mínimo `src/config/settings.py` + `.env.example` (idea de `docs/ideas-aprendizaje.md`, sección 4) con `STATSPRO_SESSION_PATH` (default `~/.statspro/session.json`) y `STATSPRO_DB_PATH` (default: lo que ya calcula `config/rutas.py`), para que los tests apunten a archivos temporales sin parchear código.~~ **Cambiado al arrancar la US:** sin `settings.py`, `.env` ni `python-dotenv`. La ruta del archivo se **inyecta por constructor** (`JsonSesionAlmacen(ruta)`), así los tests usan `tmp_path` sin variables de entorno; el default vive en `config/rutas.py` (`SESSION_FILE`). Si se necesita cambiarla sin tocar código, se suma una variable de entorno en `ejecutar()` (paso 6); `python-dotenv` no se agrega por tres líneas.
 
 **Decisión a tomar al arrancar la US:** si el `SessionManager` (capa de aplicación) escribe el JSON directamente o a través de un puerto — una interfaz `SesionAlmacen` en `dominio/servicios/` y una implementación `JsonSesionAlmacen` en `infraestructura/` —, igual que se hizo con `PasswordHasher` en la US-104. El puerto respeta la regla de capas (la aplicación no hace I/O) y permite testear el `SessionManager` sin archivos.
@@ -986,15 +993,6 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 - _Integración:_ registro → login con "Recordarme" → crear club → elegirlo → un `SessionManager` nuevo leyendo el mismo archivo (simula reabrir la app) recupera usuario y club activo, y el club aparece en `ListarClubesUsuarioUseCase`. DB `:memory:` y archivo temporal. **Hecho** en `tests/integration/test_sesion_club_activo_flujo.py`: "reabrir" es volver a llamar a `construir_dependencias` con la misma base y el mismo archivo; cubre también sin "Recordarme", cerrar sesión, archivo dañado, usuario borrado y club desvinculado.
 - _Manual guiado:_ el mismo flujo cerrando y abriendo la app de verdad.
 
-**Reparto en dos pistas:**
-
-- **Pista B (ronda 1, en paralelo con la US-105):** persistencia del `SessionManager`
-  (`set_active_club`, `club_activo`, guardar, cargar y borrar, con el puerto `SesionAlmacen`);
-  `RestaurarSesionUseCase`; fix de `CrearClubUseCase`; tests unitarios y de integración.
-- **Pista A (ronda 2):** casilla "Recordarme", `ClubesScreen`, club activo en la barra superior y
-  guard `requiere_club_activo`.
-- **Juntos, antes de la ronda 2:** si la sesión se guarda a través de un puerto (**decidido:** sí, ver las decisiones).
-
 #### US-111 — Base Visual de la GUI (tema, página y formularios)
 
 **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-105, US-106 · **Agregada:** 2026-11-08 · **Estado:** ✅ Hecha (PR #50)
@@ -1003,7 +1001,7 @@ tener dos historias abiertas a la vez si una pista se queda sin trabajo:
 
 **Narrativa:** Como entrenador, quiero que todas las pantallas se vean ordenadas y se usen igual (dónde están los campos, dónde los botones, dónde aparecen los errores), para no tener que aprender cada una de nuevo.
 
-**Por qué ahora (decisión 2026-11-08):** hasta la US-106 las pantallas se armaron para que funcionen, apilando controles sin un criterio común. El único repaso visual previsto era el de la US-401 (v1.0); para entonces habría unas 15 pantallas para rehacer, y las versiones v0.1 a v0.3 saldrían con pantallas sin acomodar. Es el mismo patrón que ya usan `crear_barra_superior` y `crear_etiqueta_error`, llevado a todo lo visual.
+**Por qué ahora (decisión 2026-11-08):** hasta la US-106 las pantallas se armaron para que funcionen, apilando controles sin un criterio común. El único repaso visual previsto era el de la US-401 (Hito 4); para entonces habría unas 15 pantallas para rehacer, y las versiones de los Hitos 1 a 3 saldrían con pantallas sin acomodar. Es el mismo patrón que ya usan `crear_barra_superior` y `crear_etiqueta_error`, llevado a todo lo visual.
 
 **Fuera de alcance (US-401):** elegir el modo oscuro a mano y revisarlo pantalla por pantalla, adaptación a celular (responsive), pantallas finales. Esta US sí define `page.dark_theme` con la misma semilla: sin eso, con Windows en oscuro Flet usaba su paleta por defecto y el tema propio no se veía. El logo en pantalla **sí** entra acá (AC6); el ícono del ejecutable y de la ventana (`.ico`, `.png`) queda en la US-404. Esta US deja todo en el tema para que esos cambios sean de un solo lugar.
 
@@ -1211,16 +1209,6 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
   - _Integración:_ flujo completo (partido + dos boxscores, con y sin cuartos) en DB `:memory:` con repositorios reales, incluido un partido entre dos clubes sin vínculo con el usuario — puede reusar el fixture de `tests/integration/test_repositorios_partido.py`.
   - _Manual guiado:_ cargar un partido completo desde la pantalla, uno de otros dos clubes, y uno con un jugador fuera de la lista para ver el error y que nada se guardó.
 
-**Reparto en dos pistas** (ronda 3):
-
-- **Juntos, antes de empezar:** los DTOs de carga (`PartidoDTO`, `BoxscoreDTO`,
-  `EstadisticaInputDTO`), que son el contrato entre las dos pistas.
-- **Pista B:** `idCategoria` y `partidoCuarto` en el esquema, la entidad, el repositorio y la vista; la validación de cuartos (AC7);
-  `listar_todos`, `ListarClubesUseCase` y `CrearClubUseCase` con usuario opcional; DTOs,
-  `CargarPartidoUseCase` y sus tests unitarios y de integración.
-- **Pista A:** `CargaPartidoScreen` y `components/puntos_por_cuarto.py`, programados contra los DTOs acordados (puede arrancar con un
-  caso de uso falso hasta que la Pista B mergee el real).
-
 #### US-113 — Carga de Partido Centrada en el Club Propio y Pantallas Más Cómodas
 
 - **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-108, US-111, US-112
@@ -1313,7 +1301,7 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
     competencia → inscripción → lista masiva → partido con totales → partido con boxscore del rival).
 - **Pendiente de decisión (para cerrar el hito):** _resuelto en la US-114 (los tres puntos)._
   - **Partidos entre dos clubes ajenos** (antes AC5 de la US-108): hoy no se pueden cargar desde la
-    pantalla. Opciones: (a) dejarlo fuera de v0.1; (b) un modo «Partido de otros» en la misma
+    pantalla. Opciones: (a) dejarlo fuera de la v1.0.0; (b) un modo «Partido de otros» en la misma
     pantalla con los dos equipos en totales; (c) esperar a la importación (US-201).
   - **Empates:** en básquet no hay empates, pero hoy se puede guardar un partido empatado.
   - **Crear el rival y guardar el partido no son atómicos:** si el guardado falla después de crear el
@@ -1415,14 +1403,9 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 
 #### US-110 — Monitoreo y Trazabilidad Operativa
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-107, US-108 · **Estado:** ✅ Hecha (2026-11-27), las dos pistas juntas
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-107, US-108 · **Estado:** ✅ Hecha (2026-11-27)
 - **Antes era la US-108.** El "comando" como unidad de trazabilidad pasa a ser la **acción del usuario** en la GUI (un botón que invoca un caso de uso).
 - **Objetivo Funcional:** proveer observabilidad transversal estructurada para depuración y soporte, con correlación de eventos extremo-a-extremo por acción del usuario.
-- **Reparto en dos pistas:**
-  - **Pista B (trabajo suelto, cualquier ronda):** núcleo — `ExecutionContext`, formato JSON, redacción de secretos (AC3) y selección de sink (AC4), con sus tests unitarios.
-  - **Pista A (ronda 4):** conectar los eventos a las acciones de las pantallas y a los casos de uso de la lista de eventos obligatorios, y el test de integración del `correlation_id`.
-  - **Juntos, antes:** los nombres de los campos del evento (`accion`, `correlation_id`, resultado, duración), que son el contrato entre las dos pistas.
-
 > **Decisiones tomadas (2026-11-27, ver ADR-011):**
 >
 > - **Nombre explícito de cada acción:** `ejecutar_mostrando_errores(accion, etiqueta, nombre="clubes.crear")`, con el formato
@@ -1438,7 +1421,7 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 > - **Los filtros van en el handler**, no en el logger raíz: los filtros de un logger no ven lo que propagan sus hijos.
 > - **Emails tapados** además de los secretos: son dato personal (y los mensajes de dominio a veces los incluyen). El login fallido
 >   se loguea sin el email.
-> - Fuera de alcance por ahora: importación Excel y backup/restore (no existen todavía; se suman en la US-201 y la US-402).
+> - Fuera de alcance por ahora: importación Excel y backup/restore (no existen todavía; se suman en la US-216 y las US-402 y US-410).
 
 - **Eventos de log obligatorios:** inicio/fin de cada acción del usuario (pantalla, acción, resultado y duración); `LoginLocalUseCase`/cierre de sesión, `SessionManager.set_active_club` (US-104/106), fallos de autenticación; inicio/fin de transacciones críticas (`CargarPartidoUseCase` de US-108; importación Excel y backup/restore cuando existan, US-201 y US-402); creación/actualización de entidades principales; excepciones de dominio y errores de infraestructura, clasificados por severidad.
 - **Criterios de Aceptación:**
@@ -1462,8 +1445,10 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 - **Objetivo Funcional:** garantizar que todo nuevo commit sea verificado automáticamente con linting, tests y cobertura, haciendo del pipeline la única fuente de verdad sobre el estado de calidad del proyecto; y que **publicar una versión** (desde la v0.1) sea un proceso automático y repetible: tag → tests → binarios → GitHub Release con changelog.
 
 > **Ampliada (2026-11-08):** se le suma todo el **release** de escritorio (Windows y Linux), que antes era de la US-404, para que la
-> v0.1 ya salga con binarios descargables; más el chequeo del título de los PR, actionlint y SAST (Bandit vía ruff y CodeQL).
-> La US-404 conserva Android, macOS, la versión visible en la app y la guía de instalación. Decisiones tomadas:
+> v1.0.0 ya salga con binarios descargables; más el chequeo del título de los PR, actionlint y SAST (Bandit vía ruff y CodeQL).
+> Lo que quedaba de la US-404 se dividió el 2026-11-27: Android (US-404), macOS (US-417), la versión visible en la app (US-409) y la guía de instalación (US-418). Decisiones tomadas:
+>
+> _Nota (2026-11-27): `develop` y las ramas de épica e hito ya no existen, y se publica al cerrar cada épica; el flujo vigente está en la sección 15. Lo que sigue es la decisión tal como se tomó._
 >
 > - **Tag a mano en `main` + git-cliff**, no Release Please: se publica una vez por hito, y Release Please suma dos PR por release
 >   (su "Release PR" y el de `main` de vuelta a `develop`). Si los releases se vuelven frecuentes, se migra.
@@ -1512,11 +1497,11 @@ ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` pr
     4. crea el GitHub Release con los binarios y, como notas, la sección de esa versión del `CHANGELOG.md`.
        Un tag con sufijo (`v0.1.0-rc.1`) crea un _pre-release_: sirve para probar el workflow sin publicar una versión de verdad. Permisos: `contents: write` solo en el job que publica.
        ✅ Implementado (2026-11-09): los tests corren en Linux y en Windows con **Python 3.14**, el que `flet build` mete en el paquete. En un pre-release se compara la versión sin el sufijo (`v0.1.0-rc.1` ↔ `0.1.0`). Las notas salen de la sección `## [X.Y.Z]` del `CHANGELOG.md` (un pre-release usa la de su versión final si ya está; si no, un texto de prueba); una versión final sin su sección falla sin publicar. Nombres: `StatsPro-X.Y.Z-windows-x64-instalador.exe`, `StatsPro-X.Y.Z-windows-x64-portable.zip` y `statspro_X.Y.Z_amd64.deb` (en Debian el `-rc.1` pasa a `~rc.1`, para que la versión final quede por encima). Desinstalar no borra `~/.statspro/`.
-  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`make changelog VERSION=X.Y.Z`, que corre `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR `develop → main`, junto con el cambio de versión. ✅ (2026-11-09) Secciones en castellano: `feat` → Agregado; `refactor`, `perf` y `revert` → Cambiado; `fix` → Corregido; `fix(seguridad)` → Seguridad. Quedan afuera `docs`, `test`, `ci`, `build` (incluye Dependabot), `chore`, `style` y los commits que no siguen Conventional Commits. Los _pre-release_ (`-rc.N`) no abren sección propia: sus commits quedan en la versión final. El archivo se regenera entero: no se edita a mano.
+  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`make changelog VERSION=X.Y.Z`, que corre `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR de release (`chore(release): vX.Y.Z`, sección 15), junto con el cambio de versión. ✅ (2026-11-09) Secciones en castellano: `feat` → Agregado; `refactor`, `perf` y `revert` → Cambiado; `fix` → Corregido; `fix(seguridad)` → Seguridad. Quedan afuera `docs`, `test`, `ci`, `build` (incluye Dependabot), `chore`, `style` y los commits que no siguen Conventional Commits. Los _pre-release_ (`-rc.N`) no abren sección propia: sus commits quedan en la versión final. El archivo se regenera entero: no se edita a mano.
   - **AC11 — Título del PR:** un job falla si el título del PR no sigue Conventional Commits (`amannn/action-semantic-pull-request`). Con _squash_, el título del PR es el mensaje del commit que llega a la rama, y de ahí sale el changelog. El repo se configura para que el _squash_ use siempre el título del PR. Va en un workflow aparte (`titulo-pr.yml`) porque necesita el evento `edited`: corregir el título vuelve a correr el chequeo sin relanzar los tests; por eso es un _required status check_ propio, además de `ci-ok`. También valida el mensaje del commit en los PR de un solo commit (`validateSingleCommit`), porque ahí GitHub propone ese mensaje en vez del título.
   - **AC12 — Workflows revisados:** actionlint en pre-commit, en `make run_linter_ruf` y en el job `lint` (detecta, por ejemplo, una expresión mal escrita como `${{ github.evnt_name }}`, y con shellcheck, que viene en `ubuntu-latest`, errores en los scripts de los `run:`). Su versión sale de `uv.lock` (paquete `actionlint-py` del grupo `dev`), igual que ruff. Los inputs de un `with:` los valida solo para las acciones que conoce: con versiones más nuevas que su catálogo (por ejemplo `actions/checkout@v7`) no los revisa.
   - **AC13 — SAST ✅ (2026-11-09):** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
-  - **AC14 — Binario probado:** antes de publicar la v0.1, el instalador `.exe`, el `.zip` portable y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia, como Windows Sandbox): la app arranca, se registra un usuario y se crea un club.
+  - **AC14 — Binario probado:** antes de publicar la v1.0.0, el instalador `.exe`, el `.zip` portable y el `.deb` de un _pre-release_ se abren en una máquina sin Python (o una VM limpia, como Windows Sandbox): la app arranca, se registra un usuario y se crea un club.
   - **AC15 — Datos fuera de la carpeta de instalación (nuevo, 2026-11-09):** la base (`estadisticas.db`) y los logs viven en `~/.statspro/` (junto a `session.json`), con la app instalada y también en desarrollo; la carpeta se crea si no existe. La app instalada nunca escribe en su propia carpeta. ✅ (2026-11-09: `config/rutas.py` con `DATOS_DIR`; `ejecutar()` crea la carpeta antes de abrir la base; `tests/unit/test_rutas.py`.)
   - **Ampliación (2026-11-22, rama `feature/mejora-ci`): resumen de la PR y labels.** Decisiones: **un solo comentario**
     editable (tabla de semáforo arriba y un desplegable por tema), no uno por herramienta; la cobertura y los tests que se
@@ -1544,97 +1529,85 @@ ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` pr
 
 ---
 
-## 10. Hito 2 — Motor de Ingesta y Análisis (v0.2)
+## 10. Hito 2 — Motor de Ingesta y Análisis (v2.0.0)
 
 **Objetivo del hito:** automatizar la carga desde Gesdeportiva, producir métricas avanzadas
-confiables, exponerlas en pantallas de la GUI y asegurar la evolución controlada del esquema de
-base de datos.
+confiables, exponerlas en pantallas de la GUI y asegurar la evolución del esquema de la base
+**sin perder nunca los datos de un usuario** (sección 3, "Evolución del esquema desde v1.0.0").
 
-**Épicas:** 3 · **Historias:** 7 (la US-206 se agregó el 2026-10-31; la US-207 salió de dividir la US-201 el 2026-11-08) · **Esfuerzo total estimado:** ~34 días·persona
+**Versiones:** H2-E1 → **v1.1.0** · H2-E2 → **v1.2.0** · H2-E3 → **v2.0.0** (cierra el hito).
 
-**Decisión previa requerida:** ninguna sobre ADR-002 — la GUI Flet ya existe desde la US-105 y
-este hito le suma pantallas (importación en la US-201, consulta estadística en la US-205). _Nota
-(2026-10-31): hasta esta fecha el plan decía que el Hito 2 era 100 % CLI; con la CLI retirada,
-sus salidas pasan a ser pantallas._ **Sí hay dos
-decisiones previas reales todavía sin cerrar para este hito:** ADR-003 (protocolo de ingesta,
-bloquea las US-201 y US-206 — ya hay archivos reales en `data/`; falta elegir la librería de PDF) y ADR-004 (versionado de DB,
-bloquea la US-204 — falta decidir si vale agregar SQLAlchemy solo por el runner de Alembic). Ver
-`docs/adr/`.\_
+**Épicas:** 3 · **Historias:** 30 · **Esfuerzo total estimado:** ~50 días·persona
 
-### Épica H2-E1: Integración "Gesdeportiva" y Gobernanza de Esquema
-
-> **Nota de reordenamiento (2026-10-03):** la US-204 (Versionado de Esquema y Migraciones) vivía
-> antes en la Épica H2-E3, mezclada sin ninguna relación temática con el motor analítico
-> (US-203/US-205) — además aparecía físicamente _después_ de la US-205 en el documento, pese a
-> tener un número menor. Se la mueve acá, antes de la US-201, porque esta última la necesita de
-> verdad: el AC3 de la US-201 (verificar que la suma de puntos del boxscore coincida con el
-> resultado final del partido) requiere agregar un campo nuevo a `Partido` que hoy no existe en
-> el schema, y agregar una columna a una tabla existente sin perder datos es exactamente el
-> problema que resuelve la US-204. La Épica H2-E3 quedó renombrada a solo "Inteligencia Deportiva
-> (Pandas Engine)" — ver más abajo.
+> **Rearmado (2026-11-27).** Las 7 historias que tenía el hito (US-201 a US-207) se dividieron en
+> historias chicas, cada una con un objetivo, sus dependencias y lo que deja hecho para las demás
+> (campo **Entrega**). Las pistas A/B desaparecen: cada historia la toma una sola persona, como un
+> ticket (sección 5). El número viejo queda con la pieza central de la historia original; las
+> piezas que se separaron tienen números nuevos (US-208 en adelante). La columna "Sale de" del mapa
+> dice de qué historia vieja viene cada una. Además:
 >
-> **Actualización (2026-10-31):** con los archivos reales, el AC3 de la US-201 se valida contra la
-> fila `TOTALES` del archivo y ya no necesita una columna de resultado final, así que la US-201 dejó
-> de depender de la US-204. La US-204 se sigue haciendo al principio del hito. Se suma a esta épica la **US-206** (listado de
-> jugadores de la CAB), que va antes que la US-201.
+> - La **US-204** (migraciones) es la primera del hito y se convierte en regla: desde la v1.0.0 la
+>   base solo cambia con migraciones aditivas (sección 3).
+> - El **`IngestService`** de la vieja US-201 se fusiona con su caso de uso: resolver clubes,
+>   jugadores e inscripciones es lógica de aplicación, no de infraestructura.
+> - Los casos de uso de comparativas se mueven de la H2-E2 a la H2-E3: necesitan leer datos, y en el
+>   plan viejo la lectura (`AnalyticsService`, US-203) dependía de ellos, al revés de lo necesario.
+>   La H2-E2 queda con las fórmulas y la lectura de datos, y cierra con métricas visibles en el
+>   detalle de partido.
+> - Aparece una pantalla para la comparativa de jugadores (US-230): el caso de uso existía en el
+>   plan, pero ninguna pantalla lo mostraba.
 
-#### US-204 — Versionado de Esquema y Migraciones
+**Decisiones previas:** ADR-003 (protocolo de ingesta) sigue abierto solo en la librería de PDF y
+bloquea únicamente las US-210 y US-214; lo cierra quien tome la US-210. ADR-004 (versionado de la
+base) quedó decidido en este PRD: **yoyo-migrations** (sección 8); la US-204 lo pasa al ADR.
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-101, ADR-004
-- **Objetivo Funcional:** asegurar la evolución controlada del esquema de base de datos entre
-  versiones sin pérdida de datos, con un runner que aplique migraciones en orden y registre cada
-  resultado. La primera migración real que corra sobre una base con datos será el primer cambio
-  de esquema posterior a esta historia (la categoría del partido entra antes, en la US-108,
-  recreando las bases locales).
-- **Reparto en dos pistas** (sin interfaz; arranca en la ronda 4 del Hito 1 si el ADR-004 ya está
-  decidido):
-  - **Juntos, antes:** el ADR-004 y la convención de nombres y formato de las migraciones (AC5).
-  - **Pista A:** `migration_runner.py` — tabla `schema_version` (AC1), aplicar solo las pendientes
-    (AC2), bloquear el arranque si el esquema es incompatible (AC4).
-  - **Pista B:** pasar `schema.sql` a `001_init.sql`, la primera migración real (`002_*.sql`, la que
-    haga falta primero), el rollback de la última (AC3), los tests de upgrade
-    multi-versión y la guía `12-como-agregar-una-migracion.md`.
-- **Archivos a crear:**
+### Mapa de dependencias del Hito 2
 
-```text
-src/infraestructura/persistencia/sql/migrations/
-├── 001_init.sql          ← schema completo de v0.1; desde acá el schema no se toca directo
-└── 002_*.sql              ← migraciones incrementales, NNN_descripcion_corta.sql, idempotentes
+Se puede tomar cualquier historia cuyas dependencias estén todas mergeadas en `main`. Las que no
+dependen de nada se pueden tomar desde el primer día.
 
-src/infraestructura/persistencia/migration_runner.py
+| US     | Qué deja hecho                                             | Depende de              | Tamaño | Sale de |
+| ------ | ---------------------------------------------------------- | ----------------------- | ------ | ------- |
+| US-204 | Migraciones con yoyo; la base de v1.0.0 como punto de partida | v1.0.0 publicada        | M      | US-204  |
+| US-208 | Copia de la base antes de migrar; bloqueo de bases más nuevas | US-204                  | S      | US-204  |
+| US-209 | El CI rechaza migraciones destructivas o editadas           | US-204                  | S      | nueva   |
+| US-206 | Lectura del listado de jugadores de la CAB en Excel         | —                       | S      | US-206  |
+| US-210 | Lectura del listado en PDF                                  | US-206, ADR-003         | S      | US-206  |
+| US-211 | `IdentificadorJugadores` (nombre → jugador del club)        | —                       | S      | US-206  |
+| US-212 | Caso de uso para importar una lista de buena fe             | US-206, US-211          | M      | US-206  |
+| US-213 | Importar lista desde archivo en `ListaBuenaFeScreen`        | US-212                  | S      | US-206  |
+| US-201 | Lectura de la planilla de partido en Excel                  | US-206                  | M      | US-201  |
+| US-214 | Lectura de la planilla de partido en PDF                    | US-201, US-210          | S      | US-201  |
+| US-215 | Validación de la planilla contra la fila `TOTALES`          | US-201                  | XS     | US-201  |
+| US-216 | Caso de uso para importar una planilla de partido           | US-201, US-211, US-215  | M      | US-201  |
+| US-217 | `ImportScreen`: importar una planilla con vista previa      | US-216                  | M      | US-201  |
+| US-207 | Carga masiva de planillas                                   | US-217                  | S      | US-207  |
+| US-202 | `formulas.py`: tiro y eficiencia                            | —                       | S      | US-202  |
+| US-218 | Promedio de puntos por cuarto                               | —                       | S      | US-202  |
+| US-219 | Valores cada 40 minutos y aviso de muestra chica            | —                       | XS     | US-202  |
+| US-203 | `AnalyticsService` (interfaz completa) y boxscore de un partido | —                    | S      | US-203  |
+| US-220 | Totales de jugador por competencia, categoría y año         | US-203                  | M      | US-203  |
+| US-221 | Partidos y totales de un club (a favor y en contra)         | US-203                  | M      | US-203  |
+| US-222 | Puntos por cuarto de un club                                | US-203                  | S      | US-203  |
+| US-223 | Evolución de un jugador partido a partido                   | US-203, US-202          | S      | US-203  |
+| US-224 | Métricas avanzadas en el detalle de partido                 | US-202, US-203          | M      | US-203  |
+| US-225 | Barra común de filtros de estadísticas                      | —                       | S      | US-205  |
+| US-226 | Caso de uso de líderes de una competencia                   | US-220, US-202, US-219  | S      | US-205  |
+| US-205 | `LideresScreen`                                             | US-225, US-226          | S      | US-205  |
+| US-227 | Caso de uso de comparativa entre dos clubes                 | US-221, US-222, US-202, US-218, US-219 | M | US-202 |
+| US-228 | `ComparativaScreen`                                         | US-227, US-225          | S      | US-205  |
+| US-229 | Caso de uso de comparativa de jugadores                     | US-220, US-202, US-219  | S      | US-202  |
+| US-230 | Pantalla de comparativa de jugadores                        | US-229, US-225          | S      | nueva   |
 
-tests/integration/test_migrations.py (upgrade multi-versión y rollback)
-docs/info_modulo/12-como-agregar-una-migracion.md
-```
+**Puntos donde dos historias en paralelo pueden chocar** (se resuelven con una línea cada una):
+`pyproject.toml`/`uv.lock` (US-204, US-206, US-210 suman dependencias; si chocan, `uv lock`), el
+composition root y el menú lateral (cada pantalla nueva suma su línea), y
+`pandas_analytics_service.py`, donde las US-220 a US-223 completan métodos distintos de la misma
+clase (la US-203 deja la interfaz entera definida para que ninguna cambie la de otra).
 
-- **Criterios de Aceptación:**
-  - **AC1.** Tabla `schema_version` creada y mantenida automáticamente (número de versión,
-    nombre, timestamp).
-  - **AC2.** El runner ejecuta solo migraciones pendientes (idempotente en las ya aplicadas).
-  - **AC3.** Soporte de rollback controlado para la última migración aplicada (script `down`
-    opcional).
-  - **AC4.** Si el schema es incompatible con la versión del código al arrancar, la ejecución se
-    bloquea con mensaje claro.
-  - **AC5.** Scripts versionados con el mismo estándar de nomenclatura, registrados en el
-    changelog técnico.
-- **Testing Mínimo:** upgrade multi-versión sobre base con datos reales (cardinalidad
-  conservada); rollback de la última migración (integridad post-rollback); dataset de versión
-  anterior conserva todas las relaciones tras migrar.
+### Formatos reales de los archivos de la CAB (referencia para las US-206 a US-214)
 
-#### US-206 — Importación de Lista de Buena Fe desde el Listado de la CAB
-
-> **Nueva (2026-10-31).** Va antes que la US-201 aunque tenga un número mayor: fija la librería de
-> PDF y el servicio que identifica jugadores sin DNI, que la US-201 reusa.
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-107, ADR-003
-- **Objetivo Funcional:** cargar la lista de buena fe de un club para una competencia y categoría
-  desde el listado "Jugadores" que exporta Gesdeportiva (CAB), en Excel o PDF, sin tipear nombres.
-  Sirve para el club propio y para los rivales, y es lo que permite después cargar a mano partidos
-  de otros clubes (US-108).
-- **Narrativa:** Como DT, quiero importar el listado de jugadores que publica la CAB para tener la
-  lista de buena fe de cualquier club sin cargarla jugador por jugador.
-
-**Formato real del listado** (`data/jugadores_*.xlsx` y su PDF, revisados el 2026-10-31):
+**Listado "Jugadores"** (`data/jugadores_*.xlsx` y su PDF, revisados el 2026-10-31):
 
 - Una sola hoja (`Jugadores-Equipo`). Título en celdas combinadas:
   `Jugadores - UNIVERSITARIO - INFANTILES MIXTO - CORDOBA - ASOCIACIÓN - 2026 - FEDERACION DE BASQUETBOL DE LA PROVINCIA DE CORDOBA - 2026`
@@ -1646,98 +1619,7 @@ docs/info_modulo/12-como-agregar-una-migracion.md
 - **No trae DNI ni año de nacimiento.** La categoría se nombra distinto que en la planilla de
   partido (`INFANTILES MIXTO` acá, `U13MX` allá).
 
-- **Capa de Dominio:**
-  - `Jugador` no cambia: el ajuste previo a la US-105 ya quitó el DNI y dejó opcional el año de
-    nacimiento, que los archivos tampoco traen.
-  - **Excepción:** `FormatoArchivoInvalidoError` (la reusa la US-201).
-- **Capa de Aplicación:**
-  - **Servicio `IdentificadorJugadores`** (`aplicacion/servicios/`) — recibe un nombre
-    `APELLIDOS, NOMBRES` y un club y devuelve el jugador. Normaliza el nombre (sin tildes,
-    mayúsculas ni espacios de más) y busca **solo entre los jugadores de ese club** (vínculos y
-    listas). Sin coincidencias → jugador nuevo vinculado al club; una → ese jugador; más
-    de una → ambiguo, lo resuelve el usuario en la vista previa. **Nunca** empareja con jugadores de
-    otro club: dos chicos con el mismo nombre en clubes distintos son dos personas. La US-201 lo
-    reusa.
-  - **Caso de uso `ImportarListaBuenaFeUseCase`** con `preview()`: el club viene sugerido del título
-    (si no existe, se crea sin vínculo con el usuario, US-108); competencia y categoría se eligen en
-    la pantalla; si esa categoría no está habilitada en la competencia, la vista previa lo avisa y
-    al confirmar se habilita (regla de la sección 6). Crea la inscripción con su lista si no existe (`inscribir_con_lista`, con la fecha
-    de importación como fecha de presentación) y agrega los jugadores que faltan. No quita de la
-    lista a los que no vienen en el archivo: los informa.
-- **Capa de Infraestructura:**
-  - **Parsers:** `ListadoJugadoresExcelParser` (`pd.read_excel`, necesita `openpyxl`) y
-    `ListadoJugadoresPdfParser` (librería a elegir en el ADR-003). Los dos devuelven un
-    `ListadoJugadoresDTO` (título + nombres) y buscan el encabezado `Apellidos y Nombre` por texto,
-    no por posición.
-  - **UI:** botón "Importar desde archivo" en `ListaBuenaFeScreen` (US-107), con vista previa.
-- **Criterios de Aceptación:**
-  - **AC1 — Formato:** un archivo sin el título o sin el encabezado `Apellidos y Nombre` lanza
-    `FormatoArchivoInvalidoError` antes de procesar, diciendo qué faltó.
-  - **AC2 — Idempotencia:** importar dos veces el mismo listado no duplica jugadores ni filas en la
-    lista.
-  - **AC3 — Vista previa:** muestra los jugadores nuevos, existentes y ambiguos sin persistir nada.
-  - **AC4 — Mismo resultado en los dos formatos:** el Excel y el PDF del mismo listado producen el
-    mismo `ListadoJugadoresDTO`.
-  - **AC5 — Listas separadas:** el mismo jugador puede estar en la lista de U13 del Asociativo 2026
-    y en la del Provincial 2026 (o del Asociativo 2027); importar una no toca las otras.
-- **Fuera de alcance en v0.2:** `Partidos jugados`, `Minutos partido` y `Puntos partido` son los
-  datos oficiales de la temporada y no se guardan. Más adelante servirían para mostrar cuánto de la
-  temporada de un jugador está cargado (partidos cargados contra jugados; ver "Muestra chica" en la
-  sección 6).
-- **Testing Mínimo:**
-  - _Unitarias:_ parsers contra fixtures (tildes, espacios de más, coma decimal);
-    `IdentificadorJugadores` con 0, 1 y 2 coincidencias, y el mismo nombre en otro club no
-    empareja.
-  - _Integración:_ importar el fixture dos veces; el mismo jugador en las listas de dos
-    competencias.
-  - _Manual guiado:_ importar el Excel y el PDF del mismo listado y comparar.
-  - Fixtures anonimizados (ver la US-201).
-
-**Reparto en dos pistas:**
-
-- **Juntos, antes:** la librería de PDF (ADR-003), el `ListadoJugadoresDTO` y la firma de
-  `IdentificadorJugadores` (la reusa la US-201).
-- **Pista A:** los dos parsers (AC1, AC4) y la importación en `ListaBuenaFeScreen`.
-- **Pista B:** `IdentificadorJugadores` e `ImportarListaBuenaFeUseCase` (AC2, AC3, AC5).
-
-**Archivos a crear o modificar:**
-
-```text
-src/dominio/exceptions.py                     ← + FormatoArchivoInvalidoError
-src/aplicacion/servicios/identificador_jugadores.py
-src/aplicacion/casos_uso/
-└── importar_lista_buena_fe.py
-src/aplicacion/dtos/ingest_dto.py             ← ListadoJugadoresDTO
-src/infraestructura/ingest/
-├── listado_jugadores_excel.py
-└── listado_jugadores_pdf.py
-src/infraestructura/ui/flet/screens/lista_buena_fe_screen.py  ← se extiende
-pyproject.toml / uv.lock                      ← + openpyxl y la librería de PDF (versiones exactas)
-
-tests/unit/test_listado_jugadores_parsers.py
-tests/unit/test_identificador_jugadores.py
-tests/integration/test_importar_lista_buena_fe.py
-tests/integration/fixtures/listado_jugadores_anonimo.xlsx (y .pdf)
-```
-
-#### US-201 — Importación de Planillas de Partido (Excel y PDF)
-
-- **Esfuerzo:** L (6-10 días) · **Prioridad:** Urgente (bloqueante) · **Dependencias:** US-108,
-  US-206, ADR-003
-- **Antes se llamaba "Parseo de Planillas Excel con Pandas".** El 2026-10-31 se revisaron archivos
-  reales y se sumó el PDF, que trae el mismo contenido (más titulares y capitán).
-- **Dividida (2026-11-08):** la carga masiva (varias planillas a la vez) pasó a la **US-207**, que
-  se apoya en esta sin cambiarla. Esta US importa **una** planilla con su vista previa; el aspecto
-  de la vista previa quedó en el muestrario de la US-111.
-- **Objetivo Funcional:** convertir una planilla de estadísticas de partido que exporta Gesdeportiva (CAB), en Excel o PDF, en un partido con el boxscore de los dos equipos, sin
-  transcripción manual, con vista previa sin efecto secundario y reporte de calidad. De paso genera
-  o completa las listas de buena fe de los dos clubes para esa competencia y categoría.
-- **Narrativa:** Como analista, quiero importar las planillas de partido de Gesdeportiva —de mi
-  club y de los demás— para eliminar el error humano de la transcripción y tener una base con
-  partidos de toda la competencia.
-
-**Formato real de la planilla de partido** (`data/estadisticaPartido_*.xlsx` y su PDF, revisados
-el 2026-10-31):
+**Planilla de estadísticas de partido** (`data/estadisticaPartido_*.xlsx` y su PDF):
 
 - Una sola hoja (`Estadísticas-`). Título en celdas combinadas:
   `Estadísticas - UNIVERSITARIO vs DEPORTIVO NORTE - U13MX - CORDOBA - ASOCIACIÓN - 2026 - CABB - 2026`
@@ -1769,867 +1651,1237 @@ Mapeo a `jugadorPartido`:
 | `AST`, `REC`, `PER`  | `asistencias`, `recuperos`, `perdidas`             |
 | `TAP` `TC` / `TR`    | `taponesRealizados` / `taponesRecibidos`           |
 | `FAL` `FC` / `FR`    | `faltasCometidas` / `faltasRecibidas`              |
-| `Num.`, `VAL`, `+/-` | no se guardan en v0.2 (ver decisiones)             |
+| `Num.`, `VAL`, `+/-` | no se guardan (ver la US-214)                      |
 
-- **Capa de Dominio:** reusa `FormatoArchivoInvalidoError` (US-206).
-- **Capa de Aplicación:**
-  - **Caso de uso:** `ImportarPlanillaPartidoUseCase` con `preview()`. Para guardar reusa
-    `CargarPartidoUseCase` (US-108), y para los jugadores, `IdentificadorJugadores` (US-206).
-  - **DTOs:** `PlanillaPartidoDTO` (lo que entregan los dos parsers: título y filas de cada equipo,
-    ya tipadas) e `IngestReportDTO` (`creados`, `existentes`, `ambiguos`, `rechazados` con causa, y
-    totales).
-- **Capa de Infraestructura:**
-  - **Parsers:** `PlanillaPartidoExcelParser` y `PlanillaPartidoPdfParser`. Los dos devuelven un
-    `PlanillaPartidoDTO`, así el resto no sabe de qué formato vino el archivo.
-  - **`IngestService`** — resuelve clubes, jugadores, inscripciones y listas, y arma el partido.
-  - **UI:** `ImportScreen` — elegir **un** archivo (`FilePicker` de Flet) y pasar a la **vista
-    previa**: completar lo que el archivo no trae (la fecha), confirmar competencia y categoría,
-    invertir local y visitante si hace falta, resolver los ambiguos, ver el boxscore tal como se
-    leyó y **confirmar o descartar**. La planilla no trae puntos por cuarto: la vista previa
-    ofrece el mismo bloque opcional que `CargaPartidoScreen` (US-108); si se deja vacío, el
-    partido se importa sin cuartos. La vista previa queda como un componente que recibe un
-    archivo, para que la US-207 la repita por cada archivo de una tanda.
-- **Base de Datos:** afecta `club`, `jugador`, `jugadorClub`, `inscripcion`, `listaBuenaFe`,
-  `jugadorListaBuenaFe`, `partido`, `jugadorPartido`.
+**Fixtures anonimizados (vale para todas las US de ingesta):** los archivos de `data/` tienen
+nombres reales de jugadores menores de edad y no se suben al repositorio. Los fixtures de
+`tests/integration/fixtures/` son copias con el mismo formato y nombres inventados; cada US crea
+los que usa.
+
+### Épica H2-E1: Integración "Gesdeportiva" y Gobernanza de Esquema (v1.1.0)
+
+#### US-204 — Migraciones de Esquema con yoyo y Base v1.0.0
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Urgente (es la primera del hito) · **Depende de:**
+  v1.0.0 publicada · **Toca la base:** sí, solo agrega las tablas de control de yoyo; no cambia
+  ninguna tabla de datos
+- **Objetivo:** que una versión nueva de la app pueda agregar tablas o columnas a la base de un
+  usuario sin perder sus datos, aplicando las migraciones pendientes al abrir.
+- **Entrega:** la carpeta `migrations/` con `0001_base_v1_0_0.sql`, la función que aplica las
+  migraciones pendientes al arrancar y la guía para escribir una. La usan la US-208, la US-209,
+  la US-410 y toda historia futura que agregue algo a la base.
+- **Por qué yoyo-migrations (ADR-004):** las migraciones son archivos `.sql` planos como los que ya
+  usa el proyecto. No necesita SQLAlchemy (Alembic sí, y el proyecto no tiene ORM). Registra lo
+  aplicado en una tabla propia y corre cada migración en una transacción. Es el mismo modelo que las
+  migraciones de Supabase: archivos numerados que se aplican una vez y en orden.
+- **Alcance:**
+  - `0001_base_v1_0_0.sql` es **copia exacta** del `schema.sql` del tag `v1.0.0`. `schema.sql` se
+    borra: desde acá las tablas solo existen por migraciones. `views.sql`, `seed.sql` y
+    `limpieza.sql` siguen como están.
+  - `DatabaseManager.inicializar_schema` pasa a aplicar las migraciones pendientes y después
+    recrear las vistas (`views.sql`). Los tests que creaban la base con `schema.sql` la crean igual
+    que la app.
 - **Criterios de Aceptación:**
-  - **AC1 — Formato:** si faltan el título o los encabezados esperados, se lanza
-    `FormatoArchivoInvalidoError` antes de procesar, diciendo qué faltó.
-  - **AC2 — Identificación de jugadores:** los jugadores se identifican por nombre dentro de su
-    club (`IdentificadorJugadores`, US-206); los que no existen se crean y los ambiguos se resuelven
-    en la vista previa.
-  - **AC3 — Consistencia:** para cada equipo, la suma de las filas de jugadores coincide con la
-    fila `TOTALES` del archivo en cada columna; si no, se rechaza el partido indicando la columna.
-    Los puntos de `TOTALES` son el resultado final. _(Antes este AC pedía una columna de resultado
-    final en `partido`, y por eso dependía de la US-204.)_
-  - **AC4 — Transaccionalidad:** partido y boxscore se guardan en una sola transacción
-    (`save_with_boxscore`). Lo que se crea antes (clubes, jugadores, inscripciones) queda
-    aunque el partido falle, y reimportar no lo duplica (ver decisiones).
-  - **AC5 — Vista Previa:** `preview()` valida el archivo y muestra qué se crearía (clubes,
-    jugadores, inscripciones) sin persistir nada.
-  - **AC6 — Logs:** reporte con registros procesados, jugadores creados/existentes/ambiguos y
-    errores.
-  - **AC7 — Usabilidad (NFR-4):** todo en una pantalla: elegir archivo → completar la fecha y
-    confirmar competencia y categoría en la vista previa → confirmar.
-  - **AC8 — Mismo resultado en los dos formatos:** el Excel y el PDF del mismo partido producen el
-    mismo `PlanillaPartidoDTO`.
-  - **AC9 — Sin duplicados:** importar de nuevo un partido ya cargado (misma competencia,
-    categoría, fecha, local y visitante) se rechaza con un aviso.
-- **Reglas de Negocio:**
-  - El primer club del título (`A vs B`) se toma como local — **supuesto a confirmar** con más
-    archivos; la vista previa permite invertirlo.
-  - Club que no existe → se crea **sin** vínculo con el usuario (US-108). Se busca por nombre
-    normalizado (sin tildes, mayúsculas ni espacios de más).
-  - Competencia y categoría **no** se crean solas: se eligen en la pantalla, sugeridas cuando el
-    nombre coincide. Los dos archivos de la CAB nombran distinto la misma categoría (`U13MX` y
-    `INFANTILES MIXTO`), así que crearlas automáticamente generaría duplicados.
-  - Si la categoría no está habilitada en la competencia, la vista previa lo avisa («se habilita U13
-    Mixto en Asociación 2026») y al confirmar se habilita antes de inscribir (US-107).
-  - Si un club no tiene inscripción en esa competencia y categoría, se crea con su lista
-    (`inscribir_con_lista`, con la fecha del partido); los jugadores de la planilla que no están en
-    la lista se agregan. Así se cumple la regla de la sección 6 sin rechazar el archivo.
-- **Decisiones tomadas (2026-10-31):**
-  - **Datos sin lugar en el esquema** (dorsal, titular, capitán, entrenador, `VAL` y `+/-`): no se
-    guardan en v0.2. `VAL` se puede recalcular (US-202); el resto se puede agregar más adelante con
-    una migración (US-204), si hace falta. `+/-` no se puede recalcular: necesita el minuto a minuto.
-  - **Lo que se crea antes del partido** (clubes, jugadores, inscripciones) se guarda con otros
-    métodos, cada uno con su propio commit. Si el partido falla, eso queda creado; a cambio,
-    reimportar no lo duplica (AC2 y AC9). Se descartó una unidad de trabajo que abarque todo: hoy
-    cada método del repositorio hace su propio commit, y cambiarlo es más trabajo del que ahorra.
-- **Testing Mínimo:**
-  - _Unitarias:_ los dos parsers contra fixtures (`mm:ss`, `A/I`, espacios de más, bloques en filas
-    distintas); `IngestService` con repositorios falsos (club nuevo, jugador ambiguo, lista
-    inexistente, `TOTALES` que no coincide).
-  - _Integración:_ importar el fixture a SQLite en memoria; `preview` no cambia nada; reimportar se
-    rechaza.
-  - _Manual guiado:_ importar el Excel y el PDF del mismo partido desde `ImportScreen` y comparar.
-  - **Fixtures anonimizados:** los archivos de `data/` tienen nombres reales de jugadores menores
-    de edad y no se suben al repositorio. Los fixtures son copias con el mismo formato y nombres
-    inventados.
-
-**Reparto en dos pistas:**
-
-- **Juntos, antes:** el `PlanillaPartidoDTO` (lo que entregan los parsers) y el `IngestReportDTO`
-  (lo que muestra la pantalla).
-- **Pista A:** `ImportScreen` con la vista previa como componente (AC7) y los dos parsers (AC1,
-  AC8); el de PDF reusa la librería que fijó la US-206.
-- **Pista B:** `IngestService` (AC2, AC3, AC9), `ImportarPlanillaPartidoUseCase` con `preview()`
-  (AC5) y el reporte (AC6), con los fixtures y los tests de integración.
-
-**Archivos a crear:**
+  - **AC1 — ADR:** `docs/adr/ADR-004-versionado-db.md` queda aprobado con yoyo-migrations y la regla
+    de migraciones aditivas de la sección 3.
+  - **AC2 — Base nueva:** sobre una base vacía se aplican todas las migraciones y la app abre.
+  - **AC3 — Base de un usuario de v1.0.0:** una base con las tablas de v1.0.0 y sin las tablas de
+    yoyo se reconoce como v1.0.0. La `0001` se marca como aplicada **sin ejecutarse** y se aplican
+    solo las siguientes. No se pierde ni cambia ninguna fila.
+  - **AC4 — Al día:** si no hay pendientes, no se hace nada (abrir dos veces da el mismo resultado).
+  - **AC5 — Falla:** una migración que falla no deja cambios (su transacción se deshace), la app no
+    abre y muestra un mensaje claro. Se registra en el log. Hoy `inicializar_schema` registra el
+    error y sigue de largo: eso se cambia, porque abrir con una base a medio migrar rompe después.
+  - **AC6 — Binario:** el instalador de un _pre-release_ abre una base creada con la v1.0.0 y la
+    migra (yoyo se instala con `flet build`; se prueba como el AC14 de la US-109).
+- **Testing Mínimo:** _integración_ con una base v1.0.0 con datos (armada con la `0001` y
+  `seed.sql`) más una migración de prueba (`tests/.../migraciones_prueba/0002_agrega_columna.sql`,
+  una columna con `DEFAULT`): la cantidad de filas de cada tabla no cambia y la columna existe. Base
+  vacía, base al día y una migración rota que se deshace entera.
+- **Archivos:**
 
 ```text
-src/infraestructura/ingest/
-├── planilla_partido_excel.py
-├── planilla_partido_pdf.py
-└── ingest_service.py
-
-src/infraestructura/ui/flet/screens/import_screen.py
-
-src/aplicacion/
-├── casos_uso/importar_planilla_partido.py
-└── dtos/ingest_dto.py                        ← + PlanillaPartidoDTO, IngestReportDTO
-
-tests/unit/test_planilla_partido_parsers.py
-tests/integration/
-├── test_importar_planilla_partido.py
-└── fixtures/planilla_partido_anonima.xlsx (y .pdf; casos borde: TOTALES que no coincide, jugador ya existente, club nuevo)
+src/infraestructura/persistencia/sql/migrations/0001_base_v1_0_0.sql
+src/infraestructura/persistencia/migraciones.py          ← aplicar_migraciones(ruta_db) sobre yoyo
+src/infraestructura/persistencia/database_manager.py     ← inicializar_schema usa migraciones.py
+src/infraestructura/persistencia/sql/schema.sql          ← se borra
+pyproject.toml / uv.lock                                 ← + yoyo-migrations (versión exacta)
+docs/adr/ADR-004-versionado-db.md
+docs/info_modulo/12-como-agregar-una-migracion.md
+tests/integration/test_migraciones.py
 ```
+
+#### US-208 — Copia de la Base Antes de Migrar y Bloqueo de Bases Más Nuevas
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-204 · **Toca la base:** no
+  (copia el archivo)
+- **Objetivo:** que si una migración sale mal haya una copia de la base de antes, y que una versión
+  vieja de la app nunca toque una base que ya migró una versión más nueva.
+- **Entrega:** `crear_copia(conexion, destino)` en `persistencia/backup_service.py` (con
+  `VACUUM INTO`, ADR-008) y la carpeta `~/.statspro/backups/` en `config/rutas.py`. Las usan la
+  US-402, la US-410 y la US-416.
+- **Criterios de Aceptación:**
+  - **AC1:** si hay migraciones pendientes, antes de aplicarlas se crea
+    `~/.statspro/backups/antes-de-migrar-AAAAMMDD-HHMMSS.db`. Si la copia falla, no se migra y la
+    app no abre (mensaje claro).
+  - **AC2:** se conservan las últimas 5 copias de este tipo; las más viejas se borran.
+  - **AC3:** si la base tiene migraciones aplicadas que esta versión no conoce, la app no abre:
+    explica que hay que actualizarla y no toca la base.
+- **Testing Mínimo:** _integración_: con una migración pendiente se crea la copia y abre igual que
+  el original; sin pendientes no se copia nada; la sexta copia borra la más vieja; una base con
+  una migración desconocida bloquea sin modificar el archivo (mismo hash antes y después).
+- **Archivos:** `src/infraestructura/persistencia/backup_service.py`, `src/config/rutas.py`,
+  `src/infraestructura/persistencia/migraciones.py`, `tests/integration/test_copia_antes_de_migrar.py`.
+
+#### US-209 — Guardia de Migraciones en el CI
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-204 · **Toca la base:** no
+- **Objetivo:** que el CI frene un PR que rompa la regla de la sección 3, en vez de depender de
+  que alguien lo vea en la revisión.
+- **Entrega:** un test y un paso del CI que tiene que pasar toda migración nueva.
+- **Criterios de Aceptación:**
+  - **AC1 — Solo sentencias aditivas:** un test recorre `migrations/` y falla si encuentra
+    `DROP TABLE`, `DROP COLUMN`, `RENAME`, `DELETE` o `UPDATE`, y dice el archivo y la línea.
+  - **AC2 — Migraciones inmutables:** el CI falla si un PR modifica, renombra o borra un archivo
+    de `migrations/` que ya está en `main` (solo se pueden agregar archivos nuevos).
+  - **AC3:** los dos chequeos están en la guía `12-como-agregar-una-migracion.md`.
+- **Testing Mínimo:** el test con una migración de ejemplo prohibida (en `tests/`) falla, y con una
+  permitida pasa; un PR de prueba que edita la `0001` queda en rojo.
+- **Archivos:** `tests/unit/test_migraciones_permitidas.py`, `.github/workflows/MainAction.yml`
+  (paso de `git diff --diff-filter=MDR` contra `main`), `docs/info_modulo/12-como-agregar-una-migracion.md`.
+
+#### US-206 — Lectura del Listado de Jugadores de la CAB en Excel
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** — (usa el mapeo por texto que
+  propone el ADR-003) · **Toca la base:** no
+- **Objetivo:** convertir el listado "Jugadores" que exporta Gesdeportiva en Excel en datos
+  tipados, sin tocar la base.
+- **Entrega:** `ListadoJugadoresDTO` (título desarmado y nombres), `FormatoArchivoInvalidoError`,
+  el paquete `infraestructura/ingest/` y `leer_listado(ruta)`, que elige el lector según la
+  extensión. La US-210 le suma el PDF sin cambiar a quien lo llama. Los usan la US-210, la US-212,
+  la US-213 y la US-201.
+- **Criterios de Aceptación:**
+  - **AC1 — Formato:** un archivo sin el título o sin el encabezado `Apellidos y Nombre` lanza
+    `FormatoArchivoInvalidoError` antes de procesar y dice qué faltó. Una extensión que ningún
+    lector conoce lanza el mismo error ("formato no soportado").
+  - **AC2 — Título:** se separa en club, categoría, ciudad, competencia, temporada, organizador y
+    año.
+  - **AC3 — Nombres:** salen sin espacios de más y en el orden del archivo, incluidos los que
+    tienen 0 partidos. El encabezado se busca por texto, no por posición.
+- **Fuera de alcance:** `Partidos jugados`, `Minutos partido` y `Puntos partido` son los datos
+  oficiales de la temporada y no se guardan. Más adelante servirían para mostrar cuánto de la
+  temporada de un jugador está cargado (ver "Muestra chica" en la sección 6).
+- **Testing Mínimo:** _unitarias_ contra el fixture (tildes, espacios de más, jugador con 0
+  partidos, título incompleto, encabezado faltante, extensión desconocida).
+- **Archivos:**
+
+```text
+src/dominio/exceptions.py                         ← + FormatoArchivoInvalidoError
+src/aplicacion/dtos/ingest_dto.py                 ← ListadoJugadoresDTO
+src/infraestructura/ingest/__init__.py            ← leer_listado(ruta): lector por extensión
+src/infraestructura/ingest/listado_jugadores_excel.py
+pyproject.toml / uv.lock                          ← + openpyxl (versión exacta)
+tests/unit/test_listado_jugadores_excel.py
+tests/integration/fixtures/listado_jugadores_anonimo.xlsx
+```
+
+#### US-210 — Lectura del Listado de Jugadores en PDF
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-206, ADR-003 (la elección
+  de la librería de PDF es el primer paso de esta US) · **Toca la base:** no
+- **Objetivo:** aceptar también el PDF del listado, con el mismo resultado que el Excel.
+- **Entrega:** la librería de PDF fijada en `pyproject.toml` (la reusa la US-214) y `.pdf`
+  registrado en `leer_listado`. La pantalla de la US-213 lo acepta sin cambios.
+- **Criterios de Aceptación:**
+  - **AC1:** ADR-003 aprobado con la librería elegida.
+  - **AC2 — Mismo resultado:** el Excel y el PDF del mismo listado producen el mismo
+    `ListadoJugadoresDTO`.
+  - **AC3:** los errores de formato son los mismos del AC1 de la US-206.
+- **Testing Mínimo:** _unitaria_ que compara el DTO de los dos fixtures; PDF sin encabezado.
+- **Archivos:** `src/infraestructura/ingest/listado_jugadores_pdf.py`,
+  `src/infraestructura/ingest/__init__.py`, `pyproject.toml`/`uv.lock`, `docs/adr/ADR-003-*.md`,
+  `tests/unit/test_listado_jugadores_pdf.py`, `tests/integration/fixtures/listado_jugadores_anonimo.pdf`.
+
+#### US-211 — Identificación de Jugadores por Nombre Dentro del Club
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** — · **Toca la base:** no (solo
+  lee)
+- **Objetivo:** decidir, para un nombre `APELLIDOS, NOMBRES` y un club, si es un jugador que ya
+  existe, uno nuevo o un caso ambiguo, sin guardar nada.
+- **Entrega:** el servicio `IdentificadorJugadores`. Lo usan la US-212 y la US-216.
+- **Reglas:** normaliza el nombre (sin tildes, mayúsculas ni espacios de más) y busca **solo entre
+  los jugadores de ese club** (vínculos y listas). **Nunca** empareja con jugadores de otro club:
+  dos chicos con el mismo nombre en clubes distintos son dos personas.
+- **Criterios de Aceptación:**
+  - **AC1:** devuelve `Existente(jugador)`, `Nuevo` o `Ambiguo(candidatos)` según haya 1, 0 o más de
+    una coincidencia. No crea jugadores: los crea el caso de uso al confirmar, así la vista previa
+    no persiste nada.
+  - **AC2:** el mismo nombre en otro club da `Nuevo`.
+  - **AC3:** si `JugadorRepositorio` no tiene cómo listar los jugadores de un club por vínculos y
+    listas, el método se agrega en esta US, con su test de integración.
+- **Testing Mínimo:** _unitarias_ con repositorio falso: 0, 1 y 2 coincidencias, tildes y espacios,
+  y el mismo nombre en otro club.
+- **Archivos:** `src/aplicacion/servicios/identificador_jugadores.py`,
+  `tests/unit/test_identificador_jugadores.py` (y el repositorio, si aplica el AC3).
+
+#### US-212 — Caso de Uso para Importar una Lista de Buena Fe
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-206, US-211 · **Toca la
+  base:** no (inserta datos con los repositorios existentes)
+- **Objetivo:** cargar la lista de buena fe de un club para una competencia y categoría a partir de
+  un `ListadoJugadoresDTO`, con vista previa sin efectos.
+- **Narrativa:** Como DT, quiero importar el listado de jugadores que publica la CAB para tener la
+  lista de buena fe de cualquier club (propio o rival) sin cargarla jugador por jugador. Es lo que
+  después permite cargar a mano partidos de otros clubes.
+- **Entrega:** `ImportarListaBuenaFeUseCase` con `preview()` y `confirmar()`. Lo usa la US-213.
+- **Reglas:**
+  - El club viene sugerido del título; si no existe, se crea **sin** vínculo con el usuario
+    (como en la US-108).
+  - Competencia y categoría las elige el usuario (llegan como parámetros). Si la categoría no está
+    habilitada en la competencia, la vista previa lo avisa y al confirmar se habilita
+    (`HabilitarCategoriaEnCompetenciaUseCase`, regla de la sección 6).
+  - Si no hay inscripción, se crea con su lista (`inscribir_con_lista`, con la fecha de importación
+    como fecha de presentación). Se agregan los jugadores que faltan. Los que están en la lista y no
+    vienen en el archivo **no se quitan**: se informan.
+- **Criterios de Aceptación:**
+  - **AC1 — Vista previa:** `preview()` devuelve jugadores nuevos, existentes y ambiguos, y lo que
+    se crearía (club, habilitación, inscripción), sin persistir nada.
+  - **AC2 — Ambiguos:** `confirmar()` recibe la elección del usuario para cada ambiguo; sin elección
+    no confirma.
+  - **AC3 — Idempotencia:** importar dos veces el mismo listado no duplica jugadores ni filas en la
+    lista.
+  - **AC4 — Listas separadas:** el mismo jugador puede estar en la lista de U13 del Asociativo 2026
+    y en la del Provincial 2026 (o del Asociativo 2027); importar una no toca las otras.
+- **Testing Mínimo:** _integración_ en SQLite en memoria: `preview` no cambia nada; importar el
+  fixture dos veces; el mismo jugador en las listas de dos competencias; categoría no habilitada.
+- **Archivos:** `src/aplicacion/casos_uso/importar_lista_buena_fe.py`,
+  `tests/integration/test_importar_lista_buena_fe.py`.
+
+#### US-213 — Importar la Lista desde un Archivo en Pantalla
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-212 · **Toca la base:** no
+- **Objetivo:** que el DT importe un listado desde `ListaBuenaFeScreen` sin tipear nombres.
+- **Criterios de Aceptación:**
+  - **AC1:** botón "Importar desde archivo" en `ListaBuenaFeScreen` (US-107). El `FilePicker`
+    acepta las extensiones que conoce `leer_listado`: cuando se mergea la US-210 aparece el PDF sin
+    tocar esta pantalla.
+  - **AC2:** la vista previa muestra nuevos, existentes y ambiguos; cada ambiguo se resuelve
+    eligiendo un candidato o "es otro jugador". Confirmar o descartar.
+  - **AC3:** un error de formato se muestra en pantalla con lo que faltó, sin traceback.
+- **Testing Mínimo:** _manual guiado:_ importar el fixture, resolver un ambiguo y volver a importar
+  (no duplica). Pantalla construida sin ventana, como las del Hito 1.
+- **Archivos:** `src/infraestructura/ui/flet/screens/lista_buena_fe_screen.py`.
+
+#### US-201 — Lectura de la Planilla de Partido en Excel
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-206
+  (`FormatoArchivoInvalidoError` y el patrón de lector por extensión) · **Toca la base:** no
+- **Objetivo:** convertir la planilla de estadísticas de partido que exporta Gesdeportiva en Excel
+  en un `PlanillaPartidoDTO` con el título y las filas de los dos equipos ya tipadas.
+- **Entrega:** `PlanillaPartidoDTO` y `leer_planilla(ruta)`. Los usan la US-214, la US-215, la
+  US-216 y la US-207.
+- **Criterios de Aceptación:**
+  - **AC1 — Formato:** si faltan el título o los encabezados esperados, se lanza
+    `FormatoArchivoInvalidoError` antes de procesar y se dice qué faltó.
+  - **AC2 — Bloques:** encuentra los dos bloques por texto aunque estén en filas distintas, cada uno
+    con su club, sus jugadores y su fila `TOTALES`.
+  - **AC3 — Valores:** `mm:ss` → minutos con decimales, `A/I` → convertidos y lanzados, según el
+    mapeo de arriba. Las columnas `%`, `Tot.`, `Num.`, `VAL` y `+/-` se ignoran.
+- **Testing Mínimo:** _unitarias_ contra el fixture: `mm:ss`, `A/I`, espacios de más, bloques en
+  filas distintas, encabezado faltante.
+- **Archivos:** `src/infraestructura/ingest/planilla_partido_excel.py`,
+  `src/infraestructura/ingest/__init__.py` (+ `leer_planilla`), `src/aplicacion/dtos/ingest_dto.py`
+  (+ `PlanillaPartidoDTO`), `tests/unit/test_planilla_partido_excel.py`,
+  `tests/integration/fixtures/planilla_partido_anonima.xlsx`.
+
+#### US-214 — Lectura de la Planilla de Partido en PDF
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-201, US-210 (librería de
+  PDF) · **Toca la base:** no
+- **Objetivo:** aceptar también el PDF de la planilla, con el mismo resultado que el Excel.
+- **Criterios de Aceptación:**
+  - **AC1 — Mismo resultado:** el Excel y el PDF del mismo partido producen el mismo
+    `PlanillaPartidoDTO`.
+  - **AC2:** lo que solo trae el PDF (titulares, capitán, entrenador) se ignora.
+- **Decisión tomada (2026-10-31):** dorsal, titular, capitán, entrenador, `VAL` y `+/-` no tienen
+  lugar en el esquema y no se guardan. `VAL` se puede recalcular (US-202). El resto, si algún día
+  hace falta, es una historia nueva con una **migración aditiva** (sección 3). `+/-` no se puede
+  recalcular: necesita el minuto a minuto.
+- **Testing Mínimo:** _unitaria_ que compara el DTO de los dos fixtures.
+- **Archivos:** `src/infraestructura/ingest/planilla_partido_pdf.py`,
+  `src/infraestructura/ingest/__init__.py`, `tests/unit/test_planilla_partido_pdf.py`,
+  `tests/integration/fixtures/planilla_partido_anonima.pdf`.
+
+#### US-215 — Validación de la Planilla Contra la Fila TOTALES
+
+- **Esfuerzo:** XS (menos de 1 día) · **Prioridad:** Alta · **Depende de:** US-201 · **Toca la
+  base:** no
+- **Objetivo:** detectar una planilla mal exportada antes de importarla.
+- **Entrega:** la función pura `validar_totales(planilla) -> list[Diferencia]`. La usa la US-216.
+- **Criterios de Aceptación:**
+  - **AC1:** para cada equipo, la suma de las filas de jugadores se compara con la fila `TOTALES`
+    en cada columna, y cada diferencia dice equipo, columna, suma y total.
+  - **AC2:** los puntos de `TOTALES` son el resultado final del partido.
+- **Testing Mínimo:** _unitarias_: planilla que coincide, una con una columna distinta en un
+  equipo, y otra con diferencias en los dos.
+- **Archivos:** `src/aplicacion/servicios/validar_totales.py`, `tests/unit/test_validar_totales.py`.
+
+#### US-216 — Caso de Uso para Importar una Planilla de Partido
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Urgente (bloquea el análisis con datos reales) ·
+  **Depende de:** US-201, US-211, US-215 · **Toca la base:** no (inserta datos con los métodos
+  existentes)
+- **Objetivo:** convertir un `PlanillaPartidoDTO` en un partido con el boxscore de los dos equipos,
+  con vista previa sin efectos y un reporte de lo hecho. De paso crea o completa las listas de buena
+  fe de los dos clubes para esa competencia y categoría.
+- **Narrativa:** Como analista, quiero importar las planillas de partido de Gesdeportiva (de mi
+  club y de los demás) para no transcribir a mano y tener una base con partidos de toda la
+  competencia.
+- **Entrega:** `ImportarPlanillaPartidoUseCase` con `preview()` y `confirmar()`, e
+  `IngestReportDTO` (`creados`, `existentes`, `ambiguos`, `rechazados` con causa, y totales). Los
+  usan la US-217 y la US-207. Para guardar reusa `CargarPartidoUseCase` (US-108) y, para los
+  jugadores, `IdentificadorJugadores` (US-211). Los dos equipos traen boxscore completo, así que se
+  guardan como boxscore (ADR-010).
+- **Reglas de Negocio:**
+  - El primer club del título (`A vs B`) se toma como local. Es un **supuesto a confirmar** con más
+    archivos; `confirmar()` acepta invertirlo.
+  - Club que no existe → se crea **sin** vínculo con el usuario (US-108). Se busca por nombre
+    normalizado.
+  - Competencia y categoría **no** se crean solas: llegan como parámetros (la pantalla las sugiere
+    cuando el nombre coincide). Los dos archivos de la CAB nombran distinto la misma categoría
+    (`U13MX` e `INFANTILES MIXTO`), así que crearlas automáticamente generaría duplicados.
+  - Si la categoría no está habilitada en la competencia, la vista previa lo avisa («se habilita U13
+    Mixto en Asociación 2026») y al confirmar se habilita antes de inscribir.
+  - Si un club no tiene inscripción en esa competencia y categoría, se crea con su lista
+    (`inscribir_con_lista`, con la fecha del partido); los jugadores de la planilla que no están en
+    la lista se agregan.
+  - La fecha la pone el usuario (la planilla no la trae). Los puntos por cuarto son opcionales, como
+    en `CargaPartidoScreen`.
+- **Criterios de Aceptación:**
+  - **AC1 — Vista previa:** `preview()` muestra qué se crearía (clubes, jugadores, habilitaciones,
+    inscripciones) y las diferencias de `validar_totales`, sin persistir nada.
+  - **AC2 — Consistencia:** con diferencias contra `TOTALES` el partido se rechaza indicando la
+    columna.
+  - **AC3 — Transacción:** partido y boxscore se guardan en una sola transacción
+    (`save_with_boxscore`). Lo que se crea antes (clubes, jugadores, inscripciones) queda aunque el
+    partido falle, y reimportar no lo duplica.
+  - **AC4 — Sin duplicados:** importar de nuevo un partido ya cargado (misma competencia, categoría,
+    fecha, local y visitante) se rechaza con un aviso.
+  - **AC5 — Reporte y log:** `IngestReportDTO` con registros procesados, jugadores
+    creados/existentes/ambiguos y errores; el mismo detalle queda en el log (US-110).
+- **Decisión tomada (2026-10-31):** lo que se crea antes del partido se guarda con otros métodos,
+  cada uno con su propio commit. Se descartó una unidad de trabajo que abarque todo: hoy cada método
+  del repositorio hace su propio commit, y cambiarlo es más trabajo del que ahorra.
+- **Testing Mínimo:** _unitarias_ con repositorios falsos (club nuevo, jugador ambiguo, lista
+  inexistente, totales que no coinciden, local invertido); _integración_: importar el fixture a
+  SQLite en memoria, `preview` no cambia nada, reimportar se rechaza.
+- **Archivos:** `src/aplicacion/casos_uso/importar_planilla_partido.py`,
+  `src/aplicacion/dtos/ingest_dto.py` (+ `IngestReportDTO`), `tests/unit/test_importar_planilla_partido.py`,
+  `tests/integration/test_importar_planilla_partido.py`.
+
+#### US-217 — Pantalla de Importación de una Planilla
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-216 · **Toca la base:** no
+- **Objetivo:** importar una planilla desde la GUI en una sola pantalla: elegir archivo → completar
+  y revisar → confirmar (NFR-4). El aspecto de la vista previa está en el muestrario de la US-111.
+- **Entrega:** `ImportScreen` y el componente de vista previa, que recibe un archivo. La US-207 lo
+  repite por cada archivo de una tanda.
+- **Criterios de Aceptación:**
+  - **AC1:** entrada "Importar planilla" en el menú lateral; `FilePicker` con las extensiones que
+    conoce `leer_planilla`.
+  - **AC2 — Vista previa:** completar la fecha, confirmar competencia y categoría (sugeridas),
+    invertir local y visitante, resolver los ambiguos, cargar puntos por cuarto si se tienen, ver el
+    boxscore tal como se leyó y las diferencias contra `TOTALES`. Confirmar o descartar.
+  - **AC3:** errores de formato, de totales y de duplicado se muestran en pantalla, sin traceback.
+- **Testing Mínimo:** _manual guiado:_ importar el Excel (y el PDF, si la US-214 está) del mismo
+  partido; el segundo se rechaza como duplicado.
+- **Archivos:** `src/infraestructura/ui/flet/screens/import_screen.py`,
+  `src/infraestructura/ui/flet/components/vista_previa_planilla.py`, menú lateral y composition root.
 
 #### US-207 — Carga Masiva de Planillas de Partido
 
-- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Dependencias:** US-201
-- **Nueva (2026-11-08), sale de dividir la US-201.** No cambia nada de la importación de una
-  planilla: le suma elegir varias a la vez. El aspecto de las pantallas (elegir archivos y
-  resultado) está en el muestrario de la US-111.
-- **Objetivo Funcional:** importar de una vez las planillas de una fecha completa (o de varias),
-  revisando cada partido en su vista previa.
-- **Narrativa:** Como analista, quiero elegir todas las planillas de una fecha juntas en vez de
-  importarlas de a una.
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-217 · **Toca la base:** no
+- **Objetivo:** elegir de una vez las planillas de una fecha completa (o de varias) y revisar cada
+  partido en su vista previa.
 - **Por qué cada archivo se sigue confirmando por separado:** la planilla no trae la fecha del
   partido; confirmar todo de un golpe obligaría a cargar las fechas a ciegas.
-- **Capa de Aplicación:** sin casos de uso nuevos. La tanda vive en la pantalla: llama a
-  `preview()` de `ImportarPlanillaPartidoUseCase` (US-201) por cada archivo y, al confirmar, al
-  mismo caso de uso que importa uno solo.
-- **Capa de Infraestructura:**
-  - **Función pura** `misma_planilla(a, b)` sobre dos `PlanillaPartidoDTO` (US-201): mismo título
-    y mismas filas `TOTALES` de los dos equipos. Es lo que permite detectar el Excel y el PDF de un
-    mismo partido antes de que ninguno esté guardado (y antes de saber la fecha).
-  - **UI:** `ImportScreen` pasa a tener tres pasos:
-    1. **Elegir archivos:** uno o varios (`FilePicker` con `allow_multiple=True`). Cada archivo
-       aparece en una lista con el partido detectado y su estado: listo para revisar, con
-       jugadores ambiguos, ya cargado, repetido en la tanda o rechazado (con la causa).
-    2. **Vista previa, archivo por archivo:** el componente de la US-201, sin cambios.
-    3. **Resultado:** resumen de la tanda (importados, ya cargados, descartados y rechazados, con
-       la causa de cada uno).
+- **Alcance:** sin casos de uso nuevos: la tanda vive en la pantalla, que llama a `preview()` y
+  `confirmar()` de la US-216 por cada archivo. La función pura `misma_planilla(a, b)` compara dos
+  `PlanillaPartidoDTO` (mismo título y mismas filas `TOTALES` de los dos equipos) para detectar el
+  Excel y el PDF de un mismo partido antes de que ninguno esté guardado.
 - **Criterios de Aceptación:**
-  - **AC1 — Carga masiva:** se pueden elegir varios archivos a la vez. Cada uno se valida antes de
-    la vista previa (formato, totales, ya cargado); un archivo rechazado no frena a los demás.
-    Cada partido se confirma por separado y se guarda en su propia transacción: si uno falla, los
-    ya confirmados quedan guardados y los siguientes se pueden seguir revisando.
-  - **AC2 — Repetidos en la misma tanda:** si dos archivos describen el mismo partido (por
-    ejemplo, el Excel y el PDF de la misma planilla), se marca el segundo como repetido y solo se
-    revisa el primero. Hace falta porque el AC9 de la US-201 mira la base, y en ese momento
-    ninguno de los dos está guardado todavía.
-  - **AC3 — Resultado de la tanda:** al terminar se muestra cuántos partidos se importaron y qué
-    archivos no, con su causa; el mismo detalle queda en el log (AC6 de la US-201).
-- **Testing Mínimo:**
-  - _Unitarias:_ `misma_planilla` (mismo partido en Excel y PDF → sí; mismo título con otros
-    totales → no).
-  - _Integración:_ tanda de cuatro archivos (uno válido, uno ya cargado, uno con `TOTALES` que no
-    coincide y el PDF del mismo partido que el válido): se importa solo el válido y los otros tres
-    se informan con su causa (AC1 a AC3).
-  - _Manual guiado:_ una tanda de varios archivos con uno descartado en la vista previa.
+  - **AC1 — Carga masiva:** `FilePicker` con `allow_multiple=True`. Cada archivo aparece con el
+    partido detectado y su estado (listo, con ambiguos, ya cargado, repetido en la tanda,
+    rechazado con la causa). Un archivo rechazado no frena a los demás; cada partido se confirma y
+    se guarda por separado.
+  - **AC2 — Repetidos en la tanda:** si dos archivos describen el mismo partido, el segundo se marca
+    como repetido y solo se revisa el primero (el AC4 de la US-216 mira la base, y en ese momento
+    ninguno está guardado).
+  - **AC3 — Resultado:** al terminar, un resumen con importados, ya cargados, descartados y
+    rechazados con su causa; el mismo detalle queda en el log.
+- **Testing Mínimo:** _unitarias_ de `misma_planilla` (Excel y PDF del mismo partido → sí; mismo
+  título con otros totales → no); _integración_: tanda de cuatro archivos (uno válido, uno ya
+  cargado, uno con `TOTALES` que no coincide y el PDF del válido): se importa solo el válido.
+- **Archivos:** `src/aplicacion/servicios/misma_planilla.py`,
+  `src/infraestructura/ui/flet/screens/import_screen.py`, `tests/unit/test_misma_planilla.py`,
+  `tests/integration/test_importar_tanda.py`.
 
-**Reparto en dos pistas:**
+### Épica H2-E2: Motor Estadístico Avanzado (v1.2.0)
 
-- **Pista A:** los pasos 1 y 3 de `ImportScreen` (AC1, AC3).
-- **Pista B:** `misma_planilla` (AC2) y el test de integración de la tanda.
+Las tres primeras historias son funciones puras sobre `DataFrame` y no dependen de nada: se pueden
+tomar en paralelo con la H2-E1. La US-203 tampoco depende de nada y abre la lectura de datos.
 
-**Archivos:**
+#### US-202 — Fórmulas de Tiro y Eficiencia
 
-```text
-src/infraestructura/ingest/misma_planilla.py
-src/infraestructura/ui/flet/screens/import_screen.py   ← + elegir varios archivos y resultado de la tanda
-
-tests/unit/test_misma_planilla.py
-tests/integration/test_importar_tanda.py
-```
-
-### Épica H2-E2: Motor Estadístico Avanzado
-
-#### US-202 — Cálculo de Métricas Avanzadas
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-201
-- **Objetivo Funcional:** implementar el motor lógico de analítica deportiva para transformar
-  datos crudos del boxscore en indicadores avanzados de rendimiento (eficiencia, porcentajes
-  ajustados, ritmos de juego), mediante funciones puras determinísticas.
-- **Narrativa:** Como DT, quiero ver métricas como eFG%, EFF, PPP y PER para evaluar el impacto
-  real de mis jugadores y comparar el rendimiento de mi equipo contra el rival en cada partido.
-- **Capa de Dominio:** **Excepciones:** `CalculationError` (datos inconsistentes, ej. lanzamientos
-  negativos).
-- **Capa de Aplicación:**
-  - **Casos de uso:** `CalcularEstadisticasAvanzadasUseCase` (aplica fórmulas sobre DataFrames),
-    `GenerarTablaComparativaUseCase` (agrupa por club, "Equipo vs Rival" — **ampliado**: además de
-    la comparativa de un único `idPartido`, acepta agregar por `idCompetencia` o por año, para
-    comparar el rendimiento acumulado de dos equipos en toda una competencia/temporada, no solo en
-    un cruce puntual), `GenerarComparativaJugadoresUseCase` (**nuevo** — compara dos jugadores en
-    la misma "situación" elegida: un partido, una competencia, un año, o global/toda su carrera; y
-    también compara un jugador contra el promedio de su categoría/competencia, para saber si está
-    por encima o por debajo del resto).
-  - **DTOs:** `MetricasAvanzadasDTO`, `ComparativaEquipoDTO`, `MetricasDTO`,
-    `ComparativaJugadoresDTO` (**nuevo**).
-- **Capa de Infraestructura:** `src/infraestructura/analytics/formulas.py` — funciones puras que
-  reciben un `DataFrame` y retornan serie/escalar; **sin acceso a DB, sin efectos secundarios**.
-- **Fórmulas mínimas requeridas:**
-  - **eFG% (Effective Field Goal Percentage):** `(T2C + 1.5 × T3C) / (T2L + T3L)`.
-  - **EFF (Efficiency Index):** `PTS + REB + AST + REC + TAP_R − (T2L−T2C) − (T3L−T3C) − (T1L−T1C) − PERD`.
-  - **PPP (Puntos por Posesión):** `Puntos / Posesiones`.
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** — · **Toca la base:** no
+- **Objetivo:** tener las métricas avanzadas como funciones puras determinísticas, probadas con
+  valores calculados a mano.
+- **Narrativa:** Como DT, quiero ver métricas como eFG%, EFF, PPP y PER para evaluar el impacto real
+  de mis jugadores y comparar a mi equipo contra el rival.
+- **Entrega:** `infraestructura/analytics/formulas.py` y `CalculationError` (datos inconsistentes,
+  ej. lanzamientos negativos). Las usan la US-223, la US-224, la US-226, la US-227, la US-229 y la
+  US-303.
+- **Fórmulas:**
+  - **eFG%:** `(T2C + 1.5 × T3C) / (T2L + T3L)`.
+  - **EFF:** `PTS + REB + AST + REC + TAP_R − (T2L−T2C) − (T3L−T3C) − (T1L−T1C) − PERD`.
   - **Posesiones (estimación FIBA):** `(T2L + T3L) + 0.44 × T1L + PERD − REB_OF`.
-  - **% de Rebotes:** proporción de rebotes totales capturados sobre el total disponible.
-  - **Promedio de puntos por cuarto (2026-11-08):** por club, a favor y en contra, para cada
-    período. Solo sobre los partidos con cuartos cargados (US-108); devuelve también N (partidos
-    con cuartos) y M (partidos del recorte).
+  - **PPP:** `Puntos / Posesiones`.
+  - **% de Rebotes:** rebotes capturados sobre el total disponible (recibe los dos equipos).
+  - **PER simplificado:** la fórmula exacta se elige y se documenta en esta US (hasta ahora el PRD
+    lo nombraba sin definirlo).
 - **Criterios de Aceptación:**
-  - **AC1.** Disponibilidad de eFG%, EFF, PPP, PER (simplificado) y % de Rebotes.
-  - **AC2.** Reporte comparativo "Equipo vs Rival" para un `idPartido` dado, **o agregado para un
-    `idCompetencia`/año completo** (no solo partido a partido).
-  - **AC3.** Los cálculos aceptan parámetros de filtro por Temporada e `idCompetencia`
-    directamente en los DataFrames.
-  - **AC4.** División por cero → 0.0; exclusión de `NaN` en resultados finales.
-  - **AC5.** Cada fórmula documentada con su fuente/referencia técnica.
-  - **AC6.** `formulas.py` no contiene ningún acceso a base de datos ni I/O externo.
-  - **AC7 (nuevo).** `GenerarComparativaJugadoresUseCase` soporta comparar dos jugadores (mismo
-    recorte: partido/competencia/año/global) y comparar un jugador contra el promedio de su
-    categoría/competencia.
-  - **AC8 (2026-10-31) — Muestra chica:** los resultados traen los partidos jugados (PJ) y los
-    minutos; una comparación marca la muestra chica cuando alguno no llega al mínimo de partidos
-    (sección 6). `formulas.py` suma el valor cada 40 minutos.
-  - **AC9 (2026-11-08) — Puntos por cuarto:** el promedio por cuarto ignora los partidos sin
-    cuartos, informa «sobre N de M partidos» y, si N es 0, no muestra nada (no un cero). Las
-    prórrogas se promedian solo entre los partidos que las tuvieron.
-- **Testing Mínimo:**
-  - _Unitarias (`tests/unit/test_formulas.py`):_ cobertura del **100%** de las funciones matemáticas, con
-    valores calculados a mano y casos límite (ceros). Promedio por cuarto con partidos mezclados
-    (con y sin cuartos, uno con prórroga) y sin ningún partido con cuartos (AC9).
-  - _Integración:_ `GenerarTablaComparativaUseCase` con datos de dos equipos en un mismo partido
-    (semilla), verificando que los totales coinciden con el resultado final; y con datos de dos
-    equipos a lo largo de una competencia completa, verificando el agregado.
-  - _Integración:_ `GenerarComparativaJugadoresUseCase` jugador vs. jugador y jugador vs. promedio
-    de categoría, con datos semilla de al menos 3 jugadores.
+  - **AC1:** cada fórmula acepta `pd.DataFrame` y devuelve serie o escalar; división por cero →
+    0.0; nunca `NaN` ni `inf`.
+  - **AC2:** cada fórmula documenta su fuente.
+  - **AC3:** `formulas.py` no accede a la base ni hace I/O.
+- **Testing Mínimo:** `tests/unit/test_formulas.py` con cobertura del **100 %**, valores calculados
+  a mano y casos límite (ceros).
+- **Archivos:** `src/infraestructura/analytics/formulas.py`, `src/dominio/exceptions.py`
+  (+ `CalculationError`), `tests/unit/test_formulas.py`.
 
-> **Por qué se agregó esto:** surge de revisar casos de uso reales de un DT (¿cómo viene mi
-> jugador vs. otro de mi equipo? ¿mi equipo mejoró de una competencia a otra?) contrastados contra
-> apps de analítica deportiva existentes (Hudl Assist, Hoopsalytics, Viziball, Basketball Stats
-> Assistant) — comparar jugadores/equipos con distintos recortes de tiempo (partido, temporada,
-> período personalizado) y contra un promedio de referencia es un feature estándar de la
-> categoría, no un agregado innecesario. Ver también sección 20.
+#### US-218 — Promedio de Puntos por Cuarto
 
-**Reparto en dos pistas** (sin interfaz):
-
-- **Juntos, antes:** las firmas de las funciones de `formulas.py`, que la Pista B consume.
-- **Pista A:** `formulas.py` con cobertura del 100 % (AC1, AC4, AC5, AC6). No depende de la US-201
-  ni de la GUI — funciones puras sobre DataFrames que se prueban con datos a mano —, así que es
-  trabajo suelto que se puede adelantar en el Hito 1.
-- **Pista B:** `CalcularEstadisticasAvanzadasUseCase`, `GenerarTablaComparativaUseCase` y
-  `GenerarComparativaJugadoresUseCase` con sus DTOs (AC2, AC3, AC7) y los tests de integración.
-  Esta parte sí espera a tener datos importados (US-201) o semilla suficiente.
-
-**Archivos a crear:**
-
-```text
-src/infraestructura/analytics/formulas.py
-
-src/aplicacion/
-├── casos_uso/calcular_estadisticas_avanzadas.py
-├── casos_uso/generar_tabla_comparativa.py
-├── casos_uso/generar_comparativa_jugadores.py    ← nuevo
-└── dtos/metricas_dto.py
-
-tests/unit/test_formulas.py
-```
-
-### Épica H2-E3: Inteligencia Deportiva (Pandas Engine)
-
-#### US-203 — Integración de Motor Estadístico (Pandas Engine)
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-202
-- **Objetivo Funcional:** conectar las Vistas SQL con DataFrames de Pandas para calcular métricas
-  avanzadas automáticamente a partir de los datos cargados, sin acoplar fórmulas y persistencia.
-- **Capa de Dominio:** **Interfaz:** `AnalyticsService` (`src/dominio/servicios/analytics_service.py`, junto a `PasswordHasher`: es un servicio, no un repositorio)
-  — declara `get_boxscore_partido(partido_id)`, `get_totales_temporada(club_id, temporada)`, y los
-  métodos nuevos que cubren los recortes multi-dimensionales pedidos (ver AC5):
-  `get_totales_jugador(jugador_id, *, competencia_id=None, anio=None, categoria_id=None)` (si no
-  se pasa ningún filtro, devuelve el acumulado global/de toda la carrera del jugador),
-  `get_totales_club(club_id, *, competencia_id=None, anio=None, categoria_id=None)` (**nuevo** — agregado a nivel
-  equipo, análogo al de jugador pero sumando a todos los jugadores del club; ver también sección
-  3), y `get_evolucion_jugador(jugador_id, metrica)` (**nuevo** — serie temporal partido a partido
-  de una métrica puntual, para ver tendencia/progreso, no solo un total acumulado), y
-  `get_cuartos_club(club_id, *, competencia_id=None, anio=None, categoria_id=None)` (**nuevo,
-  2026-11-08** — lee `partidoCuarto` para el promedio por cuarto de la US-202). Los tres filtros
-  son los de la barra común de la sección 6.
-- **Capa de Aplicación:**
-  - **Caso de uso:** `CalcularEstadisticasPartidoUseCase`.
-  - **DTOs:** `MetricasPartidoDTO`, `MetricasJugadorDTO`, `MetricasClubDTO` (**nuevo**),
-    `EvolucionJugadorDTO` (**nuevo**).
-- **Capa de Infraestructura:** `PandasAnalyticsService`
-  (`src/infraestructura/analytics/pandas_analytics_service.py`) — lee desde las vistas SQL vía
-  `pandas.read_sql()`, aplica las fórmulas de `formulas.py`, retorna DataFrames con columnas
-  estandarizadas. Los filtros por competencia/año/global (AC5) se resuelven **acá, con `pandas`**
-  (agrupando/filtrando el DataFrame ya cargado), no creando una vista SQL nueva por cada
-  combinación posible — es la forma en que esta capa ya estaba pensada para poder cubrir estos
-  recortes sin explotar la cantidad de vistas.
-- **Vistas SQL requeridas:** `v_boxscore_completo`, `v_jugador_totales_temporada`, y el agregado
-  por club nuevo (ver sección 3 — todavía sin definir el SQL exacto, queda para cuando se
-  implemente esta US).
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** — · **Toca la base:** no
+- **Objetivo:** promediar los puntos a favor y en contra de un club por período, sin que los
+  partidos sin cuartos lo distorsionen (sección 6, "Puntos por cuarto").
+- **Entrega:** `promedio_por_cuarto(df)` en `formulas.py`, que devuelve el promedio por período, N
+  (partidos con cuartos) y M (partidos del recorte). La usan la US-227 y la US-303.
 - **Criterios de Aceptación:**
-  - **AC1 — `formulas.py` puro:** ninguna función accede a la DB; todas aceptan `pd.DataFrame` y
-    retornan resultados. Cobertura 100%.
-  - **AC2 — División por cero protegida:** retorna 0.0 (no NaN/inf) en casos límite.
-  - **AC3 — Uso de Vistas SQL:** `AnalyticsService` lee exclusivamente de las vistas, nombres de
-    columnas consistentes.
-  - **AC4 — Integridad de Datos:** porcentajes expresados como float entre 0-100 o como ratio
-    según corresponda.
-  - **AC5 (nuevo) — Recortes multi-dimensionales:** tanto para jugador como para club, el motor
-    soporta obtener totales por partido individual, por competencia específica, por año, y
-    global/toda la carrera — sin mezclar competencias distintas jugadas en un mismo año ni
-    categorías distintas de una misma competencia. Para eso se corrige
-    `v_jugador_totales_temporada` (decidido el 2026-11-08, ver la Pista A y la sección 20).
-  - **AC6 (nuevo) — Evolución/tendencia:** `get_evolucion_jugador` devuelve la serie ordenada por
-    fecha de una métrica elegida, partido a partido, para poder graficar si un jugador está
-    mejorando o empeorando (consumido después por `GenerarGraficoRendimientoUseCase` en US-301).
-- **Testing Mínimo:**
-  - _Unitarias:_ fórmulas con DataFrames en memoria.
-  - _Integración:_ vistas reales en DB `:memory:` con datos semilla, comparadas con valores
-    esperados.
-  - _Integración:_ `get_totales_jugador`/`get_totales_club` con un jugador/club que participó en
-    dos competencias distintas dentro del mismo año — confirmar que **no** se mezclan si se pide
-    por competencia, y que sí se suman si se pide por año o global. Lo mismo con un jugador que
-    jugó en U17 y U19 de la misma competencia: separados por categoría, sumados sin filtro, y los
-    porcentajes recalculados desde los totales (no promediados).
-  - _Regresión:_ test que falla si se renombra una columna consumida.
+  - **AC1:** ignora los partidos sin cuartos e informa «sobre N de M partidos»; con N = 0 no
+    devuelve valores (no un cero).
+  - **AC2:** las prórrogas se promedian solo entre los partidos que las tuvieron.
+- **Testing Mínimo:** partidos mezclados (con y sin cuartos, uno con prórroga) y ninguno con
+  cuartos.
+- **Archivos:** `src/infraestructura/analytics/formulas.py`, `tests/unit/test_formulas.py`.
 
-- **Reparto en dos pistas** (sin interfaz):
-  - **Juntos, antes:** la interfaz `AnalyticsService` (nombres de métodos y columnas que devuelve).
-  - **Pista A:** datos — corregir `v_jugador_totales_temporada` (decidido el 2026-11-08: se cambia
-    la vista misma, no se crea otra): `GROUP BY j.idJugador, p.idCompetencia, p.idCategoria`, con
-    las columnas `idJugador`, `idCompetencia`, `anio_competencia` e `idCategoria` para poder
-    filtrar; se ajusta `tests/integration/test_database.py`, que la consulta. Después, el agregado
-    por club (sección 3), con la prueba de regresión de columnas.
-  - **Pista B:** `PandasAnalyticsService`, `CalcularEstadisticasPartidoUseCase` y sus DTOs, con los
-    tests de recortes por competencia/año/global (AC5) y de evolución (AC6).
+#### US-219 — Valores Cada 40 Minutos y Aviso de Muestra Chica
 
-#### US-205 — Consulta Estadística en Pantalla
-
-- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Dependencias:** US-203, US-112
-- **Objetivo Funcional:** mostrar en la GUI las métricas del motor analítico, para que el DT
-  consulte líderes, las estadísticas avanzadas de un partido y la comparativa de equipo.
-  _Antes (hasta 2026-10-31) eran comandos de consola: `stats show partido`, `stats leaders` y
-  `stats compare`._
-- **Pantallas:**
-  - **Detalle de partido** — la `PartidosScreen` de la US-112 ya muestra el boxscore; esta US le
-    suma las métricas avanzadas del partido (`CalcularEstadisticasPartidoUseCase`). No se crea una
-    pantalla nueva.
-  - **`LideresScreen`** — top-N por PTS, REB, AST y EFF de una competencia y una categoría, sobre
-    `ObtenerLideresTemporadaUseCase` en su **versión básica** (se crea acá). Filtros: la barra
-    común de estadísticas (sección 6, 2026-11-08), que nace en esta US. Quien jugó en U17 y en
-    U19 en la misma temporada aparece en los dos rankings, cada uno con sus partidos.
-    La US-301 (Hito 3) amplía ese mismo caso de uso y esta misma pantalla con filtros multi-año y
-    local/visitante — no es una pantalla nueva que compita con esta.
-  - **`ComparativaScreen`** — comparativa entre dos clubes (`GenerarTablaComparativaUseCase`,
-    US-202). Filtros (2026-11-08): **Club** (arranca en el club activo), **Contra** (los otros
-    clubes inscriptos en la competencia y categoría elegidas) y la barra común de estadísticas
-    (sección 6). Dos modos: **un partido entre ellos** (aparece un desplegable
-    **Partido** con los cruces cargados; si no hay, se avisa) o **acumulado en la competencia**
-    (cada club con todos sus partidos de esa competencia y categoría, con PJ y el aviso de
-    muestra chica). Si hay partidos con cuartos cargados, suma el promedio por cuarto de cada
-    club «sobre N de M partidos» (AC9 de la US-202); si no hay, no muestra esa sección.
+- **Esfuerzo:** XS (menos de 1 día) · **Prioridad:** Media · **Depende de:** — · **Toca la base:** no
+- **Objetivo:** aplicar la regla de "Muestra chica" de la sección 6 en un solo lugar.
+- **Entrega:** `por_40_minutos(df)` y `es_muestra_chica(partidos_jugados)` (mínimo en
+  `settings.py`, por defecto 3). Las usan la US-226, la US-227 y la US-229.
 - **Criterios de Aceptación:**
-  - **AC1.** Cada pantalla muestra tablas legibles (`components/tabla_datos.py`, US-107) con
-    alineación numérica correcta.
-  - **AC2.** Los filtros de año, competencia y categoría funcionan en `LideresScreen`, y un jugador que
-    jugó en dos categorías de la misma competencia suma por separado en cada una (test de
-    integración con ese caso).
-  - **AC3.** Partido o temporada sin datos → mensaje descriptivo en pantalla, no traceback.
-  - **AC4.** Todos los valores consistentes con los calculados por `formulas.py`.
-  - **AC5 — Muestra chica:** `LideresScreen` muestra PJ y deja afuera a quien no llega al mínimo de
-    partidos; `ComparativaScreen` muestra el aviso de muestra chica (sección 6).
-- **Testing Mínimo:** integración — los casos de uso detrás de cada pantalla con datos semilla,
-  verificando columnas y valores; partido/temporada inexistente → error de dominio controlado.
-  Manual guiado: recorrer las tres pantallas con los datos semilla.
+  - **AC1:** el valor cada 40 minutos solo se calcula para quien llega al mínimo de partidos.
+  - **AC2:** el mínimo sale de `settings.py`, no está repetido en cada caso de uso.
+- **Testing Mínimo:** _unitarias_: debajo, en el mínimo y arriba del mínimo; 0 minutos.
+- **Archivos:** `src/infraestructura/analytics/formulas.py`, `src/config/settings.py`,
+  `tests/unit/test_formulas.py`.
 
-- **Reparto en dos pistas:**
-  - **Pista A:** `LideresScreen`, `ComparativaScreen`, la barra común `filtros_estadisticas.py` y
-    las métricas avanzadas en el detalle de `PartidosScreen`.
-  - **Pista B:** `ObtenerLideresTemporadaUseCase` en versión básica y los tests de integración de
-    los casos de uso detrás de cada pantalla (AC2, AC3, AC4).
+#### US-203 — Interfaz AnalyticsService y Boxscore de un Partido
 
-**Archivos a crear (US-203 + US-205):**
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** — · **Toca la base:** no (lee
+  las vistas que ya existen)
+- **Objetivo:** abrir la lectura de datos para el motor analítico, con la interfaz completa
+  definida de una vez para que las historias que siguen no se pisen.
+- **Entrega:** la interfaz `AnalyticsService` (`src/dominio/servicios/analytics_service.py`, junto
+  a `PasswordHasher`: es un servicio, no un repositorio) con **todas** sus firmas, y
+  `PandasAnalyticsService` con `get_boxscore_partido(partido_id)` implementado y los demás métodos
+  lanzando `NotImplementedError` hasta que los complete su historia:
 
-```text
-src/dominio/servicios/analytics_service.py
-src/infraestructura/analytics/pandas_analytics_service.py
-src/aplicacion/casos_uso/calcular_estadisticas_partido.py
-src/aplicacion/casos_uso/obtener_lideres_temporada.py   ← versión básica (la amplía la US-301)
+| Método                                                                            | Lo implementa |
+| --------------------------------------------------------------------------------- | ------------- |
+| `get_boxscore_partido(partido_id)`                                                | US-203        |
+| `get_totales_jugador(jugador_id, *, competencia_id, anio, categoria_id, condicion)` | US-220      |
+| `get_partidos_club(club_id, *, competencia_id, anio, categoria_id, condicion)`    | US-221        |
+| `get_totales_club(club_id, *, competencia_id, anio, categoria_id, condicion)`     | US-221        |
+| `get_cuartos_club(club_id, *, competencia_id, anio, categoria_id)`                | US-222        |
+| `get_evolucion_jugador(jugador_id, metrica, *, competencia_id, anio, categoria_id, condicion)` | US-223 |
 
-src/infraestructura/ui/flet/screens/     # una pantalla por archivo, misma convención del Hito 1 (AC1 de la US-107)
-├── partidos_screen.py                    ← se extiende: métricas avanzadas en el detalle
-├── lideres_screen.py
-└── comparativa_screen.py
-src/infraestructura/ui/flet/components/filtros_estadisticas.py   ← barra común Año → Competencia → Categoría (sección 6)
+  Los filtros son los de la barra común de la sección 6; `condicion` es local, visitante o `None`.
+  Todos son opcionales: sin ninguno, el acumulado es global (toda la carrera o toda la historia del
+  club).
+- **Criterios de Aceptación:**
+  - **AC1:** `PandasAnalyticsService` lee **solo de las vistas SQL** con `pandas.read_sql()`. Los
+    recortes se resuelven en pandas sobre lo leído, no con una vista nueva por cada combinación.
+  - **AC2:** `get_boxscore_partido` devuelve las filas de `v_boxscore_completo` y los totales de
+    equipo de `v_totales_equipo_partido` (que también cubre al rival cargado solo con totales,
+    ADR-010), con columnas estandarizadas.
+  - **AC3:** partido inexistente → error de dominio, no `KeyError`.
+  - **AC4:** queda armado en el composition root.
+- **Testing Mínimo:** _integración_ con las vistas reales en `:memory:` y `seed.sql`; _regresión_:
+  un test que falla si se renombra una columna consumida.
+- **Archivos:** `src/dominio/servicios/analytics_service.py`,
+  `src/infraestructura/analytics/pandas_analytics_service.py`, composition root,
+  `tests/integration/test_analytics_service.py`.
 
-tests/integration/
-└── test_analytics_service.py
-```
+#### US-220 — Totales de Jugador por Competencia, Categoría y Año
 
-> **Nota sobre las tablas:** se reutiliza `components/tabla_datos.py` (US-107) — no se crea un
-> componente de tabla aparte salvo que aparezca una necesidad real que no cubra (ej. una
-> comparativa lado a lado); si eso pasa, se extiende `tabla_datos.py` en vez de duplicarlo.
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-203 · **Toca la base:**
+  solo una vista (`v_jugador_totales_temporada`; las vistas no guardan datos y se recrean al abrir)
+- **Objetivo:** sumar los números de un jugador en cualquier recorte, sin mezclar competencias ni
+  categorías distintas.
+- **Entrega:** `get_totales_jugador`. La usan la US-226, la US-229 y la US-407.
+- **Alcance:** se corrige la vista misma (decidido el 2026-11-08, no se crea otra):
+  `GROUP BY j.idJugador, p.idCompetencia, p.idCategoria`, con las columnas `idJugador`,
+  `idCompetencia`, `anio_competencia` e `idCategoria`. Se ajustan sus consumidores actuales
+  (`tests/integration/test_database.py`, `tests/benchmarks/test_bench_vistas.py`).
+- **Criterios de Aceptación:**
+  - **AC1:** por partido, competencia, año, categoría o global, sin mezclar dos competencias del
+    mismo año ni dos categorías de la misma competencia cuando se pide una sola.
+  - **AC2:** los porcentajes se recalculan desde los totales, nunca promediando porcentajes.
+  - **AC3:** `condicion` filtra partidos de local o de visitante (`partido.idClubLocal`/
+    `idClubVisitante`, sin cambios de esquema).
+  - **AC4:** solo cuentan los partidos con boxscore del jugador: un equipo cargado solo con totales
+    (ADR-010) no aporta filas individuales.
+- **Testing Mínimo:** _integración_: un jugador en dos competencias del mismo año (separadas por
+  competencia, sumadas por año y global) y uno que jugó U17 y U19 en la misma competencia
+  (separadas por categoría, sumadas sin filtro, porcentajes desde los totales).
+- **Archivos:** `src/infraestructura/persistencia/sql/views.sql`,
+  `src/infraestructura/analytics/pandas_analytics_service.py`, los dos tests de arriba.
+
+#### US-221 — Partidos y Totales de un Club
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-203 · **Toca la base:** no
+- **Objetivo:** responder "¿cómo viene mi equipo en la competencia?" o "¿y este año, sumando todas?"
+  (sección 3, agregado por club).
+- **Entrega:** `get_partidos_club` (una fila por partido, con lo hecho y lo recibido) y
+  `get_totales_club` (la suma de esas filas). Las usan la US-227 y la US-303, que así comparten la
+  misma agregación en vez de calcular lo mismo por dos caminos.
+- **Alcance:** sale de `v_totales_equipo_partido` unida a `partido`, agrupada en pandas. No hace
+  falta una vista nueva, y cubre también a los clubes cargados solo con totales (ADR-010).
+- **Criterios de Aceptación:**
+  - **AC1:** cada fila de `get_partidos_club` tiene fecha, rival, condición, resultado y los
+    totales a favor y en contra.
+  - **AC2:** los recortes por competencia, año, categoría y condición se comportan como en el AC1 de
+    la US-220; los porcentajes, desde los totales.
+- **Testing Mínimo:** _integración_: un club en dos competencias del mismo año; un rival cargado
+  solo con totales; condición local/visitante.
+- **Archivos:** `src/infraestructura/analytics/pandas_analytics_service.py`,
+  `tests/integration/test_analytics_service.py`.
+
+#### US-222 — Puntos por Cuarto de un Club
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-203 · **Toca la base:** no
+- **Objetivo:** leer `partidoCuarto` de un club con los filtros comunes.
+- **Entrega:** `get_cuartos_club`, que devuelve los puntos a favor y en contra por período y
+  partido, listos para `promedio_por_cuarto` (US-218). La usan la US-227 y la US-303.
+- **Criterios de Aceptación:** **AC1:** devuelve también los partidos del recorte sin cuartos, para
+  poder decir «sobre N de M».
+- **Testing Mínimo:** _integración_ con partidos con y sin cuartos y uno con prórroga.
+- **Archivos:** `src/infraestructura/analytics/pandas_analytics_service.py`,
+  `tests/integration/test_analytics_service.py`.
+
+#### US-223 — Evolución de un Jugador Partido a Partido
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-203, US-202 · **Toca la
+  base:** no
+- **Objetivo:** ver si un jugador mejora o empeora en una métrica, no solo su total.
+- **Entrega:** `get_evolucion_jugador`, una serie ordenada por fecha. La usa la US-305.
+- **Criterios de Aceptación:** **AC1:** acepta métricas del boxscore y las de `formulas.py` (ej.
+  EFF), ordenadas por fecha, con los filtros comunes y `condicion`.
+- **Testing Mínimo:** _integración_: un jugador con cinco partidos en dos competencias; con filtro
+  por competencia quedan solo los suyos, en orden.
+- **Archivos:** `src/infraestructura/analytics/pandas_analytics_service.py`,
+  `tests/integration/test_analytics_service.py`.
+
+#### US-224 — Métricas Avanzadas en el Detalle de Partido
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-202, US-203 · **Toca la
+  base:** no
+- **Objetivo:** que el DT vea las métricas avanzadas de un partido en la pantalla de detalle que ya
+  existe. Es lo visible de la v1.2.0.
+- **Entrega:** `CalcularEstadisticasPartidoUseCase` con `MetricasPartidoDTO` y `MetricasJugadorDTO`.
+  Los usa la US-309 (informe PDF).
+- **Criterios de Aceptación:**
+  - **AC1:** `DetallePartidoScreen` suma eFG%, EFF, posesiones, PPP y % de rebotes por equipo, y EFF
+    y eFG% por jugador, en `tabla_datos` con alineación numérica.
+  - **AC2:** un equipo cargado solo con totales muestra sus métricas de equipo, sin filas por
+    jugador.
+  - **AC3:** los valores coinciden con `formulas.py`; sin datos → mensaje, no traceback.
+- **Testing Mínimo:** _integración_ del caso de uso con `seed.sql`; _manual guiado_ en la pantalla.
+- **Archivos:** `src/aplicacion/casos_uso/calcular_estadisticas_partido.py`,
+  `src/aplicacion/dtos/metricas_dto.py`, `src/infraestructura/ui/flet/screens/detalle_partido_screen.py`,
+  `tests/integration/test_calcular_estadisticas_partido.py`.
+
+### Épica H2-E3: Inteligencia Deportiva (v2.0.0)
+
+> **Por qué hay comparativas (se mantiene de la versión anterior):** surgen de casos reales de un
+> DT (¿cómo viene mi jugador contra otro de mi equipo? ¿mi equipo mejoró de una competencia a
+> otra?), contrastados con apps de analítica deportiva existentes (Hudl Assist, Hoopsalytics,
+> Viziball, Basketball Stats Assistant). Comparar jugadores y equipos con distintos recortes y
+> contra un promedio de referencia es estándar en la categoría. Ver también la sección 20.
+
+#### US-225 — Barra Común de Filtros de Estadísticas
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** — (usa los casos de uso de
+  competencias y categorías del Hito 1) · **Toca la base:** no
+- **Objetivo:** que todas las pantallas de estadísticas filtren igual (sección 6, "Filtros de
+  estadísticas").
+- **Entrega:** `components/filtros_estadisticas.py`. Lo usan la US-205, la US-228, la US-230, la
+  US-307, la US-308, la US-311 y la US-408.
+- **Criterios de Aceptación:**
+  - **AC1:** tres desplegables encadenados, **Año** → **Competencia** → **Categoría**, cada uno con
+    «Todos/Todas». Elegir un año achica las competencias; elegir una competencia, las categorías
+    habilitadas en ella.
+  - **AC2:** el parámetro `categoria_obligatoria` saca «Todas» de la categoría.
+  - **AC3:** al cambiar un filtro, avisa a la pantalla con los tres valores (`None` = todos).
+- **Testing Mínimo:** _unitarias_ sin ventana: el encadenamiento y `categoria_obligatoria`.
+- **Archivos:** `src/infraestructura/ui/flet/components/filtros_estadisticas.py`,
+  `tests/unit/test_filtros_estadisticas.py`.
+
+#### US-226 — Caso de Uso de Líderes de una Competencia
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-220, US-202, US-219 · **Toca
+  la base:** no
+- **Objetivo:** el top-N de jugadores de una competencia y categoría por PTS, REB, AST y EFF.
+- **Entrega:** `ObtenerLideresTemporadaUseCase` en versión básica y `LiderDTO`. Los usan la US-205 y
+  la US-306, que lo amplía. No reemplaza a `ListarLideresClubUseCase` (Hito 1), que muestra los
+  líderes del club propio en Inicio.
+- **Criterios de Aceptación:**
+  - **AC1:** muestra PJ y deja afuera a quien no llega al mínimo de partidos (US-219).
+  - **AC2:** quien jugó en U17 y en U19 en la misma temporada aparece en los dos rankings, cada uno
+    con sus partidos.
+  - **AC3:** desempate por un criterio secundario fijo (más PJ, después nombre).
+- **Testing Mínimo:** _unitario_ de orden y desempate; _integración_ con el caso de las dos
+  categorías.
+- **Archivos:** `src/aplicacion/casos_uso/obtener_lideres_temporada.py`,
+  `src/aplicacion/dtos/metricas_dto.py` (+ `LiderDTO`), `tests/unit/test_leaderboard.py`.
+
+#### US-205 — Pantalla de Líderes
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-225, US-226 · **Toca la
+  base:** no
+- **Objetivo:** que el DT consulte los líderes de una competencia en la GUI. _(Antes del
+  2026-10-31 era el comando de consola `stats leaders`.)_
+- **Criterios de Aceptación:**
+  - **AC1:** `LideresScreen` con la barra común (categoría obligatoria) y una tabla por rubro en
+    `tabla_datos`, con PJ.
+  - **AC2:** sin datos → mensaje descriptivo, no traceback.
+- **Testing Mínimo:** _manual guiado_ con `seed.sql`.
+- **Archivos:** `src/infraestructura/ui/flet/screens/lideres_screen.py`, menú lateral y composition
+  root.
+
+#### US-227 — Caso de Uso de Comparativa Entre Dos Clubes
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-221, US-222, US-202,
+  US-218, US-219 · **Toca la base:** no
+- **Objetivo:** comparar dos clubes en un partido entre ellos o en el acumulado de una competencia y
+  categoría.
+- **Entrega:** `GenerarTablaComparativaUseCase` y `ComparativaEquipoDTO`. Los usa la US-228.
+- **Criterios de Aceptación:**
+  - **AC1:** modo **partido** (un `idPartido` entre los dos) y modo **acumulado** (cada club con
+    todos sus partidos de esa competencia y categoría, o de un año).
+  - **AC2:** cada club trae PJ y el aviso de muestra chica.
+  - **AC3:** si hay partidos con cuartos, suma el promedio por cuarto «sobre N de M partidos»; si no
+    hay, esa parte viene vacía.
+- **Testing Mínimo:** _integración_: dos equipos en un partido (los totales coinciden con el
+  resultado) y a lo largo de una competencia (el agregado coincide con la suma).
+- **Archivos:** `src/aplicacion/casos_uso/generar_tabla_comparativa.py`,
+  `src/aplicacion/dtos/metricas_dto.py`, `tests/integration/test_tabla_comparativa.py`.
+
+#### US-228 — Pantalla de Comparativa de Clubes
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-227, US-225 · **Toca la
+  base:** no
+- **Objetivo:** mostrar la comparativa en la GUI. _(Antes era el comando `stats compare`.)_
+- **Criterios de Aceptación:**
+  - **AC1:** filtros **Club** (arranca en el club activo), **Contra** (los otros clubes inscriptos
+    en la competencia y categoría elegidas) y la barra común (categoría obligatoria).
+  - **AC2:** en modo partido aparece el desplegable **Partido** con los cruces cargados; si no hay,
+    se avisa. Si a los casos de uso de partidos del Hito 1 les falta filtrar por rival, se agrega
+    en esta US.
+  - **AC3:** aviso de muestra chica y sección de cuartos solo si hay datos.
+- **Testing Mínimo:** _manual guiado_ en los dos modos.
+- **Archivos:** `src/infraestructura/ui/flet/screens/comparativa_screen.py`, menú lateral y
+  composition root.
+
+#### US-229 — Caso de Uso de Comparativa de Jugadores
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-220, US-202, US-219 ·
+  **Toca la base:** no
+- **Objetivo:** comparar dos jugadores en el mismo recorte, o un jugador contra el promedio de su
+  categoría y competencia.
+- **Entrega:** `GenerarComparativaJugadoresUseCase` y `ComparativaJugadoresDTO`. Los usa la US-230.
+- **Criterios de Aceptación:**
+  - **AC1:** jugador contra jugador con el mismo recorte (partido, competencia, año o global).
+  - **AC2:** jugador contra el promedio de los jugadores de su categoría y competencia, para saber
+    si está por encima o por debajo.
+  - **AC3:** PJ y aviso de muestra chica en cada lado.
+- **Testing Mínimo:** _integración_ con al menos 3 jugadores de `seed.sql`.
+- **Archivos:** `src/aplicacion/casos_uso/generar_comparativa_jugadores.py`,
+  `src/aplicacion/dtos/metricas_dto.py`, `tests/integration/test_comparativa_jugadores.py`.
+
+#### US-230 — Pantalla de Comparativa de Jugadores
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-229, US-225 · **Toca la
+  base:** no
+- **Objetivo:** que la comparativa de jugadores tenga dónde verse. Hasta este rearmado, el caso de
+  uso existía en el plan pero ninguna pantalla lo mostraba.
+- **Criterios de Aceptación:**
+  - **AC1:** elegir uno o dos jugadores con búsqueda (`BuscarJugadoresPorNombreUseCase`), o uno solo
+    contra el promedio de su categoría; barra común de filtros.
+  - **AC2:** la tabla lado a lado se arma extendiendo `tabla_datos.py`, no con un componente nuevo.
+- **Testing Mínimo:** _manual guiado_ en los dos modos.
+- **Archivos:** `src/infraestructura/ui/flet/screens/comparativa_jugadores_screen.py`, menú lateral
+  y composition root.
 
 ---
 
-## 11. Hito 3 — Visualización Pro y Reporting (v0.3)
+## 11. Hito 3 — Visualización Pro y Reporting (v3.0.0)
 
 **Objetivo del hito:** convertir las estadísticas en tableros, gráficos e informes consumibles
 por el DT para tomar decisiones tácticas antes, durante y después del partido.
 
-**Épicas:** 3 · **Historias:** 3 · **Esfuerzo total estimado:** ~22 días·persona
+**Versiones:** H3-E1 → **v2.1.0** · H3-E2 → **v2.2.0** · H3-E3 → **v3.0.0** (cierra el hito).
 
-**Decisiones previas requeridas:** ninguna. _Nota (2026-10-03): ADR-005 (librería PDF) y ADR-007
-(motor de visualización) ya están aprobados y redactados en `docs/adr/` — `reportlab` y
-`matplotlib` respectivamente, sin preguntas abiertas._
+**Épicas:** 3 · **Historias:** 12 · **Esfuerzo total estimado:** ~24 días·persona
 
-> **Hallazgo de transcripción:** el `.md` del submódulo solo tenía **US-301 y US-302** para este
-> hito — **le faltaba por completo la Épica H3-E3 (Scouting) con US-303**, que sí está en el
-> LaTeX. Se completa acá con la fuente que sí la tiene. Ver sección 20.
+**Decisiones previas requeridas:** ninguna. ADR-005 (`reportlab`) y ADR-007 (`matplotlib`) ya están
+aprobados.
 
-### Épica H3-E1: Dashboards e Informes (GUI & Engine)
+> **Rearmado (2026-11-27):** las US-301, US-302 y US-303 se dividieron como las del Hito 2. Dos
+> cambios de fondo: la `VerTrayectoriaJugadorUseCase` pasa al Hito 4 (US-407), junto a la única
+> pantalla que la usa, y `views_scouting.sql` se descarta: nadie lo cargaba al abrir la app, y el
+> scouting sale con pandas de `get_partidos_club` (US-221), como el resto del motor.
+>
+> **Hallazgo de transcripción (se mantiene):** el `.md` del submódulo solo tenía las US-301 y
+> US-302; la épica H3-E3 (Scouting) se completó con el LaTeX. Ver sección 20.
 
-#### US-301 — Dashboards e Informes Interactivos
+### Mapa de dependencias del Hito 3
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-203, US-205
-- **Objetivo Funcional:** proveer en la GUI un tablero con líderes y gráficos de tendencia, y el
-  motor de generación de gráficos que lo alimenta.
-- **Narrativa:** Como DT, quiero ver tablas de líderes y gráficos de tendencia en un tablero para
-  analizar el rendimiento del equipo de un vistazo.
-- **Nota de reuso (no se pisa con la US-205):** `ObtenerLideresTemporadaUseCase` y `LideresScreen`
-  ya existen en versión básica desde la US-205; acá se amplían (mismo archivo, más filtros), no se
-  crea un caso de uso ni una pantalla nuevos.
-- **Capa de Aplicación:**
-  - **Casos de uso:** `ObtenerLideresTemporadaUseCase` (**ampliado**: además de filtrar por
-    temporada/año, acepta filtrar por `idCompetencia` específica y por múltiples años a la vez,
-    para comparar cómo cambió el liderazgo de una métrica entre competencias o a lo largo de
-    varias temporadas), `GenerarGraficoRendimientoUseCase` (usa `get_evolucion_jugador` de
-    `AnalyticsService`, US-203, para graficar la tendencia de un jugador en el tiempo — no solo un
-    promedio estático), `VerTrayectoriaJugadorUseCase` (**nuevo** — vista longitudinal de un mismo
-    jugador a través de distintas categorías/temporadas, ej. cómo rindió en U15 vs. cómo le va en
-    U17 este año; usa el historial de `jugadorClub` que ya existe).
-  - **DTOs:** `LiderDTO`, `GraficoDTO`, `TrayectoriaJugadorDTO` (**nuevo**).
-- **Capa de Infraestructura:**
-  - **Motor de Gráficos:** `ChartGenerator` (`src/infraestructura/analytics/chart_generator.py`)
-    — genera figuras a partir de DataFrames con `matplotlib` (ADR-007).
-  - **UI:** `DashboardScreen` (resumen de los jugadores del club activo: top-5 por rubro + gráfico
-    de tendencia; con la barra común en «Todos» muestra toda la historia del club) y
-    `ChartComponent` (`components/chart_component.py`, muestra en pantalla las figuras de
-    `ChartGenerator`). Ambos estaban previstos en la US-401; nacen acá porque es donde aparecen
-    los gráficos. Se descartan `rich`/`textual`, que eran para la consola.
-- **Vistas SQL requeridas:** `v_jugador_totales_temporada`, `v_partidos_resumen`.
+| US     | Qué deja hecho                                         | Depende de                     | Tamaño | Sale de |
+| ------ | ------------------------------------------------------ | ------------------------------ | ------ | ------- |
+| US-301 | `ChartGenerator` (matplotlib → imagen en memoria)      | —                              | S      | US-301  |
+| US-304 | `ChartComponent` para mostrar gráficos en pantalla     | US-301                         | XS     | US-301  |
+| US-305 | Gráfico de rendimiento de un jugador                   | US-223, US-301                 | S      | US-301  |
+| US-306 | Líderes con club, varios años y local/visitante        | US-226                         | S      | US-301  |
+| US-307 | `DashboardScreen` del club activo                      | US-225, US-304, US-305, US-306 | M      | US-301  |
+| US-308 | Filtros ampliados en `LideresScreen`                   | US-205, US-306                 | S      | US-301  |
+| US-302 | Base de informes PDF (`PDFReportGenerator`)            | —                              | M      | US-302  |
+| US-309 | Informe PDF de un partido                              | US-302, US-224, US-301         | M      | US-302  |
+| US-310 | Botón "Exportar PDF" en el detalle de partido          | US-309                         | XS     | US-302  |
+| US-303 | Caso de uso de scouting del rival                      | US-221, US-222, US-218, US-202 | M      | US-303  |
+| US-311 | `ScoutingScreen`                                       | US-303, US-225                 | S      | US-303  |
+| US-312 | Exportar el scouting a PDF                             | US-303, US-302, US-311         | S      | US-303  |
+
+### Épica H3-E1: Dashboards e Informes (v2.1.0)
+
+#### US-301 — Generador de Gráficos
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** — (ADR-007 aprobado) · **Toca
+  la base:** no
+- **Objetivo:** producir figuras a partir de `DataFrame`s, separado de cualquier pantalla.
+- **Entrega:** `ChartGenerator`, que devuelve la imagen PNG en memoria (bytes) con los colores de
+  `estilo.py`. Lo usan la US-304, la US-305 y la US-309.
 - **Criterios de Aceptación:**
-  - **AC1 — Dashboard:** `DashboardScreen` muestra el top-5 de líderes por rubro (puntos,
-    rebotes, EFF) y al menos un gráfico de tendencia.
-  - **AC2 — Generación de Figuras:** `ChartGenerator` produce gráficos (PNG o interactivos) en
-    **menos de 2 segundos** para un dataset de referencia (3 temporadas, 20 equipos, 1200 filas
-    de boxscore).
-  - **AC3 — Interactividad:** `LideresScreen` y `DashboardScreen` usan la barra común de filtros
-    (sección 6): año, competencia y categoría, cada uno con «Todos». Con todo en «Todos», el
-    tablero resume a los jugadores del club activo a lo largo del tiempo.
-  - **AC4.** Valores graficados coinciden con los calculados por las vistas SQL.
-  - **AC5 (nuevo) — Split local/visitante:** los reportes de líderes y de rendimiento aceptan un
-    filtro opcional de condición (local o visitante) para ver si un jugador/equipo rinde distinto
-    según de local o de visitante (dato ya disponible en `partido.idClubLocal`/`idClubVisitante`,
-    no requiere cambios de schema).
-  - **AC6 — Muestra chica:** el dashboard y los gráficos muestran PJ y respetan el mínimo de
-    partidos y el aviso de la sección 6.
-- **Implementación requerida:** cambiar un filtro en `LideresScreen` invoca a
-  `ObtenerLideresTemporadaUseCase` y muestra los resultados en `tabla_datos`.
-- **Testing Mínimo:**
-  - _Unitario:_ ordenamiento de líderes y desempate por criterio secundario; transformación de
-    DataFrame a serie temporal para gráficos.
-  - _Integración:_ `ChartGenerator` con datos semilla (figura generada, valores coherentes con
-    las vistas).
-  - _Manual guiado:_ `DashboardScreen` y `LideresScreen` con filtros.
-  - _Integración:_ `VerTrayectoriaJugadorUseCase` con un jugador que participó en más de una
-    categoría/temporada en el dataset semilla.
+  - **AC1 — Rendimiento:** un gráfico en **menos de 2 segundos** para el dataset de referencia (3
+    temporadas, 20 equipos, 1200 filas de boxscore).
+  - **AC2:** gráfico de líneas (tendencia) y de barras (comparación); los valores graficados son los
+    del `DataFrame` recibido.
+- **Testing Mínimo:** _integración_: figura generada con datos semilla, no vacía, bajo el tiempo.
+- **Archivos:** `src/infraestructura/analytics/chart_generator.py`, `pyproject.toml`/`uv.lock`
+  (+ matplotlib), `tests/integration/test_chart_generator.py`.
 
-> **Por qué se agregó esto:** la investigación de mercado (sección 20) confirma que el
-> "performance trend" — aislar un jugador/métrica y ver su evolución con el tiempo, no solo un
-> promedio fijo — es un feature estándar en apps de analítica deportiva (Hudl Assist,
-> Hoopsalytics), y ya encaja con `GenerarGraficoRendimientoUseCase` que esta US ya tenía planeado;
-> solo faltaba conectarlo explícitamente con un método de evolución en `AnalyticsService`.
+#### US-304 — Componente para Mostrar Gráficos
 
-- **Reparto en dos pistas:**
-  - **Juntos, antes:** qué devuelve `ChartGenerator` (imagen en memoria o archivo) para que
-    `ChartComponent` la muestre.
-  - **Pista A:** `DashboardScreen`, `ChartComponent` y los filtros nuevos de `LideresScreen` (AC1,
-    AC3, AC5 en pantalla).
-  - **Pista B:** `ChartGenerator` con su prueba de rendimiento (AC2), la ampliación de
-    `ObtenerLideresTemporadaUseCase`, `GenerarGraficoRendimientoUseCase` y
-    `VerTrayectoriaJugadorUseCase`.
+- **Esfuerzo:** XS (menos de 1 día) · **Prioridad:** Alta · **Depende de:** US-301 · **Toca la
+  base:** no
+- **Objetivo:** mostrar en Flet la imagen de `ChartGenerator`.
+- **Entrega:** `components/chart_component.py`. Lo usan la US-307 y la US-408.
+- **Criterios de Aceptación:** **AC1:** recibe los bytes y los muestra; sin datos muestra un mensaje
+  en lugar del gráfico.
+- **Testing Mínimo:** _unitaria_ sin ventana.
+- **Archivos:** `src/infraestructura/ui/flet/components/chart_component.py`.
 
-### Épica H3-E2: Reportería y Exportación
+#### US-305 — Gráfico de Rendimiento de un Jugador
 
-#### US-302 — Exportación Profesional a PDF
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-223, US-301 · **Toca la
+  base:** no
+- **Objetivo:** graficar la tendencia de un jugador en una métrica, no un promedio fijo.
+- **Entrega:** `GenerarGraficoRendimientoUseCase` y `GraficoDTO`. Los usan la US-307 y la US-408.
+- **Criterios de Aceptación:** **AC1:** filtros comunes y `condicion` (local/visitante); muestra PJ
+  y el aviso de muestra chica.
+- **Testing Mínimo:** _unitario_ de la transformación a serie temporal.
+- **Archivos:** `src/aplicacion/casos_uso/generar_grafico_rendimiento.py`,
+  `src/aplicacion/dtos/reporte_dto.py` (+ `GraficoDTO`).
 
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-301, ADR-005
-- **Objetivo Funcional:** emitir un reporte formal de partido o temporada en formato PDF para
-  análisis y difusión interna del cuerpo técnico.
+> **Por qué se agregó (se mantiene):** el "performance trend" (aislar un jugador y una métrica y ver
+> su evolución) es un feature estándar en apps de analítica deportiva (Hudl Assist, Hoopsalytics).
+
+#### US-306 — Líderes con Club, Varios Años y Local/Visitante
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-226 · **Toca la base:** no
+- **Objetivo:** ampliar el caso de uso de líderes (mismo archivo, sin crear otro) para el tablero y
+  para comparar el liderazgo entre temporadas.
+- **Entrega:** `ObtenerLideresTemporadaUseCase` con filtro de club opcional, varios años a la vez y
+  `condicion`. Lo usan la US-307 y la US-308.
+- **Criterios de Aceptación:** **AC1:** con club, solo sus jugadores; con varios años, el ranking
+  sobre la suma de esos años; `condicion` como en el AC3 de la US-220. **AC2:** sin parámetros
+  nuevos se comporta igual que en la US-226.
+- **Testing Mínimo:** _integración_ de cada filtro nuevo.
+- **Archivos:** `src/aplicacion/casos_uso/obtener_lideres_temporada.py`, `tests/unit/test_leaderboard.py`.
+
+#### US-307 — Tablero del Club Activo
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-225, US-304, US-305,
+  US-306 · **Toca la base:** no
+- **Objetivo:** analizar de un vistazo el rendimiento del club activo.
+- **Narrativa:** Como DT, quiero ver líderes y gráficos de tendencia en un tablero para analizar el
+  rendimiento del equipo de un vistazo.
+- **Decisión a tomar al empezar:** Inicio ya muestra los líderes del club (US-113). El tablero o
+  reemplaza esa sección o es una pantalla aparte; se decide antes de programar y se anota acá.
+- **Criterios de Aceptación:**
+  - **AC1:** top-5 por rubro (puntos, rebotes, EFF) de los jugadores del club activo y al menos un
+    gráfico de tendencia.
+  - **AC2:** barra común con «Todos» en todo: resume toda la historia del club.
+  - **AC3:** PJ y el aviso de muestra chica en cada tabla y gráfico.
+- **Testing Mínimo:** _manual guiado_ con filtros.
+- **Archivos:** `src/infraestructura/ui/flet/screens/dashboard_screen.py`, menú lateral y
+  composition root.
+
+#### US-308 — Filtros Ampliados en la Pantalla de Líderes
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-205, US-306 · **Toca la
+  base:** no
+- **Objetivo:** que `LideresScreen` use los filtros nuevos de la US-306.
+- **Criterios de Aceptación:** **AC1:** selector de varios años y de condición (local, visitante o
+  todos); cambiar un filtro vuelve a llamar al caso de uso y actualiza `tabla_datos`.
+- **Testing Mínimo:** _manual guiado_.
+- **Archivos:** `src/infraestructura/ui/flet/screens/lideres_screen.py`.
+
+### Épica H3-E2: Reportería y Exportación (v2.2.0)
+
+#### US-302 — Base de Informes PDF
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** — (ADR-005 aprobado) · **Toca
+  la base:** no
+- **Objetivo:** un generador de PDF que resuelva el formato una sola vez, para todos los informes.
+- **Entrega:** `PDFReportGenerator` (recibe título, bloques de texto, tablas e imágenes y devuelve el
+  PDF). Lo usan la US-309 y la US-312.
+- **Criterios de Aceptación:**
+  - **AC1 — Mismo estilo que la app:** color principal, letra y logo salen de `estilo.py` (US-111).
+    Siempre en claro, aunque la app esté en modo oscuro, porque se imprime. El aspecto objetivo está
+    en el muestrario de la US-111.
+  - **AC2 — Cortes de página:** una tabla que no entra en una hoja sigue en la siguiente
+    **repitiendo el encabezado** (`repeatRows` de ReportLab); cada hoja lleva el logo, el tipo de
+    informe y «Página N de M».
+  - **AC3 — Tablas anchas:** más de ~14 columnas numéricas va en hoja horizontal o partida en
+    bloques temáticos (tiro: T2, T3, TL, eFG%, TS%; juego: REB, AST, ROB, PÉR; impacto: EFF, PER,
+    +/-). Nunca se achica la letra hasta volverla ilegible.
+  - **AC4 — Glosario:** recibe las métricas usadas y agrega al final su nombre y fórmula.
+- **Testing Mínimo:** una tabla que ocupa dos páginas repite el encabezado en la segunda (extrayendo
+  el texto del PDF); el PDF abre con un lector estándar.
+- **Archivos:** `src/infraestructura/reports/pdf_generator.py`, `pyproject.toml`/`uv.lock`
+  (+ reportlab), `tests/integration/test_pdf_generator.py`.
+
+#### US-309 — Informe PDF de un Partido
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-302, US-224, US-301 · **Toca
+  la base:** no
+- **Objetivo:** emitir el informe formal de un partido para el cuerpo técnico.
 - **Narrativa:** Como DT, quiero exportar el boxscore a PDF para compartirlo con mi cuerpo técnico
   o imprimirlo.
-- **Capa de Aplicación:**
-  - **Caso de uso:** `ExportarReporteUseCase`.
-  - **DTOs:** `ExportarReporteDTO`, `ReporteResponseDTO`.
-- **Capa de Infraestructura:** `PDFReportGenerator`
-  (`src/infraestructura/reports/pdf_generator.py`), librería según ADR-005. En la UI, un botón
-  "Exportar PDF" en el detalle de partido (`PartidosScreen`) que invoca `ExportarReporteUseCase`.
+- **Entrega:** `ExportarReporteUseCase` con `ExportarReporteDTO` y `ReporteResponseDTO`. Lo usa la
+  US-310.
 - **Criterios de Aceptación:**
-  - **AC1 — Formato Profesional:** encabezado con nombres de clubes, fecha, metadata; tablas de
-    boxscore y métricas avanzadas con alineación numérica y cabeceras claras.
-  - **AC2 — Convención de Nombres:** `boxscore_YYYY-MM-DD_Local_vs_Visitante.pdf`.
-  - **AC3 — Robustez:** creación automática del directorio `exports/` si no existe; errores de
-    I/O (ruta sin permisos, disco lleno) producen mensaje de recuperación, no crash.
-  - **AC4 — Resumen primero (2026-11-08):** la primera página resume (resultado o récord, 4 o 5
-    números clave y un gráfico); el detalle va en las siguientes. El informe puede tener todos los
-    datos que calcule la US-202: lo que limita es cómo entran en la hoja, no cuántos son.
-  - **AC5 — Tablas anchas:** una tabla de más de ~14 columnas numéricas (el boxscore con todas las
-    métricas avanzadas pasa de 25) va en una hoja horizontal o partida en bloques temáticos (tiro:
-    T2, T3, TL, eFG%, TS%; juego: REB, AST, ROB, PÉR; impacto: EFF, PER, +/-). Nunca se achica la
-    letra hasta volverla ilegible para que entre.
-  - **AC6 — Cortes de página:** una tabla que no entra en una hoja sigue en la siguiente
-    **repitiendo el encabezado**; cada hoja lleva el logo, el tipo de informe y «Página N de M».
-    Es un criterio para elegir la librería en el ADR-005 (ReportLab lo hace con `repeatRows`;
-    WeasyPrint, repitiendo el `<thead>`).
-  - **AC7 — Glosario y muestra chica:** al final, un glosario con las métricas usadas y su fórmula
-    (US-202). Toda tabla de promedios lleva la columna PJ y el aviso de muestra chica (sección 6).
-  - **AC8 — Mismo estilo que la app:** color principal, letra y logo salen de `estilo.py` (US-111).
-    El informe va siempre en claro, aunque la app esté en modo oscuro, porque se imprime. El aspecto
-    objetivo está en el muestrario de la US-111.
-- **Testing Mínimo:** generación exitosa de un PDF completo desde un `idPartido` con datos
-  semilla (válido, no corrupto, abre con lector estándar); nombre de archivo y ruta esperados;
-  ruta sin permisos → excepción controlada. Una tabla que ocupa dos páginas repite el encabezado
-  en la segunda (AC6, verificado extrayendo el texto del PDF); el glosario incluye cada métrica que
-  aparece en las tablas (AC7).
+  - **AC1 — Resumen primero:** la primera página resume (resultado, 4 o 5 números clave y un
+    gráfico); el detalle (boxscore y métricas de la US-224) va en las siguientes.
+  - **AC2 — Nombre:** `boxscore_YYYY-MM-DD_Local_vs_Visitante.pdf`, en `~/.statspro/exports/`
+    (ruta en `config/rutas.py`, creada si no existe).
+  - **AC3 — Robustez:** ruta sin permisos o disco lleno → error controlado con mensaje de qué hacer,
+    no un crash. Queda en el log con resultado (regla de la sección 6).
+  - **AC4:** el glosario incluye cada métrica que aparece en las tablas.
+- **Fuera de alcance:** el informe de temporada (lo nombraba el objetivo viejo, sin criterios). Si
+  hace falta, es una historia nueva sobre la US-302.
+- **Testing Mínimo:** _integración_: PDF completo desde un `idPartido` de `seed.sql` (válido, nombre
+  y ruta esperados); ruta sin permisos → excepción controlada.
+- **Archivos:** `src/aplicacion/casos_uso/exportar_reporte.py`, `src/aplicacion/dtos/reporte_dto.py`,
+  `src/config/rutas.py`, `tests/integration/test_pdf_export.py`.
 
-- **Reparto en dos pistas:**
-  - **Pista A:** el diseño del PDF en `PDFReportGenerator` (AC1, AC4 a AC8) y el botón "Exportar PDF" en
-    `PartidosScreen`, con los errores de I/O mostrados en pantalla.
-  - **Pista B:** `ExportarReporteUseCase`, convención de nombres (AC2), carpeta `exports/` y manejo
-    de errores de I/O (AC3), con los tests de integración.
+#### US-310 — Botón "Exportar PDF" en el Detalle de Partido
 
-**Archivos a crear (US-301 + US-302):**
+- **Esfuerzo:** XS (menos de 1 día) · **Prioridad:** Alta · **Depende de:** US-309 · **Toca la
+  base:** no
+- **Objetivo:** que el DT exporte el informe desde la pantalla del partido.
+- **Criterios de Aceptación:** **AC1:** botón en `DetallePartidoScreen`; al terminar muestra dónde
+  quedó el archivo, y los errores de I/O, en pantalla.
+- **Testing Mínimo:** _manual guiado_.
+- **Archivos:** `src/infraestructura/ui/flet/screens/detalle_partido_screen.py`.
 
-```text
-src/aplicacion/casos_uso/
-├── obtener_lideres_temporada.py   ← se extiende (creado en la US-205)
-├── generar_grafico_rendimiento.py
-├── ver_trayectoria_jugador.py
-└── exportar_reporte.py
+### Épica H3-E3: Inteligencia de Scouting (v3.0.0)
 
-src/aplicacion/dtos/reporte_dto.py
+#### US-303 — Caso de Uso de Scouting del Rival
 
-src/infraestructura/analytics/chart_generator.py
-src/infraestructura/reports/
-└── pdf_generator.py
-
-src/infraestructura/ui/flet/
-├── screens/dashboard_screen.py
-├── screens/lideres_screen.py      ← se extiende (filtros multi-año, local/visitante)
-└── components/chart_component.py
-
-tests/unit/test_leaderboard.py
-tests/integration/
-├── test_chart_generator.py
-└── test_pdf_export.py
-```
-
-### Épica H3-E3: Inteligencia de Scouting
-
-#### US-303 — Scouting de Rival Pre-Partido
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Dependencias:** US-203
-- **Objetivo Funcional:** entregar al DT un reporte táctico detallado del rival antes del
-  encuentro, basado en el historial de partidos de la temporada.
-- **Capa de Infraestructura:** `src/infraestructura/persistencia/sql/views_scouting.sql` —
-  vistas de análisis histórico por rival.
-- **Capa de Aplicación:**
-  - **Caso de uso:** `GenerarScoutingRivalUseCase`.
-  - **DTOs:** `ScoutingDTO`.
-- **UI:** `ScoutingScreen` — elegir **Rival**, la barra común de filtros (año, competencia,
-  categoría; sección 6) y la ventana de **últimos _N_ partidos**; muestra el reporte y permite
-  exportarlo. Si hay partidos del rival con cuartos cargados, muestra en qué cuarto anota y
-  recibe más, «sobre N de M partidos».
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Depende de:** US-221, US-222, US-218,
+  US-202 · **Toca la base:** no
+- **Objetivo:** armar un reporte táctico del rival antes del partido, con su historial de la
+  temporada.
+- **Entrega:** `GenerarScoutingRivalUseCase` y `ScoutingDTO`. Los usan la US-311 y la US-312.
+- **Alcance:** sale de `get_partidos_club` (US-221), la misma agregación que usa la comparativa
+  (US-227): no se construye un segundo camino para calcular lo mismo.
 - **Criterios de Aceptación:**
-  - **AC1.** Ventana de análisis de últimos _N_ partidos configurable por parámetro.
-  - **AC2.** Detección de patrones: rachas (victorias/derrotas consecutivas), tendencia de tiro,
-    pérdidas recurrentes.
-  - **AC3.** Filtros por competencia y categoría producen resultados consistentes con las vistas
-    SQL.
-  - **AC4.** Reporte exportable (texto/PDF) con conclusiones destacadas y datos fuente citados. El
-    PDF usa el mismo `PDFReportGenerator` y cumple los AC4 a AC8 de la US-302.
-- **Testing Mínimo:**
-  - _Unitario:_ agregaciones históricas y funciones de detección de rachas.
-  - _Integración:_ vistas de scouting con dataset histórico de ejemplo (mínimo 10 partidos del
-    rival); consistencia de filtros por competencia y ventana N.
+  - **AC1:** ventana de los últimos _N_ partidos, configurable.
+  - **AC2:** patrones: rachas (victorias o derrotas seguidas), tendencia de tiro y pérdidas
+    recurrentes, como funciones puras.
+  - **AC3:** filtros de competencia y categoría consistentes con la US-221.
+  - **AC4:** si el rival tiene partidos con cuartos, en qué cuarto anota y recibe más, «sobre N de
+    M partidos» (US-218, US-222).
+- **Testing Mínimo:** _unitario_ de rachas y tendencias; _integración_ con al menos 10 partidos del
+  rival, filtros y ventana N.
+- **Archivos:** `src/aplicacion/casos_uso/generar_scouting_rival.py`,
+  `src/aplicacion/dtos/scouting_dto.py`, `tests/integration/test_scouting_rival.py`.
 
-> **Nota de reuso (evitar duplicar lógica):** el pedido de "comparar mi equipo contra otro equipo
-> dentro de la misma competencia" (agregado, no un partido puntual — ver US-202 AC2 ampliado) es
-> conceptualmente el mismo problema que resuelve el Scouting acá, solo que orientado hacia el
-> propio equipo en vez de hacia el rival de un próximo partido. Conviene que
-> `GenerarTablaComparativaUseCase` (US-202) y `GenerarScoutingRivalUseCase` (esta US) compartan la
-> misma función de agregación histórica por club (`get_totales_club` de `AnalyticsService`,
-> US-203) en vez de construir dos caminos separados para calcular lo mismo.
+#### US-311 — Pantalla de Scouting
 
-**Reparto en dos pistas:**
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-303, US-225 · **Toca la
+  base:** no
+- **Objetivo:** consultar el scouting desde la GUI.
+- **Criterios de Aceptación:** **AC1:** elegir **Rival**, la barra común y la ventana de **últimos
+  _N_ partidos**; muestra conclusiones destacadas y los datos de los que salen.
+- **Testing Mínimo:** _manual guiado_.
+- **Archivos:** `src/infraestructura/ui/flet/screens/scouting_screen.py`, menú lateral y composition
+  root.
 
-- **Pista A:** `views_scouting.sql` y `ScoutingScreen` (filtros, ventana de _N_ partidos,
-  exportar).
-- **Pista B:** `GenerarScoutingRivalUseCase`, detección de rachas y tendencias (AC2) y
-  `ScoutingDTO`, reutilizando `get_totales_club` de la US-203 (ver la nota de reuso).
+#### US-312 — Exportar el Scouting a PDF
 
-**Archivos a crear:**
-
-```text
-src/infraestructura/persistencia/sql/views_scouting.sql
-src/aplicacion/casos_uso/generar_scouting_rival.py
-src/aplicacion/dtos/scouting_dto.py
-src/infraestructura/ui/flet/screens/scouting_screen.py
-tests/integration/test_scouting_rival.py
-```
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Baja · **Depende de:** US-303, US-302, US-311 · **Toca
+  la base:** no
+- **Objetivo:** llevar el scouting impreso al partido.
+- **Criterios de Aceptación:** **AC1:** botón en `ScoutingScreen`; usa `PDFReportGenerator` con
+  conclusiones y datos fuente citados, en `~/.statspro/exports/`.
+- **Testing Mínimo:** _integración_: PDF generado desde un scouting de `seed.sql`.
+- **Archivos:** `src/aplicacion/casos_uso/exportar_scouting.py`,
+  `src/infraestructura/ui/flet/screens/scouting_screen.py`.
 
 ---
 
-## 12. Hito 4 — Interfaz Multiplataforma y Entrega (v1.0)
+## 12. Hito 4 — Interfaz Multiplataforma y Entrega (v4.0.0)
 
 **Objetivo del hito:** completar la GUI Flet (perfil de jugador, tema, adaptación a mobile),
-cerrar el hardening de seguridad, garantizar continuidad operativa mediante backup/restore y distribuir la aplicación
-como binario autónomo para las plataformas objetivo.
+cerrar el hardening de seguridad, garantizar continuidad operativa con backup y restauración, y
+distribuir la aplicación también en Android.
 
-**Épicas:** 4 · **Historias:** 4 · **Esfuerzo total estimado:** ~35 días·persona
+**Versiones:** H4-E1 → **v3.1.0** · H4-E2 → **v3.2.0** · H4-E3 → **v3.3.0** · H4-E4 → **v4.0.0**
+(cierra el hito).
 
-**Decisión previa requerida:** ninguna — ✅ **ADR-002 ya aprobado** (Flet confirmado como
-framework de UI, ver `docs/adr/ADR-002-framework-ui.md`). Desde el 2026-10-31 la GUI existe desde
-la US-105, así que este hito ya no "migra" a Flet: completa lo que falta.
+**Épicas:** 4 · **Historias:** 18 · **Esfuerzo total estimado:** ~38 días·persona
 
-> **Hallazgo de transcripción:** el `.md` del submódulo solo tenía **US-401** para este hito —
-> **le faltaban por completo las épicas H4-E2 (Resiliencia/Backup, US-402), H4-E3
-> (Seguridad, US-403) y H4-E4 (Empaquetado, US-404)**, que sí están en el LaTeX. Se completa con
-> esa fuente. Ver sección 20.
+**Decisión previa requerida:** ADR-006 (seguridad) sigue con dos preguntas abiertas: viabilidad de
+SQLCipher en Android (bloquea la US-416) y fuente de la lista de contraseñas comprometidas (bloquea
+la US-413). ADR-002 (Flet) está aprobado.
 
-### Épica H4-E1: Interfaz de Usuario Adaptable (GUI)
-
-#### US-401 — Interfaz Adaptable a Mobile y Pantallas Finales
-
-- **Esfuerzo:** L (6-10 días) · **Prioridad:** Alta · **Dependencias:** US-301, US-302, US-402,
-  ADR-002
-- **Objetivo Funcional:** completar la GUI que existe desde la US-105 — perfil de jugador,
-  backup, tema claro/oscuro — y adaptarla a mobile, sin modificar la lógica de negocio.
-- **Narrativa:** Como DT, quiero usar la misma aplicación desde mi PC o mi celular, con una
-  experiencia fluida y visual.
-- **Cambio de alcance (2026-10-31):** esta US era la que creaba la GUI. Con la GUI adelantada al
-  Hito 1, las pantallas que listaba ya nacen en otras historias y acá **no se reimplementan**:
-  `GameEntryScreen` → `CargaPartidoScreen` (US-108); `ImportScreen` (US-201 y US-207); `StatsTableComponent`
-  → `tabla_datos.py` (US-107); `DashboardScreen` y `ChartComponent` (US-301). Queda lo que todavía
-  no tiene dueño.
-- **Nota de reuso:** el botón de backup del AC4 envuelve `ExportarBackupUseCase`/
-  `RestaurarBackupUseCase` (US-402, por eso es dependencia); `PlayerProfileScreen` usa
-  `VerTrayectoriaJugadorUseCase` y `GenerarGraficoRendimientoUseCase` (US-301). Nada de eso se
-  reimplementa acá.
-- **Capa de Infraestructura (UI):**
-  - **Pantallas nuevas:** `PlayerProfileScreen` (trayectoria y evolución de un jugador). Se
-    elige el **Jugador** (con búsqueda) y se le aplica la barra común de filtros (sección 6): con
-    todo en «Todos» muestra la carrera completa; cualquier combinación de año, competencia y
-    categoría recorta los números. La trayectoria tiene una fila por año, competencia y
-    categoría, así que un año con dos categorías ocupa dos filas.
-  - **Pantalla nueva:** `AcercaDeScreen` (versión de la app, ver AC4 de la US-404).
-  - **Transversal:** tema claro/oscuro y diseño adaptable (responsive) en todas las pantallas
-    existentes. Se construye sobre el tema y los componentes de la US-111 (2026-11-08): el modo
-    oscuro y la adaptación a celular se resuelven en `estilo.py`, `crear_pagina` y
-    `crear_formulario`, no pantalla por pantalla.
-- **Criterios de Aceptación:**
-  - **AC1 — Performance:** tiempo de arranque **< 3 segundos** también en mobile (en desktop ya
-    lo exige la US-105).
-  - **AC2 — UX:** soporte de Modo Oscuro/Claro basado en preferencias del sistema.
-  - **AC3 — Responsividad:** adaptación automática a resoluciones de PC (1080p) y Mobile (720p)
-    en todas las pantallas.
-  - **AC4 — Gestión de Datos:** botón de "Backup" que invoca
-    `ExportarBackupUseCase`/`RestaurarBackupUseCase` (**ya creados en la US-402** — esta US solo
-    le agrega el botón, no reimplementa el backup).
-  - **AC5.** Formularios con validación visual (mensajes de error en campo, sin modal genérico)
-    en todas las pantallas — repaso de las creadas desde la US-105.
-  - **AC6.** La UI no contiene lógica de negocio; invoca casos de uso vía inyección de
-    dependencias.
-- **Testing Mínimo:**
-  - _Unitario:_ validadores de formularios, reglas de navegación de estado de pantalla.
-  - _Manual guiado:_ flujo Dashboard → carga de partido → perfil de jugador en desktop y mobile;
-    importación de Excel desde `ImportScreen` en mobile.
-
-**Reparto en dos pistas** (las dos de interfaz):
-
-- **Pista A:** pantallas nuevas — `PlayerProfileScreen`, `AcercaDeScreen` y el botón de backup
-  (AC4).
-- **Pista B:** lo transversal — tema claro/oscuro (AC2), diseño adaptable en todas las pantallas
-  existentes (AC3) y repaso de la validación visual de formularios (AC5), con la prueba manual en
-  mobile.
-
-**Archivos a crear:**
-
-```text
-src/infraestructura/ui/flet/screens/
-├── player_profile_screen.py
-└── acerca_de_screen.py
-
-tests/unit/test_flet_validators.py
-```
-
-### Épica H4-E2: Resiliencia y Backup
-
-#### US-402 — Backup y Restauración de Base de Datos
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-204, ADR-008
-- **Objetivo Funcional:** proteger la continuidad operativa mediante un mecanismo de exportación
-  e importación de la base de datos completa, con verificación automática de integridad
-  post-restauración.
-- **Criterios de Aceptación:**
-  - **AC1.** Exportación completa incluye metadata: versión del schema, fecha/hora, hash de
-    integridad.
-  - **AC2.** Restauración funciona tanto sobre instancia vacía como sobre instancia con datos
-    existentes.
-  - **AC3.** Verificación automática post-restore: conteo de filas en tablas críticas y checksum
-    lógico de datos clave.
-  - **AC4.** Checklist de estabilización ejecutada y documentada (rendimiento, errores críticos,
-    regresión).
-- **Testing Mínimo:** ciclo completo exportar → restaurar → verificar igualdad de datos clave;
-  restauración desde backup de versión anterior con migraciones aplicadas automáticamente;
-  regresión de casos críticos tras restore (auth, carga partido, exportación PDF).
-
-**Reparto en dos pistas** (sin interfaz; el botón lo agrega la US-401):
-
-- **Juntos, antes:** el formato del backup y de su metadata (versión de esquema, fecha, hash; AC1).
-- **Pista A:** exportar — `ExportarBackupUseCase` y la parte de exportación de `backup_service.py`.
-- **Pista B:** restaurar — `RestaurarBackupUseCase`, verificación post-restore (AC3) y restauración
-  de un backup de versión anterior con migraciones (US-204).
-
-**Archivos a crear:**
-
-```text
-src/aplicacion/casos_uso/
-├── exportar_backup.py
-└── restaurar_backup.py
-
-src/infraestructura/persistencia/backup_service.py
-tests/integration/test_backup_restore.py
-```
-
-### Épica H4-E3: Seguridad de Datos Local
-
-#### US-403 — Hardening de Seguridad Local
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-104, US-106, ADR-006
-- **Objetivo Funcional:** endurecer credenciales, política de sesión y almacenamiento local para
-  que la aplicación cumpla con un nivel de seguridad adecuado al contexto de datos deportivos
-  personales.
-- **Criterios de Aceptación:**
-  - **AC1.** Contraseñas mínimo **12 caracteres**, con validación de complejidad (mayúscula,
-    número, símbolo).
-  - **AC2.** Lista local de contraseñas comprometidas bloquea efectivamente su uso en registro y
-    cambio.
-  - **AC3.** Procedimiento de actualización mensual documentado en `docs/security/`, con pasos
-    reproducibles.
-  - **AC4.** CI valida versión vigente y checksum de la lista de comprometidas en cada PR.
-  - **AC5.** Hashing robusto (bcrypt o Argon2) con salt único por usuario; migración de hashes
-    legados.
-  - **AC6.** Cifrado de base de datos local configurable (SQLCipher) sin romper la API del
-    `DatabaseManager`.
-  - **AC7.** Política de sesión: expiración configurable de la sesión recordada (US-106, que en
-    v0.1 no expira), revocación inmediata en logout, limpieza idempotente.
-  - **AC8.** Eventos de seguridad (fallos de login, cambios de contraseña) trazados en log sin
-    exponer datos sensibles.
-- **Testing Mínimo:** política de contraseñas (longitud, complejidad, lista comprometidas); ciclo
-  hash → verificación, migración de hash legado; expiración y revocación de sesión; acceso a DB
-  con y sin cifrado según configuración.
-
-**Reparto en dos pistas** (sin interfaz):
-
-- **Pista A:** credenciales y sesión — `credential_policy.py` (AC1), lista de contraseñas
-  comprometidas con su procedimiento y control en el CI (AC2–AC4) y política de sesión de la
-  sesión recordada (AC7).
-- **Pista B:** almacenamiento — migración a bcrypt/Argon2 sin cambiar la interfaz `PasswordHasher`
-  y migración de hashes legados (AC5), adaptador SQLCipher (AC6) y eventos de seguridad en el log
-  (AC8).
-
-**Archivos a crear:**
-
-```text
-src/infraestructura/security/
-├── credential_policy.py
-├── compromised_password_store.py
-└── db_encryption_adapter.py (adaptador SQLCipher, opcional)
-
-docs/security/password_compromised_update_procedure.md
-tests/unit/test_credential_policy.py
-```
-
-### Épica H4-E4: Empaquetado y Distribución
-
-#### US-404 — Empaquetado y Distribución Multiplataforma
-
-> **Adelanto (2026-10-17, actualizado el 2026-10-31):** el paquete ya se instala en modo editable
-> (`uv tool install --editable .`, comando `statspro`); hasta la US-105 ese comando es la CLI y
-> desde ahí abre la GUI. El spike `docs/spike/spike_build_cli.md` investigaba el build de la CLI:
-> sus hallazgos sobre el paquete raíz `statspro`, la DB en la carpeta de datos del usuario y los
-> `.sql` como datos del paquete siguen sirviendo para esta US; lo específico de la CLI quedó
-> obsoleto.
-
-- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-401, US-109
-- **Objetivo Funcional:** generar binarios autónomos distribuibles para cada plataforma objetivo
-  (Windows, Linux, macOS, Android) sin requerir instalación de Python ni dependencias externas
-  por parte del usuario final.
-
-> **Achicada (2026-11-08):** el release de escritorio para Windows y Linux (`release.yml`, binarios
-> por tag) y el `CHANGELOG.md` pasaron a la US-109 (AC9 y AC10), para que la v0.1 ya salga con
-> binarios. Acá quedan Android, macOS, la versión visible en la app, la guía de instalación y las
-> prolijidades del instalador (ícono, firma). Los AC3 y AC5 de abajo pasan a extender lo que ya
-> existe.
+> **Rearmado (2026-11-27):** las US-401 a US-404 se dividieron como las del Hito 2. Cambios de fondo:
 >
-> **Empaquetado decidido en la US-109 (2026-11-09):** `flet build`. Windows y Linux ya salen en cada
-> release (`.exe` instalador con Inno Setup, `.zip` portable y `.deb`); acá se suma el `.apk` al
-> mismo release (y macOS, si se decide), con la misma herramienta.
-> **iOS fuera de alcance (decisión 2026-10-03):** el NFR-1 pedía también iOS 14+, pero esta US
-> nunca tuvo ningún AC para IPA y el propio plan listaba `build_ios.py` sin más contexto.
-> Compilar y firmar una app iOS exige una Mac + Xcode, y distribuirla fuera de un entorno de
-> desarrollo exige una cuenta de Apple Developer (u$s99/año) con certificados de firma — un costo
-> real que nadie había evaluado explícitamente. Se decidió sacar iOS del alcance y corregir el
-> NFR-1 en consecuencia (ver sección 7), en vez de completar esta US para una plataforma con un
-> costo no asumido. Si se retoma en el futuro, es un hito/roadmap aparte, no un AC suelto acá.
+> - Aparece **US-412 (cambio de contraseña)**: la US-403 pedía aplicar la política "en registro y
+>   cambio", pero ninguna historia creaba el cambio de contraseña.
+> - El arranque en menos de 3 segundos en mobile pasa de la US-401 a la US-404: no se puede medir
+>   en mobile antes de tener el APK.
+> - El "checklist de estabilización" (AC4 de la vieja US-402) pasa al proceso de cierre de hito
+>   (sección 15), porque vale para todos los hitos.
+>
+> **Hallazgo de transcripción (se mantiene):** el `.md` del submódulo solo tenía la US-401; las
+> épicas H4-E2, H4-E3 y H4-E4 se completaron con el LaTeX. Ver sección 20.
 
+### Mapa de dependencias del Hito 4
+
+| US     | Qué deja hecho                                            | Depende de                     | Tamaño | Sale de |
+| ------ | --------------------------------------------------------- | ------------------------------ | ------ | ------- |
+| US-401 | Modo claro/oscuro según el sistema                        | —                              | S      | US-401  |
+| US-405 | Diseño adaptable a pantallas de 1080p y 720p              | US-401                         | M      | US-401  |
+| US-406 | Validación visual de formularios en todas las pantallas   | US-405                         | S      | US-401  |
+| US-407 | Trayectoria de un jugador por año, competencia y categoría | US-220                        | S      | US-301  |
+| US-408 | `PlayerProfileScreen`                                     | US-407, US-305, US-304, US-225 | M      | US-401  |
+| US-409 | Versión e ícono visibles en la app                        | —                              | S      | US-404  |
+| US-402 | Exportar un backup con metadata                           | US-208                         | S      | US-402  |
+| US-410 | Restaurar un backup                                       | US-402, US-204                 | M      | US-402  |
+| US-411 | Pantalla de copias de seguridad                           | US-402, US-410                 | S      | US-401  |
+| US-403 | Política de contraseñas fuertes                           | —                              | S      | US-403  |
+| US-412 | Cambio de contraseña                                      | US-403                         | S      | nueva   |
+| US-413 | Lista de contraseñas comprometidas                        | US-403, ADR-006                | M      | US-403  |
+| US-414 | Hash con Argon2/bcrypt y migración de hashes viejos       | ADR-006                        | S      | US-403  |
+| US-415 | Expiración de la sesión recordada                         | —                              | S      | US-403  |
+| US-416 | Cifrado opcional de la base (SQLCipher)                   | US-208, ADR-006                | M      | US-403  |
+| US-404 | App de Android en el release                              | US-405                         | M      | US-404  |
+| US-417 | macOS en el release                                       | —                              | S      | US-404  |
+| US-418 | Guía de instalación por plataforma                        | US-404 (y US-417, si se hace)  | S      | US-404  |
+
+### Épica H4-E1: Interfaz de Usuario Adaptable (v3.1.0)
+
+> **Cambio de alcance (2026-10-31, se mantiene):** las pantallas que la vieja US-401 creaba ya nacen
+> en otras historias y acá **no se reimplementan**: `GameEntryScreen` → `CargaPartidoScreen`
+> (US-108); `ImportScreen` (US-217 y US-207); `StatsTableComponent` → `tabla_datos.py` (US-107);
+> `DashboardScreen` y `ChartComponent` (US-307 y US-304). La UI no tiene lógica de negocio: invoca
+> casos de uso por inyección de dependencias.
+
+#### US-401 — Modo Claro y Oscuro Según el Sistema
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** — · **Toca la base:** no
+- **Objetivo:** que la app siga la preferencia de tema del sistema.
 - **Criterios de Aceptación:**
-  - **AC1.** Binario desktop lanza la aplicación sin Python instalado en el sistema del usuario.
-    Windows y Linux quedan cubiertos por el AC14 de la US-109; acá queda macOS.
-  - **AC2.** APK de Android instalable en dispositivos Android 9+ sin dependencias adicionales,
-    publicado en el GitHub Release junto al `.exe`, el `.zip` y el `.deb`.
-  - **AC3.** El pipeline de release (US-109) suma macOS a la matriz: genera artefactos para las
-    3 plataformas desktop en cada tag de versión.
-  - **AC4.** Versión embebida en la aplicación (`AcercaDeScreen`, US-401) coincide con el tag de
-    release.
-  - **AC5.** ~~`CHANGELOG.md` actualizado siguiendo formato _Keep a Changelog_ en cada release.~~
-    Cubierto desde la v0.1 por el AC10 de la US-109.
-  - **AC6 — Ícono (logo decidido el 2026-11-08, ver la US-111):** el ejecutable, la ventana
-    (`page.window.icon`), el acceso directo y el APK usan el ícono de la app.
-    **Adelantado en la US-109 (2026-11-09):** `flet build` toma `src/assets/icon.svg` (lo rasteriza con
-    resvg) y genera solo el `.ico` de Windows y los `.png` de Linux y Android; no hace falta script. El
-    `.deb` instala el mismo SVG para el acceso directo. Queda acá: comprobar el ícono del APK y el de la
-    ventana mientras corre en Linux (`page.window.icon`), si no sale solo.
-- **Testing Mínimo:** instalar binario desktop en máquina limpia (sin Python) y ejecutar flujo
-  completo; instalar APK en dispositivo/emulador Android y verificar arranque; el pipeline de
-  release ejecuta tests completos antes de generar artefactos.
+  - **AC1:** los colores de claro y oscuro viven en `estilo.py`; ninguna pantalla define colores
+    propios (DoD 9).
+  - **AC2:** los gráficos en pantalla usan la paleta del tema (`ChartGenerator` recibe la paleta);
+    los PDF siguen siempre en claro.
+- **Testing Mínimo:** _manual guiado_ recorriendo las pantallas en los dos temas.
+- **Archivos:** `src/infraestructura/ui/flet/estilo.py`, `src/infraestructura/analytics/chart_generator.py`.
 
-**Reparto en dos pistas:**
+#### US-405 — Diseño Adaptable a 1080p y 720p
 
-- **Pista A:** desktop — macOS (AC1), versión embebida (AC4), ícono (AC6) y la guía de
-  instalación.
-- **Pista B:** Android y macOS — `build_android.py` (AC2) y la entrada de macOS en `release.yml`
-  (AC3).
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-401 (las dos tocan
+  `estilo.py` y `crear_pagina`: van una después de la otra) · **Toca la base:** no
+- **Objetivo:** que todas las pantallas se acomoden solas a una PC (1080p) y a un celular (720p).
+- **Criterios de Aceptación:** **AC1:** se resuelve en `crear_pagina` y `crear_formulario`, no
+  pantalla por pantalla. **AC2:** ninguna pantalla necesita scroll horizontal en 720p salvo las
+  tablas anchas, que scrollean dentro de su contenedor.
+- **Testing Mínimo:** _manual guiado_ achicando la ventana de escritorio a 720p en cada pantalla (en
+  un celular de verdad se prueba en la US-404).
+- **Archivos:** `src/infraestructura/ui/flet/components/` (`crear_pagina`, `crear_formulario`).
 
-**Archivos a crear:**
+#### US-406 — Validación Visual de Formularios
 
-```text
-empaquetado/   (no build/: es la carpeta de salida de flet build y está en .gitignore)
-├── windows/statspro.iss  ← existe desde la US-109 (instalador .exe); se le suma el ícono (AC6)
-├── linux/armar_deb.sh    ← existe desde la US-109 (.deb)
-├── build_android.py   ← flet build apk
-└── (generar_iconos.py ya no hace falta: flet build arma los íconos desde src/assets/icon.svg)
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-405 (toca todas las
+  pantallas: va al final de la épica para no chocar con nadie) · **Toca la base:** no
+- **Objetivo:** que los errores de un formulario aparezcan en el campo, no en un modal genérico.
+- **Criterios de Aceptación:** **AC1:** repaso de todos los formularios desde la US-105: cada error
+  de validación se muestra en su campo.
+- **Testing Mínimo:** _unitarias_ de los validadores y de la navegación entre estados de pantalla.
+- **Archivos:** `src/infraestructura/ui/flet/components/formulario.py`, `tests/unit/test_flet_validators.py`.
 
-.github/workflows/release.yml   ← existe desde la US-109; se le suma el APK (y macOS, si se decide)
-docs/install-guide.md           ← instrucciones de instalación por plataforma
-```
+#### US-407 — Trayectoria de un Jugador
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-220 · **Toca la base:** no
+- **Objetivo:** la vista longitudinal de un jugador a través de categorías y temporadas (ej. cómo
+  rindió en U15 y cómo le va en U17 este año).
+- **Entrega:** `VerTrayectoriaJugadorUseCase` y `TrayectoriaJugadorDTO`. Los usa la US-408.
+- **Criterios de Aceptación:** **AC1:** una fila por año, competencia y categoría (un año con dos
+  categorías ocupa dos filas), con PJ, usando el historial de `jugadorClub` para el club de cada
+  fila.
+- **Testing Mínimo:** _integración_ con un jugador de más de una categoría y temporada en `seed.sql`.
+- **Archivos:** `src/aplicacion/casos_uso/ver_trayectoria_jugador.py`,
+  `tests/integration/test_trayectoria_jugador.py`.
+
+#### US-408 — Perfil de Jugador
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Depende de:** US-407, US-305, US-304,
+  US-225 · **Toca la base:** no
+- **Objetivo:** ver en una pantalla la carrera y la evolución de un jugador.
+- **Narrativa:** Como DT, quiero ver la trayectoria de un jugador y si viene mejorando.
+- **Criterios de Aceptación:** **AC1:** se elige el **Jugador** con búsqueda y se le aplica la barra
+  común: con todo en «Todos» muestra la carrera completa. **AC2:** trayectoria (US-407) y un
+  gráfico de evolución (US-305).
+- **Testing Mínimo:** _manual guiado_: Tablero → carga de partido → perfil del jugador.
+- **Archivos:** `src/infraestructura/ui/flet/screens/player_profile_screen.py`, menú lateral y
+  composition root.
+
+#### US-409 — Versión e Ícono Visibles en la App
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** — · **Toca la base:** no
+- **Objetivo:** que el usuario sepa qué versión tiene instalada y la app se reconozca por su ícono.
+- **Criterios de Aceptación:**
+  - **AC1:** `AcercaDeScreen` muestra la versión, que coincide con el tag del release. Sale de
+    `config.version.VERSION` (agregada en el spike de aviso de versión nueva, 2026-11-28): la app
+    empaquetada no trae los metadatos del paquete, y el job `version` de `release.yml` frena el
+    release si `VERSION` no coincide con el tag.
+  - **AC2:** la ventana usa el ícono de la app también en Linux (`page.window.icon`), si no sale
+    solo.
+- **Testing Mínimo:** _manual guiado_ con el binario de un _pre-release_.
+- **Archivos:** `src/infraestructura/ui/flet/screens/acerca_de_screen.py`, menú lateral.
+
+### Épica H4-E2: Resiliencia y Backup (v3.2.0)
+
+#### US-402 — Exportar un Backup con Metadata
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-208 (`crear_copia`) · **Toca
+  la base:** no (la lee)
+- **Objetivo:** que el usuario saque una copia completa de su base para guardarla donde quiera.
+- **Entrega:** `ExportarBackupUseCase`. Lo usan la US-410 (formato) y la US-411.
+- **Criterios de Aceptación:**
+  - **AC1:** la copia (`VACUUM INTO`, ADR-008) va con su metadata: versión de la app, última
+    migración aplicada, fecha y hora y hash SHA-256 del archivo.
+  - **AC2:** se registra en el log con resultado.
+- **Testing Mínimo:** _integración_: el backup abre, tiene las mismas filas que la base y el hash
+  coincide.
+- **Archivos:** `src/aplicacion/casos_uso/exportar_backup.py`,
+  `src/infraestructura/persistencia/backup_service.py`, `tests/integration/test_backup_restore.py`.
+
+#### US-410 — Restaurar un Backup
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-402, US-204 · **Toca la
+  base:** reemplaza el archivo, siempre con una copia de seguridad de la actual
+- **Objetivo:** volver a una copia anterior sin arriesgar los datos actuales.
+- **Criterios de Aceptación:**
+  - **AC1:** se verifica el hash antes de tocar nada; un backup dañado se rechaza.
+  - **AC2:** antes de reemplazar, se copia la base actual (`crear_copia`, US-208). Si algo falla
+    después, se vuelve a esa copia.
+  - **AC3:** un backup de una versión anterior se restaura y se le aplican las migraciones que le
+    faltan (US-204); uno de una versión más nueva se rechaza.
+  - **AC4:** verificación después de restaurar: conteo de filas de las tablas críticas y un
+    checksum de los datos clave contra la metadata.
+  - **AC5:** funciona sobre una base vacía y sobre una con datos. Al terminar, la app vuelve a
+    abrir la conexión y pide login.
+- **Testing Mínimo:** _integración_: exportar → restaurar → mismos datos; restaurar un backup de
+  versión anterior (migra); uno más nuevo (rechazado, base intacta); un fallo a mitad de camino
+  (vuelve a la copia); después del restore, login, carga de partido y PDF siguen andando.
+- **Archivos:** `src/aplicacion/casos_uso/restaurar_backup.py`,
+  `src/infraestructura/persistencia/backup_service.py`, `tests/integration/test_backup_restore.py`.
+
+#### US-411 — Pantalla de Copias de Seguridad
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-402, US-410 · **Toca la
+  base:** no (usa los casos de uso)
+- **Objetivo:** exportar y restaurar desde la GUI.
+- **Criterios de Aceptación:** **AC1:** entrada "Copias de seguridad" en el menú; exportar con
+  `FilePicker` para elegir dónde guardar; restaurar con confirmación explícita (`pedir_confirmacion`)
+  que diga qué se reemplaza. **AC2:** errores en pantalla, sin traceback.
+- **Testing Mínimo:** _manual guiado_ del ciclo completo, también en Android (US-404).
+- **Archivos:** `src/infraestructura/ui/flet/screens/backup_screen.py`, menú lateral y composition
+  root.
+
+### Épica H4-E3: Seguridad de Datos Local (v3.3.0)
+
+**Regla de compatibilidad para esta épica:** los usuarios de versiones anteriores tienen que seguir
+entrando con su contraseña y sus datos. Ningún cambio de seguridad puede dejarlos afuera ni tocar el
+esquema (sección 3).
+
+#### US-403 — Política de Contraseñas Fuertes
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** — · **Toca la base:** no
+- **Objetivo:** que las contraseñas nuevas sean difíciles de adivinar.
+- **Entrega:** `credential_policy.validar(contrasena)`. La usan el registro, la US-412 y la US-413.
+- **Criterios de Aceptación:**
+  - **AC1:** mínimo **12 caracteres**, con mayúscula, número y símbolo; el mensaje dice qué falta.
+  - **AC2:** se aplica al registro. Las cuentas existentes con contraseñas más cortas siguen
+    entrando.
+- **Testing Mínimo:** _unitarias_ de cada regla.
+- **Archivos:** `src/infraestructura/security/credential_policy.py`, `tests/unit/test_credential_policy.py`.
+
+#### US-412 — Cambio de Contraseña
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** US-403 · **Toca la base:** no
+  (actualiza el hash del usuario)
+- **Objetivo:** que un usuario cambie su contraseña desde la app.
+- **Criterios de Aceptación:**
+  - **AC1:** pide la contraseña actual y la nueva dos veces; la nueva pasa por `credential_policy`.
+  - **AC2:** el evento queda en el log sin datos sensibles (los fallos de login ya se registran
+    desde la US-110).
+- **Testing Mínimo:** _unitarias_ del caso de uso (actual incorrecta, nueva débil, camino feliz);
+  _integración_: después del cambio, la contraseña vieja no entra y la nueva sí.
+- **Archivos:** `src/aplicacion/casos_uso/cambiar_contrasena.py`,
+  `src/infraestructura/ui/flet/screens/cambiar_contrasena_screen.py`, menú y composition root.
+
+#### US-413 — Lista de Contraseñas Comprometidas
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Media · **Depende de:** US-403, ADR-006 (fuente de la
+  lista; se cierra al empezar) · **Toca la base:** no
+- **Objetivo:** bloquear contraseñas que ya circulan en filtraciones.
+- **Criterios de Aceptación:**
+  - **AC1:** una lista local, empaquetada con la app, bloquea su uso en `credential_policy` (así
+    alcanza al registro y al cambio sin tocarlos).
+  - **AC2:** procedimiento de actualización mensual en `docs/security/`, con pasos reproducibles.
+  - **AC3:** el CI valida la versión vigente y el checksum de la lista en cada PR.
+- **Testing Mínimo:** _unitarias_: una contraseña de la lista se rechaza; checksum alterado → CI en
+  rojo.
+- **Archivos:** `src/infraestructura/security/compromised_password_store.py`,
+  `docs/security/password_compromised_update_procedure.md`, `.github/workflows/MainAction.yml`.
+
+#### US-414 — Hash con Argon2 o bcrypt y Migración de Hashes Viejos
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Alta · **Depende de:** ADR-006 · **Toca la base:** no
+  (el algoritmo va como prefijo dentro del mismo texto del hash)
+- **Objetivo:** pasar a un hash más robusto sin obligar a nadie a cambiar su contraseña.
+- **Criterios de Aceptación:**
+  - **AC1:** bcrypt o Argon2 con salt único, sin cambiar la interfaz `PasswordHasher`.
+  - **AC2 — Migración perezosa:** al entrar con un hash `pbkdf2` válido, se guarda el hash nuevo. Los
+    dos formatos se verifican mientras queden usuarios viejos.
+  - **AC3:** la librería elegida compila con `flet build` en Windows, Linux y Android; si no compila
+    en Android, se elige la otra antes de mergear.
+- **Testing Mínimo:** ciclo hash → verificación; un usuario con hash `pbkdf2` entra y queda migrado.
+- **Archivos:** `src/infraestructura/security/` (hasher), `pyproject.toml`/`uv.lock`,
+  `docs/adr/ADR-006-seguridad-cifrado.md`.
+
+#### US-415 — Expiración de la Sesión Recordada
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** — · **Toca la base:** no (el
+  archivo de sesión es aparte, en `~/.statspro/`)
+- **Objetivo:** cerrar el riesgo aceptado en la US-106: hoy "Recordarme" no expira.
+- **Criterios de Aceptación:**
+  - **AC1:** la sesión recordada expira después de un tiempo configurable en `settings.py`.
+  - **AC2:** cerrar sesión la revoca de inmediato; la limpieza es idempotente.
+  - **AC3 — Compatibilidad:** un archivo de sesión del formato viejo (sin fecha) se trata como
+    vencido: pide login, sin error.
+- **Testing Mínimo:** _unitarias_ con reloj falso; archivo del formato viejo.
+- **Archivos:** `src/aplicacion/servicios/session_manager.py`, `src/config/settings.py`,
+  `tests/unit/test_session_manager.py`.
+
+#### US-416 — Cifrado Opcional de la Base (SQLCipher)
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Baja · **Depende de:** US-208, ADR-006 (viabilidad en
+  Android) · **Toca la base:** convierte el archivo, no el esquema
+- **Objetivo:** que quien quiera tenga la base cifrada, sin romper la API del `DatabaseManager`.
+- **Criterios de Aceptación:**
+  - **AC1:** se activa desde la configuración; nunca se cifra una base sin que el usuario lo pida.
+  - **AC2:** la conversión arma un archivo nuevo (`sqlcipher_export`), compara el conteo de filas con
+    el original y recién entonces lo reemplaza. Antes de empezar se hace una copia (`crear_copia`,
+    US-208), que se borra cuando la verificación da bien.
+  - **AC3:** si el ADR-006 concluye que no es viable en Android, la opción no aparece en Android.
+- **Testing Mínimo:** acceso a la base con y sin cifrado; una conversión que falla deja la base
+  original intacta.
+- **Archivos:** `src/infraestructura/security/db_encryption_adapter.py`,
+  `src/infraestructura/persistencia/database_manager.py`.
+
+### Épica H4-E4: Empaquetado y Distribución (v4.0.0)
+
+> **Contexto (se mantiene):** el release de escritorio para Windows y Linux (`release.yml`, binarios
+> por tag) y el `CHANGELOG.md` ya existen desde la US-109, con `flet build`. **iOS está fuera de
+> alcance (2026-10-03):** compilar y firmar exige una Mac con Xcode y una cuenta de Apple Developer
+> (u$s99/año), un costo que nadie asumió; si se retoma, es un hito aparte. El spike
+> `docs/spike/spike_build_cli.md` sigue valiendo para el paquete raíz `statspro`, la base en la
+> carpeta de datos del usuario y los `.sql` como datos del paquete.
+
+#### US-404 — App de Android en el Release
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Depende de:** US-405 · **Toca la base:** no
+- **Objetivo:** publicar un APK instalable junto a los binarios de escritorio.
+- **Criterios de Aceptación:**
+  - **AC1:** APK instalable en Android 9+ sin dependencias adicionales, publicado en el GitHub
+    Release junto al `.exe`, el `.zip` y el `.deb` (`flet build apk` en `release.yml`).
+  - **AC2:** la base y los logs van en la carpeta de datos de la app en Android (`config/rutas.py`), y
+    las migraciones (US-204) corren ahí.
+  - **AC3 — Arranque:** **menos de 3 segundos** en un celular de referencia (NFR-5).
+  - **AC4:** el APK usa el ícono de la app.
+- **Testing Mínimo:** instalar en un dispositivo o emulador y recorrer: login → carga de partido →
+  importación de un Excel desde `ImportScreen` → backup.
+- **Archivos:** `empaquetado/build_android.py`, `.github/workflows/release.yml`, `src/config/rutas.py`.
+
+#### US-417 — macOS en el Release
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Baja · **Depende de:** — · **Toca la base:** no
+- **Objetivo:** sumar macOS a la matriz de `release.yml` (NFR-1).
+- **Decisión a tomar al empezar:** si se hace. El binario sale sin firmar (macOS lo advierte al
+  abrir), porque firmar cuesta la cuenta de Apple Developer.
+- **Criterios de Aceptación:** **AC1:** cada tag genera el binario de macOS con los de Windows y
+  Linux. **AC2:** abre sin Python instalado.
+- **Testing Mínimo:** abrir el binario en una Mac (o un runner `macos-latest`) y crear un club.
+- **Archivos:** `.github/workflows/release.yml`.
+
+#### US-418 — Guía de Instalación por Plataforma
+
+- **Esfuerzo:** S (1-2 días) · **Prioridad:** Media · **Depende de:** US-404 (y US-417, si se hace) ·
+  **Toca la base:** no
+- **Objetivo:** que un DT instale la app sin ayuda.
+- **Criterios de Aceptación:** **AC1:** pasos para Windows (instalador y portable), Linux (`.deb`) y
+  Android (APK), con capturas; dónde quedan los datos y que desinstalar no los borra.
+- **Archivos:** `docs/install-guide.md`.
 
 ---
 
@@ -2637,7 +2889,7 @@ docs/install-guide.md           ← instrucciones de instalación por plataforma
 
 Una Historia de Usuario se considera **Hecha** cuando cumple TODOS los siguientes puntos:
 
-1. **Código integrado:** merge a la rama principal sin conflictos; commits con formato `tipo(alcance): descripción`.
+1. **Código integrado:** PR chica a `main` con _squash_, revisada por el otro integrante y con título `tipo(alcance): descripción`; `main` queda publicable (sección 5).
 2. **Tests pasan:** cobertura ≥80% en lógica de negocio general; ≥95% en componentes críticos (autenticación, persistencia transaccional, rollback, fórmulas estadísticas — ver Catálogo de Criticidad). Todos los tests corren sin errores en CI.
 3. **Arquitectura respetada:** ninguna clase en `dominio/` importa de `infraestructura/` ni de librerías externas (`sqlite3`, `pandas`). Verificable con grep o una herramienta de análisis de imports.
 4. **SQL verificado:** si la US crea o modifica una vista SQL, la vista está en `views.sql` y existe un test de integración que la consulta con datos de `seed.sql`.
@@ -2645,9 +2897,11 @@ Una Historia de Usuario se considera **Hecha** cuando cumple TODOS los siguiente
 6. **ADR documentado:** si la US requirió una decisión arquitectónica, el ADR correspondiente está aprobado y en el repositorio.
 7. **Sin imports cruzados:** verificado con una herramienta de linting de arquitectura.
 8. **Docstring mínimo:** todos los métodos públicos tienen docstring de una línea; los métodos complejos documentan sus parámetros.
-9. **Si incluye UI:** validada manualmente en desktop (Windows, y Linux si hay entorno gráfico); desde la US-401 (Hito 4), también en mobile. Desde la US-111, la pantalla usa `crear_pagina`, sus formularios usan `crear_formulario` y no define colores ni espaciados propios.
+9. **Si incluye UI:** validada manualmente en desktop (Windows, y Linux si hay entorno gráfico); desde la US-404 (Hito 4), también en Android. Desde la US-111, la pantalla usa `crear_pagina`, sus formularios usan `crear_formulario` y no define colores ni espaciados propios.
 10. **Trazabilidad:** eventos de log relevantes implementados con `correlation_id` (desde la US-110; las historias anteriores usan el logger actual).
 11. **Pipeline CI en verde:** lint + tests + cobertura.
+12. **Base de datos (desde el Hito 2):** si cambia tablas, lo hace con una migración aditiva nueva y no edita ninguna existente (sección 3); si cambia una vista, ajusta a sus consumidores y sus tests.
+13. **Dependencias del PRD al día:** todo lo que la historia usa ya estaba en `main`, y lo que deja hecho para otras figura en su campo **Entrega**. Si cambió algo de eso, se actualizó el PRD en la misma PR.
 
 **El repositorio del agregado tiene su propia interfaz en el dominio**, y **la persistencia fue validada mediante una prueba de integración con SQLite** son, además, dos condiciones que ambas fuentes repiten como base mínima innegociable — se mantienen implícitas en los puntos 3 y 4 de arriba.
 
@@ -2655,63 +2909,143 @@ Una Historia de Usuario se considera **Hecha** cuando cumple TODOS los siguiente
 
 ## 15. Proceso de Liberación de Versiones
 
-### Versionado semántico
+> **Cambio (2026-11-27):** desaparecen `develop`, `feature/hitoN` y `feature/epicaN`. Se trabaja
+> directo contra `main` con PR chicas (sección 5) y la numeración se ata a hitos y épicas.
 
-`vMAJOR.MINOR.PATCH` (Semantic Versioning 2.0):
+### Versionado
 
-- **MAJOR** — cambios incompatibles con versiones anteriores (ej. rediseño del schema que requiere migración manual).
-- **MINOR** — nuevas funcionalidades compatibles. **Cada hito completado incrementa el MINOR** (H1 → v0.1.0, H2 → v0.2.0, H4 → v1.0.0).
-- **PATCH** — corrección de bugs sin nuevas funcionalidades (ej. v0.1.1).
+`vMAJOR.MINOR.PATCH`, con una convención propia del proyecto. **No es SemVer estricto:** acá el
+MAJOR marca el cierre de un hito, no un cambio incompatible. Los datos del usuario nunca se rompen
+entre versiones (sección 3).
 
-### Estrategia de ramas
+| Qué se publica                                       | Sube  | Ejemplo                  |
+| ---------------------------------------------------- | ----- | ------------------------ |
+| Cierre del Hito N (su última épica)                  | MAJOR | H1 → v1.0.0, H2 → v2.0.0 |
+| Cierre de una épica que no es la última de su hito   | MINOR | H2-E1 → v1.1.0           |
+| Actualización de dependencias o corrección de un bug | PATCH | v1.1.0 → v1.1.1          |
+
+| Hito | Épicas y versión                                                                  |
+| ---- | --------------------------------------------------------------------------------- |
+| H1   | cierre del hito → **v1.0.0** (la primera versión; los tags `v0.1.0-rc.*` fueron pruebas del workflow) |
+| H2   | H2-E1 → v1.1.0 · H2-E2 → v1.2.0 · H2-E3 → **v2.0.0**                              |
+| H3   | H3-E1 → v2.1.0 · H3-E2 → v2.2.0 · H3-E3 → **v3.0.0**                              |
+| H4   | H4-E1 → v3.1.0 · H4-E2 → v3.2.0 · H4-E3 → v3.3.0 · H4-E4 → **v4.0.0**             |
+
+Si una épica se agrega o se divide, la tabla se corre: la última épica de cada hito siempre da el
+MAJOR. La app avisa cuando hay una versión nueva (spike en curso), así que publicar seguido no le
+complica la vida a nadie.
+
+### Ramas
 
 ```text
-feature/usXXX ──squash──▶ feature/epicaN ──merge──▶ feature/hitoN ──merge──▶ develop ──merge──▶ main ──tag vX.Y.Z──▶ release.yml
+feature/usNNN-descripcion ──squash──▶ main ──(cierre de épica) tag vX.Y.0──▶ release.yml
+hotfix/descripcion (desde el último tag) ──tag vX.Y.Z──▶ release.yml
+                                          └──merge commit──▶ main
 ```
 
-| Rama                 | Propósito                                                                                                   | Su PR se mergea con              |
-| -------------------- | ----------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `main`               | Solo lo publicado. Cada release es un tag `vX.Y.Z` sobre un commit de `main`. Nunca se trabaja directo acá. | —                                |
-| `develop`            | Integración entre hitos.                                                                                    | _merge commit_ (hacia `main`)    |
-| `feature/hitoN`      | Integración de las épicas de un hito.                                                                       | _merge commit_ (hacia `develop`) |
-| `feature/epicaN`     | Integración de las historias de una épica.                                                                  | _merge commit_ (hacia el hito)   |
-| `feature/usXXX`      | Una rama por historia de usuario, donde se trabaja.                                                         | **_squash_** (hacia la épica)    |
-| `hotfix/descripcion` | Bug crítico en una versión publicada; sale de `main`.                                                       | **_squash_** (hacia `main`)      |
+| Rama                        | Propósito                                                                                   | Su PR se mergea con             |
+| --------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------- |
+| `main`                      | Integración y releases. Siempre publicable: cada PR la deja andando. Nunca se pushea directo. | —                              |
+| `feature/usNNN-descripcion` | Una historia, o una parte chica de ella. Sale de `main` actualizado.                         | **_squash_** (hacia `main`)    |
+| `release/vX.Y.Z`            | Solo el cambio de versión y el changelog.                                                    | **_squash_** (hacia `main`)    |
+| `hotfix/descripcion`        | Bug de una versión publicada, o una actualización que no puede esperar. Sale del **último tag**. | **_merge commit_** (hacia `main`) |
 
-**Por qué dos estrategias.** El PR de una historia trae muchos commits de trabajo ("wip", "fix typo"): el _squash_ los junta en uno solo, con el título del PR como mensaje (por eso el título tiene que seguir Conventional Commits, AC11 de la US-109). Los PR de **promoción** (épica → hito → `develop` → `main`) no traen código nuevo: el _merge commit_ conserva los commits que llevan. Así a `main` llega **un commit por historia**, y git-cliff arma el changelog con un renglón por historia. Con _squash_ en todos los niveles, a `main` llegaría un solo commit por hito.
+**Por qué el hotfix sale del tag y no de `main`:** `main` ya tiene historias de la épica en curso
+que todavía no se publicaron. Un patch armado desde `main` publicaría una épica a medias con un
+número de corrección.
 
-### Proceso de release paso a paso
+**Por qué el hotfix vuelve con _merge commit_:** el tag del patch queda en la rama del hotfix. Con
+_squash_, ese commit no llegaría a `main`, y git-cliff (que arma el changelog recorriendo los tags
+alcanzables desde `main`) no vería el patch.
 
-1. **PR `develop → main`:** en ese mismo PR, subir `version` en `pyproject.toml` (ej. `0.1.0`) y regenerar el changelog con `make changelog VERSION=0.1.0`; revisar el texto generado (no se edita a mano: un commit que sobra se saca con `.cliffignore`, ver la sección 11 del RUNBOOK). El CI tiene que pasar entero. Se mergea con _merge commit_.
-2. **(Recomendado) Probar el release:** `git tag v0.1.0-rc.1` sobre `main` y `git push origin v0.1.0-rc.1`: `release.yml` arma un _pre-release_ con los binarios. Probarlos en una máquina sin Python (AC14 de la US-109). Si algo falla, se corrige con un PR y se repite con `-rc.2`.
-3. **Taggear la versión:** `git checkout main && git pull`, `git tag v0.1.0`, `git push origin v0.1.0`. El tag va en `main`, no en `develop`: marca exactamente el código publicado.
-4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con `pyproject.toml` → compila con `flet build` el instalador `.exe` y el `.zip` portable (Windows) y el `.deb` (Linux) → crea el GitHub Release con los binarios y la sección del changelog como notas.
-5. **Verificar el release:** confirmar en GitHub el tag, las notas y los binarios.
-6. **Volver a sincronizar `develop`:** el commit de versión y changelog entró por el PR `develop → main`, así que `develop` ya lo tiene; solo hace falta mergear `main → develop` si hubo un hotfix.
+**El _squash_ en las PR de trabajo** junta los commits de trabajo ("wip", "fix typo") en uno solo,
+con el título del PR como mensaje (por eso el título sigue Conventional Commits, AC11 de la US-109).
+Así a `main` llega un commit por PR, y git-cliff arma el changelog con un renglón por cada uno.
+
+### Dependabot
+
+Una PR por semana como máximo por cada ecosistema (`uv`, `github-actions`, `docker`), con **todas**
+sus actualizaciones juntas (`.github/dependabot.yml`). Dependabot no puede juntar ecosistemas
+distintos en una sola PR. Las alertas de seguridad llegan en PR aparte, porque no esperan al lunes.
+
+- Su PR se revisa y se mergea a `main` como cualquier otra (_squash_). No publica nada por sí sola:
+  viaja en la próxima versión.
+- Si tiene que llegar a los usuarios antes (seguridad, un bug de una librería que usa la app), se
+  publica como **patch** con el procedimiento de hotfix: se hace _cherry-pick_ del commit de
+  Dependabot sobre la rama que sale del último tag.
+
+### Release de una épica (o de un hito)
+
+1. **Cuando se mergea la última historia de la épica:** rama `release/vX.Y.Z` desde `main`. Subir
+   `version` en `pyproject.toml` y regenerar el changelog con `make changelog VERSION=X.Y.Z`;
+   revisar el texto generado (no se edita a mano: un commit que sobra se saca con `.cliffignore`,
+   ver la sección 11 del RUNBOOK). PR `chore(release): vX.Y.Z` con el CI entero en verde; _squash_.
+2. **(Recomendado) Probar el release:** `git tag vX.Y.Z-rc.1` sobre ese commit de `main` y
+   `git push origin vX.Y.Z-rc.1`: `release.yml` arma un _pre-release_. Probar los binarios en una
+   máquina sin Python (AC14 de la US-109). Si algo falla, se corrige con una PR y se repite con
+   `-rc.2`.
+3. **Taggear:** `git checkout main && git pull`, `git tag vX.Y.Z`, `git push origin vX.Y.Z`.
+4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con
+   `pyproject.toml` → compila con `flet build` → crea el GitHub Release con los binarios y la
+   sección del changelog como notas.
+5. **Verificar** en GitHub el tag, las notas y los binarios.
+6. **Si cierra un hito:** antes del paso 1, el **checklist de estabilización**: rendimiento (los
+   tiempos de los NFR), sin errores críticos abiertos, y una regresión manual de los flujos
+   principales (login, carga de partido, importación, informe PDF y backup, según lo que ya
+   exista). Se cierra el milestone del hito.
+
+### Hotfix (patch)
+
+1. `git checkout -b hotfix/descripcion-breve vX.Y.Z` (el último tag publicado).
+2. Aplicar la corrección mínima con un test de regresión que falla sin el fix (o _cherry-pick_ del
+   commit de Dependabot).
+3. En la misma rama, subir el PATCH en `pyproject.toml` y regenerar el changelog
+   (`make changelog VERSION=X.Y.Z+1`).
+4. Abrir la PR `hotfix/... → main` para que la revise el otro integrante y corra el CI.
+5. Con la PR aprobada: `git tag vX.Y.Z+1` sobre el último commit de la rama y `git push origin
+   vX.Y.Z+1`; `release.yml` publica el patch.
+6. Mergear la PR con **_merge commit_**. Si choca en `pyproject.toml` o en `CHANGELOG.md`, se queda
+   con la versión del hotfix y se regenera el changelog.
 
 ### Formato del `CHANGELOG.md`
 
-Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release con subsecciones en castellano (Agregado, Cambiado, Corregido, Seguridad). Lo genera git-cliff a partir de los commits (`feat:` → Agregado, `fix:` → Corregido, etc., configurado en `cliff.toml`): no se edita a mano, se regenera entero en cada versión y solo se revisa el texto antes del release.
+Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release,
+con subsecciones en castellano (Agregado, Cambiado, Corregido, Seguridad). Lo genera git-cliff a
+partir de los commits (`feat:` → Agregado, `fix:` → Corregido, etc., configurado en `cliff.toml`):
+no se edita a mano, se regenera entero en cada versión y solo se revisa el texto antes del release.
 
-### Hotfix — corregir un bug en producción
+> **Ojo con los patch de dependencias:** hoy `cliff.toml` deja afuera los commits `chore` y `build`,
+> que incluyen los de Dependabot (`chore(deps)`). Un patch que solo trae dependencias no tendría
+> sección en el changelog, y `release.yml` falla sin publicar si la versión no tiene su sección.
+> Antes del primer patch de dependencias hay que sumar a `cliff.toml` una sección "Dependencias" para
+> `chore(deps)`.
 
-1. `git checkout -b hotfix/descripcion-breve main`.
-2. Aplicar la corrección mínima; un test de regresión que falla sin el fix.
-3. En el mismo PR, subir `PATCH` en `pyproject.toml` (ej. 0.1.0 → 0.1.1) y regenerar el changelog con `make changelog VERSION=0.1.1`.
-4. PR a `main` con _squash_ (título en Conventional Commits, ej. `fix: ...`); después, `git tag v0.1.1` sobre `main` y `git push origin v0.1.1`: `release.yml` publica el release.
-5. Mergear `main → develop` para no perder el fix.
+### Transición al flujo nuevo (fuera de este PRD, pendiente)
+
+Este PRD ya describe el flujo nuevo. Para que el repositorio coincida falta:
+
+- Borrar `develop` (y las `feature/epica*`/`feature/hito*` que queden) después de mergear lo que
+  tengan a `main`.
+- `.github/workflows/MainAction.yml`: sacar `develop`, `feature/epica*` y `feature/hito*` de
+  `branches`.
+- Ruleset de GitHub "main y develop" → solo `main`; _squash_ y _merge commit_ habilitados (el
+  segundo, para los hotfix).
+- `RUNBOOK.md` (ramas, ruleset y release) y el comentario de `Makefile` sobre `develop -> main`.
+- `cliff.toml`: la sección "Dependencias" del punto anterior.
+- Milestones `M1 - v1.0.0` … `M4 - v4.0.0`, y una issue por cada historia nueva de los Hitos 2 a 4
+  (las divididas se cierran apuntando a sus reemplazos).
 
 ---
 
 ## 16. Roadmap Futuro (Hitos 5–9, visión de producto)
 
-> Los hitos 5–9 son **visión de producto, no compromisos de entrega**. Se refinan y priorizan según feedback real de usuarios al cierre de v1.0. Se transcriben completos porque forman parte del PRD original, aunque no son parte del plan de trabajo actual.
+> Los hitos 5–9 son **visión de producto, no compromisos de entrega**. Se refinan y priorizan según feedback real de usuarios al cierre de la v4.0.0. Cada hito cierra con su MAJOR (Hito N → vN.0.0, sección 15). Se transcriben completos porque forman parte del PRD original, aunque no son parte del plan de trabajo actual.
 
-- **Hito 5 · Ecosistema Conectado y Colaborativo (v1.5):** romper el aislamiento local. Sincronización cloud híbrida (FastAPI + PostgreSQL, manteniendo la app 100% funcional offline); exportación de "Match Cards" para redes sociales; base de datos compartida de scouting entre DTs (con consentimiento explícito). Investigación previa de la sincronización (local-first con Supabase como alternativa): ver `docs/spike/spike_supabase.md`.
-- **Hito 6 · Inteligencia Táctica con IA (v2.0):** pasar de análisis descriptivo a prescriptivo. Motor de recomendación de quinteto (scikit-learn/XGBoost); detección automática de patrones (rachas de tiro, degradación defensiva por fatiga, pérdidas en momentos de presión — z-score, ARIMA); explicabilidad con SHAP values; integración de video scouting; marco de experimentación A/B de estrategias.
-- **Hito 7 · Live Stats y Cancha Digital (v3.0):** captura de datos en tiempo real. Módulo de captura en vivo en tablet (<200ms por acción); dashboard en vivo para el banco (PPP por posesión, eFG% acumulado, +/- por jugador); mapa de tiro interactivo por zonas; control de carga/fatiga con alertas.
-- **Hito 8 · Plataforma Federativa y Competición Multi-Liga (v4.0):** escalar de club a federación. Integración con APIs federativas (CABB, FIBA); vista multi-club para oficiales de liga; reportería regulatoria automatizada; benchmarking anónimo inter-club; gestión de árbitros y planilleros.
-- **Hito 9 · Multi-Deporte y Ecosistema de Formación (v5.0):** extender más allá del básquet. Motor estadístico multi-deporte configurable (voleibol, fútbol sala, handball); seguimiento de desarrollo a largo plazo entre categorías; modelado de riesgo de lesión por carga acumulada; módulo de formación para entrenadores; portal de seguimiento para familias (solo lectura, opt-in).
+- **Hito 5 · Ecosistema Conectado y Colaborativo (v5.0.0):** romper el aislamiento local. Sincronización cloud híbrida (FastAPI + PostgreSQL, manteniendo la app 100% funcional offline); exportación de "Match Cards" para redes sociales; base de datos compartida de scouting entre DTs (con consentimiento explícito). Investigación previa de la sincronización (local-first con Supabase como alternativa): ver `docs/spike/spike_supabase.md`.
+- **Hito 6 · Inteligencia Táctica con IA (v6.0.0):** pasar de análisis descriptivo a prescriptivo. Motor de recomendación de quinteto (scikit-learn/XGBoost); detección automática de patrones (rachas de tiro, degradación defensiva por fatiga, pérdidas en momentos de presión — z-score, ARIMA); explicabilidad con SHAP values; integración de video scouting; marco de experimentación A/B de estrategias.
+- **Hito 7 · Live Stats y Cancha Digital (v7.0.0):** captura de datos en tiempo real. Módulo de captura en vivo en tablet (<200ms por acción); dashboard en vivo para el banco (PPP por posesión, eFG% acumulado, +/- por jugador); mapa de tiro interactivo por zonas; control de carga/fatiga con alertas.
+- **Hito 8 · Plataforma Federativa y Competición Multi-Liga (v8.0.0):** escalar de club a federación. Integración con APIs federativas (CABB, FIBA); vista multi-club para oficiales de liga; reportería regulatoria automatizada; benchmarking anónimo inter-club; gestión de árbitros y planilleros.
+- **Hito 9 · Multi-Deporte y Ecosistema de Formación (v9.0.0):** extender más allá del básquet. Motor estadístico multi-deporte configurable (voleibol, fútbol sala, handball); seguimiento de desarrollo a largo plazo entre categorías; modelado de riesgo de lesión por carga acumulada; módulo de formación para entrenadores; portal de seguimiento para familias (solo lectura, opt-in).
 
 ---
 
@@ -2724,10 +3058,10 @@ fuentes, por si se prefiere consultar esta vista en vez de la de "Registro de De
 | ------- | ------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | ADR-001 | Arquitectura Local-First | Hito 1        | ✅ SQLite + offline-first (ya definido)                                                                                               |
 | ADR-002 | Framework UI             | US-105        | ✅ Flet, se descarta Compose Multiplatform; única interfaz desde el 2026-10-31 (ver `docs/adr/ADR-002`)                               |
-| ADR-003 | Protocolo de Ingesta     | US-201/US-206 | ⏳ Propuesta con archivos reales: mapeo fijo buscando encabezados por texto; falta elegir la librería de PDF (ver `docs/adr/ADR-003`) |
-| ADR-004 | Versionado de DB         | Hito 2        | ⏳ Migraciones manuales vs. `alembic` — pregunta abierta sobre agregar SQLAlchemy solo por el runner (ver `docs/adr/ADR-004`)         |
+| ADR-003 | Protocolo de Ingesta     | US-210/US-214 | ⏳ Propuesta con archivos reales: mapeo fijo buscando encabezados por texto; falta elegir la librería de PDF (ver `docs/adr/ADR-003`) |
+| ADR-004 | Versionado de DB         | US-204        | ✅ `yoyo-migrations`, solo migraciones aditivas (decidido en el PRD el 2026-11-27; la US-204 actualiza `docs/adr/ADR-004`)            |
 | ADR-005 | Reportes PDF             | US-302        | ✅ `reportlab` (ya definido, ver `docs/adr/ADR-005`)                                                                                  |
-| ADR-006 | Seguridad y Cifrado      | US-104/US-403 | ✅ v0.1: `pbkdf2_hmac` con salt **dinámico**. v1.0: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma   |
+| ADR-006 | Seguridad y Cifrado      | US-413/414/416 | ✅ v1.0.0: `pbkdf2_hmac` con salt **dinámico**. Hito 4: SQLCipher + bcrypt/argon2, con preguntas abiertas de viabilidad multiplataforma   |
 | ADR-007 | Motor de Visualización   | US-301        | ✅ `matplotlib` (ya definido, ver `docs/adr/ADR-007`)                                                                                 |
 | ADR-008 | Estrategia de Backup     | Hito 4        | ✅ Export manual con `VACUUM INTO`/backup online de SQLite (ya definido, ver `docs/adr/ADR-008`)                                      |
 | ADR-009 | Pipeline CI/CD           | US-109        | ✅ GitHub Actions hosteados por GitHub, ya implementado (ver `docs/adr/ADR-009`)                                                      |

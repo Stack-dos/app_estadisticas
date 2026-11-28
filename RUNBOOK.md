@@ -181,6 +181,19 @@ Get-Content ~/.statspro/logs/app.log | ConvertFrom-Json | Where-Object accion -e
 
 Para reportar un bug: buscar la línea `error_inesperado`, copiar su `correlation_id` y adjuntar todas las líneas con ese id.
 
+### Aviso de versión nueva
+
+Al abrir, la app pregunta a GitHub (`api.github.com`) si salió una versión estable más nueva y, si hay, muestra un aviso arriba con
+**Descargar** (abre la página del release en el navegador), **Omitir esta versión** y **Ahora no**. No descarga ni instala nada sola.
+
+- Consulta **una vez por día** como máximo, en segundo plano y con 3 s de timeout: sin internet la app abre igual y no muestra nada.
+- Los _pre-release_ (`-rc`) nunca avisan.
+- El estado (último día consultado y versión omitida) está en `~/.statspro/aviso_version.json`. Borrarlo vuelve a consultar al
+  próximo arranque.
+- **Privacidad:** el pedido no lleva ningún dato del usuario, pero GitHub ve la IP (lo mismo que al abrir la página del repo).
+  Para desactivarlo: `STATSPRO_SIN_AVISO_VERSION=1` (PowerShell: `$env:STATSPRO_SIN_AVISO_VERSION="1"`). Cualquier otro valor lo
+  deja activo. En el log queda `Aviso de version nueva desactivado`.
+
 - **Si tenías una base de antes (en la raíz del repo, hasta la US-109):** con la app cerrada, movela una sola vez a la carpeta nueva. Si no, la
   app arranca con una base vacía (la vieja sigue ahí, no se borra nada).
 
@@ -389,7 +402,8 @@ El título del PR tiene que seguir Conventional Commits (lo controla `titulo-pr`
 ### Paso a paso
 
 1. **PR `develop → main`** con dos cambios más:
-   - `version = "X.Y.Z"` en `pyproject.toml`;
+   - `version = "X.Y.Z"` en `pyproject.toml` y `VERSION = "X.Y.Z"` en `src/config/version.py` (la que usa la app para saber
+     si hay una versión nueva; la app empaquetada no puede leer `pyproject.toml`);
    - el changelog regenerado: `make changelog VERSION=X.Y.Z` (sin `make`: `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`).
 
    Leé la sección nueva del `CHANGELOG.md`. El archivo **no se edita a mano**: se regenera entero en cada versión y se perdería el
@@ -409,7 +423,7 @@ El título del PR tiene que seguir Conventional Commits (lo controla `titulo-pr`
 
 | Falla en | Causa típica | Qué hacer |
 | --- | --- | --- |
-| `version` | El tag no coincide con `version` de `pyproject.toml` | Borrar el tag (`git push --delete origin vX.Y.Z && git tag -d vX.Y.Z`), corregir con un PR y volver a taggear |
+| `version` | El tag no coincide con `version` de `pyproject.toml` o con `VERSION` de `src/config/version.py` | Borrar el tag (`git push --delete origin vX.Y.Z && git tag -d vX.Y.Z`), corregir con un PR y volver a taggear |
 | `tests-linux` / `tests-windows` | Un test que falla con Python 3.14 (el que va adentro del paquete) | Corregir con un PR; nuevo `-rc` |
 | `build-windows` / `build-linux` | `flet build`, Inno Setup o el `.deb` | Leer el log del paso que falló; corregir con un PR; nuevo `-rc` |
 | `publicar` | Falta la sección `## [X.Y.Z]` en `CHANGELOG.md` | No se corrió `make changelog`: PR con el changelog, borrar el tag y volver a taggear |
