@@ -1,3 +1,5 @@
+import logging
+
 from aplicacion.dtos.competencia_dto import InscribirClubDTO, InscripcionDTO
 from dominio.entidades.competencia import Inscripcion
 from dominio.exceptions import (
@@ -10,6 +12,9 @@ from dominio.exceptions import (
 from dominio.repositorios.club_repositorio import ClubRepositorio
 from dominio.repositorios.competencia_repositorio import CompetenciaRepositorio
 from utils import id_persistido
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class InscribirClubEnCompetenciaUseCase:
@@ -72,6 +77,10 @@ class InscribirClubEnCompetenciaUseCase:
             return None
 
         inscripcion_guardada, lista_buena_fe = resultado
+        logger.info(
+            "Club inscripto",
+            extra={"evento": "inscripcion_creada", "id_inscripcion": inscripcion_guardada.idInscripcion},
+        )
         return InscripcionDTO(
             idInscripcion=id_persistido(inscripcion_guardada.idInscripcion, "Inscripcion"),
             idClub=inscripcion_guardada.idClub,

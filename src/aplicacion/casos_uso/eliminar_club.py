@@ -1,5 +1,10 @@
+import logging
+
 from dominio.exceptions import ClubEnUsoError
 from dominio.repositorios.club_repositorio import ClubRepositorio
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class EliminarClubUseCase:
@@ -30,4 +35,6 @@ class EliminarClubUseCase:
             raise ClubEnUsoError("Ese club es propio de un entrenador: no se elimina desde la lista de rivales.")
         if self.repo.tiene_partidos(id_club):
             raise ClubEnUsoError("El club tiene partidos cargados. Si el nombre está mal, renombralo.")
-        return self.repo.eliminar(id_club)
+        eliminado = self.repo.eliminar(id_club)
+        logger.info("Club eliminado", extra={"evento": "club_eliminado", "id_club": id_club, "ok": eliminado})
+        return eliminado

@@ -1,3 +1,5 @@
+import logging
+
 from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO
 from dominio.entidades.club import Club
 from dominio.exceptions import ClubYaExisteError
@@ -6,6 +8,10 @@ from utils import id_persistido
 
 # Regla de negocio: quien crea un club es su entrenador principal.
 ROL_CREADOR = "principal"
+
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class CrearClubUseCase:
@@ -48,4 +54,5 @@ class CrearClubUseCase:
             resultado = self.repo.guardar_con_entrenador(club=club, id_usuario=idUsuario, rol=ROL_CREADOR)
         if resultado is None:
             return None
+        logger.info("Club creado", extra={"evento": "club_creado", "id_club": resultado.idClub})
         return ClubDTO(idClub=id_persistido(resultado.idClub, "Club"), nombre=resultado.nombre)

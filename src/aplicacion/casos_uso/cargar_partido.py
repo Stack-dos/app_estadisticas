@@ -1,3 +1,4 @@
+import logging
 from dataclasses import fields
 from datetime import date
 
@@ -36,6 +37,10 @@ _CAMPOS_ESTADISTICA = tuple(f.name for f in fields(EstadisticaInputDTO) if f.nam
 def _clave_nombre(nombre: str, apellido: str) -> str:
     """Clave para reconocer a un jugador por nombre y apellido, sin tildes ni mayusculas."""
     return f"{normalizar_texto(nombre)}|{normalizar_texto(apellido)}"
+
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class CargarPartidoUseCase:
@@ -146,6 +151,10 @@ class CargarPartidoUseCase:
             puntos_visitante=puntos_por_club[id_visitante],
         )
 
+        edicion = partido_dto.idPartido is not None
+        logger.info(
+            "Inicio de la transaccion del partido", extra={"evento": "partido_transaccion_inicio", "edicion": edicion}
+        )
         guardado = self.repo_partido.save_with_boxscore(
             partido=partido,
             boxscore=[*filas_propias, *filas_rival],
@@ -155,9 +164,19 @@ class CargarPartidoUseCase:
             club_rival_nuevo=club_nuevo,
         )
         if guardado is None:
+            logger.error("La transaccion del partido fallo", extra={"evento": "partido_transaccion_fin", "ok": False})
             return None
 
         partido_guardado, _ = guardado
+        logger.info(
+            "Partido actualizado" if edicion else "Partido creado",
+            extra={
+                "evento": "partido_transaccion_fin",
+                "ok": True,
+                "id_partido": partido_guardado.idPartido,
+                "edicion": edicion,
+            },
+        )
         return PartidoDTO(
             fecha=partido_guardado.fecha,
             estadio=partido_guardado.estadio,

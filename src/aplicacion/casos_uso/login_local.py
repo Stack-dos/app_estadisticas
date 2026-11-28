@@ -1,9 +1,14 @@
+import logging
+
 from aplicacion.dtos.auth_dto import LoginDTO, UsuarioDTO
 from dominio.entidades.usuario import normalizar_email
 from dominio.exceptions import CredencialesInvalidasError
 from dominio.repositorios.usuario_repositorio import UsuarioRepositorio
 from dominio.servicios.password_hasher import PasswordHasher
 from utils import id_persistido
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class LoginLocalUseCase:
@@ -42,8 +47,11 @@ class LoginLocalUseCase:
         usuario = self.repo.encontrar_por_mail(email_normalizado)
 
         if usuario is None or not self.hasher.verify(dto.password, usuario.password_hash):
+            # Sin el email: es un dato personal y diria que cuentas existen.
+            logger.warning("Login fallido", extra={"evento": "login_fallido"})
             raise CredencialesInvalidasError("Email o contraseña incorrectos")
 
+        logger.info("Login correcto", extra={"evento": "login_ok", "id_usuario": usuario.idUsuario})
         return UsuarioDTO(
             idUsuario=id_persistido(usuario.idUsuario, "Usuario"),
             nombre=usuario.nombre,

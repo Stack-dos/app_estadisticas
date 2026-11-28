@@ -1,8 +1,13 @@
+import logging
+
 from aplicacion.dtos.competencia_dto import CompetenciaDTO, CrearCompetenciaDTO
 from dominio.entidades.competencia import Competencia
 from dominio.exceptions import CategoriaNoEncontradaError
 from dominio.repositorios.competencia_repositorio import CompetenciaRepositorio
 from utils import id_persistido
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class CrearCompetenciaUseCase:
@@ -42,6 +47,9 @@ class CrearCompetenciaUseCase:
         resultado = self.repo.guardar_competencia_con_categorias(compe=competencia, idCategorias=id_categorias)
         if resultado is None:
             return None
+        logger.info(
+            "Competencia creada", extra={"evento": "competencia_creada", "id_competencia": resultado.idCompetencia}
+        )
         return CompetenciaDTO(
             idCompetencia=id_persistido(resultado.idCompetencia, "Competencia"),
             nombre=resultado.nombre,

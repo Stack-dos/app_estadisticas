@@ -1,8 +1,13 @@
+import logging
+
 from aplicacion.dtos.categoria_dto import CategoriaDTO, CrearCategoriaDTO
 from dominio.entidades.competencia import Categoria
 from dominio.exceptions import CategoriaDuplicadaError
 from dominio.repositorios.competencia_repositorio import CompetenciaRepositorio
 from utils import id_persistido
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class CrearCategoriaUseCase:
@@ -38,4 +43,5 @@ class CrearCategoriaUseCase:
         resultado = self.repo.guardar_categoria(cat=categoria)
         if resultado is None:
             return None
+        logger.info("Categoria creada", extra={"evento": "categoria_creada", "id_categoria": resultado.idCategoria})
         return CategoriaDTO(idCategoria=id_persistido(resultado.idCategoria, "Categoria"), nombre=resultado.nombre)

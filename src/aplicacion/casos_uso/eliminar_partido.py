@@ -1,4 +1,9 @@
+import logging
+
 from dominio.repositorios.partido_repositorio import PartidoRepositorio
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class EliminarPartidoUseCase:
@@ -23,4 +28,8 @@ class EliminarPartidoUseCase:
         Returns:
             bool: True si se elimino; False si no existia o fallo la base.
         """
-        return self.repo.eliminar(id_partido)
+        eliminado = self.repo.eliminar(id_partido)
+        logger.info(
+            "Partido eliminado", extra={"evento": "partido_eliminado", "id_partido": id_partido, "ok": eliminado}
+        )
+        return eliminado

@@ -1,8 +1,13 @@
+import logging
+
 from aplicacion.dtos.jugador_dto import EditarJugadorDTO, JugadorDTO
 from dominio.entidades.jugador import Jugador
 from dominio.exceptions import JugadorNoEncontradoError
 from dominio.repositorios.jugador_repositorio import JugadorRepositorio
 from utils import id_persistido
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class EditarJugadorUseCase:
@@ -41,6 +46,7 @@ class EditarJugadorUseCase:
         actualizado = self.repo.actualizar(jugador)
         if actualizado is None:
             return None
+        logger.info("Jugador editado", extra={"evento": "jugador_actualizado", "id_jugador": actualizado.idJugador})
         return JugadorDTO(
             nombre_completo=actualizado.nombre_completo,
             id=id_persistido(actualizado.idJugador, "Jugador"),

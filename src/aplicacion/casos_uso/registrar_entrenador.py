@@ -1,3 +1,5 @@
+import logging
+
 from aplicacion.dtos.auth_dto import RegistrarDTO, UsuarioDTO
 from dominio.entidades.usuario import Usuario
 from dominio.exceptions import DatoInvalidoError, EmailYaRegistradoError
@@ -6,6 +8,10 @@ from dominio.servicios.password_hasher import PasswordHasher
 from utils import id_persistido
 
 LONGITUD_MINIMA_PASSWORD = 6
+
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class RegistrarEntrenadorUseCase:
@@ -54,6 +60,7 @@ class RegistrarEntrenadorUseCase:
         resultado = self.repo.guardar(usuario)
         if resultado is None:
             return None
+        logger.info("Usuario registrado", extra={"evento": "usuario_creado", "id_usuario": resultado.idUsuario})
 
         return UsuarioDTO(
             idUsuario=id_persistido(resultado.idUsuario, "Usuario"),

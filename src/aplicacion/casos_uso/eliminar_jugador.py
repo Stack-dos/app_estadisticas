@@ -1,5 +1,10 @@
+import logging
+
 from dominio.exceptions import JugadorEnUsoError, JugadorNoEncontradoError
 from dominio.repositorios.jugador_repositorio import JugadorRepositorio
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class EliminarJugadorUseCase:
@@ -35,4 +40,8 @@ class EliminarJugadorUseCase:
                 "porque tiene partidos cargados o figura en listas de buena fe"
             )
 
-        return self.repo.eliminar(id_jugador)
+        eliminado = self.repo.eliminar(id_jugador)
+        logger.info(
+            "Jugador eliminado", extra={"evento": "jugador_eliminado", "id_jugador": id_jugador, "ok": eliminado}
+        )
+        return eliminado

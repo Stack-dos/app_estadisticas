@@ -1,8 +1,13 @@
+import logging
+
 from aplicacion.dtos.club_dto import ClubDTO, RenombrarClubDTO
 from dominio.entidades.club import Club
 from dominio.exceptions import ClubEnUsoError, ClubNoEncontradoError, ClubYaExisteError
 from dominio.repositorios.club_repositorio import ClubRepositorio
 from utils import id_persistido, normalizar_texto
+
+# logging de la biblioteca estandar: el correlation_id lo agrega el handler (US-110).
+logger = logging.getLogger(__name__)
 
 
 class RenombrarClubUseCase:
@@ -43,4 +48,5 @@ class RenombrarClubUseCase:
         resultado = self.repo.actualizar(club)
         if resultado is None:
             return None
+        logger.info("Club renombrado", extra={"evento": "club_actualizado", "id_club": resultado.idClub})
         return ClubDTO(idClub=id_persistido(resultado.idClub, "Club"), nombre=resultado.nombre)
