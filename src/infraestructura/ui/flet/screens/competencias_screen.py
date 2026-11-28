@@ -1,17 +1,20 @@
-"""Pantalla de competencias y categorias (US-107): catalogo de categorias, competencias, filtros y bajas."""
+"""Pantalla de competencias (US-107, reordenada en US-113): listado con filtros, alta y categorias por fila.
+
+Desde la US-113 la pantalla hace una sola cosa: competencias. Las categorias que juega cada competencia
+se eligen desde su fila (boton "Categorías", un dialogo con casillas) y el catalogo de categorias se
+mudo a su propia pestaña (`categorias_screen.py`, ruta "/categorias").
+"""
 
 import flet as ft
 
-from aplicacion.casos_uso.crear_categoria import CrearCategoriaUseCase
 from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
-from aplicacion.casos_uso.eliminar_categoria import EliminarCategoriaUseCase
 from aplicacion.casos_uso.eliminar_competencia import EliminarCompetenciaUseCase
 from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCategoriaEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeCompetenciaUseCase
-from aplicacion.dtos.categoria_dto import CategoriaDTO, CrearCategoriaDTO
+from aplicacion.dtos.categoria_dto import CategoriaDTO
 from aplicacion.dtos.competencia_dto import CategoriaCompetenciaDTO, CompetenciaDTO, CrearCompetenciaDTO
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.exceptions import DatoInvalidoError
@@ -24,23 +27,16 @@ from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostr
 from infraestructura.ui.flet.estilo import ESPACIO, ESPACIO_CHICO
 
 TABLA_COMPETENCIAS = "tabla_competencias"
-TABLA_CATEGORIAS = "tabla_categorias"
 CASILLAS_CATEGORIAS = "casillas_categorias_competencia"
-COLUMNAS_COMPETENCIAS = ("Nombre", "Año", "Tipo", "Categorías habilitadas", "Acción")
-COLUMNAS_CATEGORIAS = ("Nombre", "Acción")
+COLUMNAS_COMPETENCIAS = ("Nombre", "Año", "Tipo", "Categorías habilitadas", "Acciones")
 SIN_COMPETENCIAS = "Todavía no hay competencias para mostrar."
-SIN_CATEGORIAS = "Todavía no hay categorías cargadas."
+SIN_CATEGORIAS_CATALOGO = "Todavía no hay categorías: creá alguna en la pestaña Categorías."
 
 
 def fila_competencia(competencia: CompetenciaDTO, categorias: list[CategoriaDTO]) -> tuple[str, str, str, str]:
     """Convierte una competencia y sus categorias habilitadas en las columnas de texto de `tabla_datos`."""
     nombres_cat = ", ".join(c.nombre for c in categorias) if categorias else "Sin categorías"
     return (competencia.nombre, str(competencia.anio), competencia.tipo or "—", nombres_cat)
-
-
-def fila_categoria(categoria: CategoriaDTO) -> tuple[str]:
-    """Convierte una categoria en la columna de texto de `tabla_datos`."""
-    return (categoria.nombre,)
 
 
 def filtrar_competencias(
@@ -67,29 +63,25 @@ def crear_competencias_view(
     page: ft.Page,
     crear_competencia_uc: CrearCompetenciaUseCase,
     listar_competencias_uc: ListarCompetenciasUseCase,
-    crear_categoria_uc: CrearCategoriaUseCase,
     listar_categorias_uc: ListarCategoriasUseCase,
     habilitar_categoria_uc: HabilitarCategoriaEnCompetenciaUseCase,
     listar_categorias_comp_uc: ListarCategoriasDeCompetenciaUseCase,
     quitar_categoria_uc: QuitarCategoriaDeCompetenciaUseCase,
     eliminar_competencia_uc: EliminarCompetenciaUseCase,
-    eliminar_categoria_uc: EliminarCategoriaUseCase,
     sesion: SessionManager,
 ) -> ft.View:
     """
-    Arma la pantalla de competencias y categorias. Exige sesion y club activo.
+    Arma la pantalla de competencias. Exige sesion y club activo.
 
     Args:
-        page (ft.Page): La ventana, para navegar, abrir confirmaciones y redibujar.
+        page (ft.Page): La ventana, para navegar, abrir dialogos y redibujar.
         crear_competencia_uc (CrearCompetenciaUseCase): Alta atomica de competencia con categorias.
         listar_competencias_uc (ListarCompetenciasUseCase): Listado de competencias.
-        crear_categoria_uc (CrearCategoriaUseCase): Alta de categoria en el catalogo.
-        listar_categorias_uc (ListarCategoriasUseCase): Listado del catalogo de categorias.
+        listar_categorias_uc (ListarCategoriasUseCase): Catalogo de categorias (para las casillas).
         habilitar_categoria_uc (HabilitarCategoriaEnCompetenciaUseCase): Habilita una categoria en una competencia.
         listar_categorias_comp_uc (ListarCategoriasDeCompetenciaUseCase): Categorias habilitadas por competencia.
         quitar_categoria_uc (QuitarCategoriaDeCompetenciaUseCase): Quita una categoria sin inscriptos.
         eliminar_competencia_uc (EliminarCompetenciaUseCase): Elimina una competencia sin inscripciones ni partidos.
-        eliminar_categoria_uc (EliminarCategoriaUseCase): Elimina una categoria sin uso.
         sesion (SessionManager): Sesion activa con club elegido.
 
     Returns:
@@ -105,32 +97,21 @@ def crear_competencias_view(
     error_comp = crear_etiqueta_error()
     casillas_categorias = ft.Column(key=CASILLAS_CATEGORIAS, spacing=ESPACIO_CHICO)
 
-    nombre_cat = ft.TextField(label="Nombre de la categoría")
-    error_cat = crear_etiqueta_error()
-
-    dd_competencia = ft.Dropdown(label="Competencia", options=[])
-    dd_categoria = ft.Dropdown(label="Categoría", options=[])
-    error_gestion = crear_etiqueta_error()
-
     dd_filtro_anio = ft.Dropdown(label="Filtrar por año", options=[ft.dropdown.Option(key="", text="Todos")], value="")
     dd_filtro_categoria = ft.Dropdown(
         label="Filtrar por categoría", options=[ft.dropdown.Option(key="", text="Todas")], value=""
     )
     error_tabla_comp = crear_etiqueta_error()
-    error_tabla_cat = crear_etiqueta_error()
-
     contenedor_tabla_comp = ft.Column()
-    contenedor_tabla_cat = ft.Column()
 
     competencias_cache: list[CompetenciaDTO] = []
+    categorias_cache: list[CategoriaDTO] = []
     categorias_por_comp_cache: dict[int, list[CategoriaDTO]] = {}
 
-    def _casillas_seleccionadas() -> list[int]:
-        seleccionadas: list[int] = []
-        for ctrl in casillas_categorias.controls:
-            if isinstance(ctrl, ft.Checkbox) and bool(ctrl.value) and ctrl.data is not None:
-                seleccionadas.append(int(ctrl.data))
-        return seleccionadas
+    def _casillas_seleccionadas(columna: ft.Column) -> list[int]:
+        return [
+            int(c.data) for c in columna.controls if isinstance(c, ft.Checkbox) and bool(c.value) and c.data is not None
+        ]
 
     def _boton_eliminar_competencia(comp: CompetenciaDTO) -> ft.TextButton:
         def al_confirmar() -> None:
@@ -152,25 +133,52 @@ def crear_competencias_view(
 
         return ft.TextButton("Eliminar", on_click=abrir_confirmacion)
 
-    def _boton_eliminar_categoria(cat: CategoriaDTO) -> ft.TextButton:
-        def al_confirmar() -> None:
-            def accion() -> None:
-                if not eliminar_categoria_uc.ejecutar(cat.idCategoria):
-                    raise RuntimeError("No se pudo eliminar la categoría de la base")
-                refrescar()
+    def _boton_categorias(comp: CompetenciaDTO) -> ft.TextButton:
+        """Abre un dialogo con una casilla por categoria del catalogo: marcadas = las que juega."""
 
-            ejecutar_mostrando_errores(accion, error_tabla_cat)
-            page.update()
+        def abrir() -> None:
+            habilitadas = {c.idCategoria for c in categorias_por_comp_cache.get(comp.idCompetencia, [])}
+            casillas = ft.Column(
+                [
+                    ft.Checkbox(label=c.nombre, value=c.idCategoria in habilitadas, data=c.idCategoria)
+                    for c in categorias_cache
+                ]
+                or [ft.Text(SIN_CATEGORIAS_CATALOGO, color=ft.Colors.ON_SURFACE_VARIANT)],
+                tight=True,
+            )
+            error_dialogo = crear_etiqueta_error()
 
-        def abrir_confirmacion() -> None:
-            pedir_confirmacion(
-                page,
-                "Eliminar categoría",
-                f"¿Querés eliminar la categoría '{cat.nombre}' del catálogo?",
-                al_confirmar,
+            def guardar() -> None:
+                def accion() -> None:
+                    elegidas = set(_casillas_seleccionadas(casillas))
+                    # Primero se habilitan las nuevas; si una que se quita tiene inscriptos, el error lo dice
+                    for id_cat in sorted(elegidas - habilitadas):
+                        dto = CategoriaCompetenciaDTO(idCompetencia=comp.idCompetencia, idCategoria=id_cat)
+                        if habilitar_categoria_uc.ejecutar(dto) is None:
+                            raise RuntimeError("Habilitar la categoria no devolvio confirmacion")
+                    for id_cat in sorted(habilitadas - elegidas):
+                        dto = CategoriaCompetenciaDTO(idCompetencia=comp.idCompetencia, idCategoria=id_cat)
+                        if quitar_categoria_uc.ejecutar(dto) is None:
+                            raise RuntimeError("Quitar la categoria no devolvio confirmacion")
+                    page.pop_dialog()
+
+                ejecutar_mostrando_errores(accion, error_dialogo)
+                refrescar()  # aunque falle a mitad, la tabla muestra lo que quedo guardado
+                page.update()
+
+            page.show_dialog(
+                ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text(f"Categorías de {comp.nombre} ({comp.anio})"),
+                    content=ft.Column([casillas, error_dialogo], tight=True),
+                    actions=[
+                        ft.TextButton("Cancelar", on_click=lambda: page.pop_dialog()),
+                        ft.FilledButton("Guardar", on_click=guardar),
+                    ],
+                )
             )
 
-        return ft.TextButton("Eliminar", on_click=abrir_confirmacion)
+        return ft.TextButton("Categorías", on_click=abrir)
 
     def _redibujar_tabla_competencias() -> None:
         anio_sel = int(dd_filtro_anio.value) if dd_filtro_anio.value else None
@@ -182,7 +190,10 @@ def crear_competencias_view(
             id_categoria=cat_sel,
         )
         filas_comp = [
-            (*fila_competencia(comp, categorias_por_comp_cache[comp.idCompetencia]), _boton_eliminar_competencia(comp))
+            (
+                *fila_competencia(comp, categorias_por_comp_cache[comp.idCompetencia]),
+                ft.Row([_boton_categorias(comp), _boton_eliminar_competencia(comp)], spacing=0),
+            )
             for comp in visibles
         ]
         contenedor_tabla_comp.controls = [
@@ -206,8 +217,8 @@ def crear_competencias_view(
         competencias = listar_competencias_uc.ejecutar()
         categorias = listar_categorias_uc.ejecutar()
 
-        competencias_cache.clear()
-        competencias_cache.extend(competencias)
+        competencias_cache[:] = competencias
+        categorias_cache[:] = categorias
         categorias_por_comp_cache.clear()
         for comp in competencias:
             categorias_por_comp_cache[comp.idCompetencia] = listar_categorias_comp_uc.ejecutar(comp.idCompetencia)
@@ -228,31 +239,13 @@ def crear_competencias_view(
 
         _redibujar_tabla_competencias()
 
-        filas_cat = [(*fila_categoria(cat), _boton_eliminar_categoria(cat)) for cat in categorias]
-        contenedor_tabla_cat.controls = [
-            crear_tabla_datos(
-                COLUMNAS_CATEGORIAS,
-                filas_cat,
-                mensaje_vacio=SIN_CATEGORIAS,
-                clave=TABLA_CATEGORIAS,
-            )
-        ]
-
-        prev_sel = set(_casillas_seleccionadas())
+        prev_sel = set(_casillas_seleccionadas(casillas_categorias))
         casillas_categorias.controls = [
             ft.Checkbox(label=cat.nombre, value=cat.idCategoria in prev_sel, data=cat.idCategoria) for cat in categorias
+        ] or [
+            ft.Text(SIN_CATEGORIAS_CATALOGO, color=ft.Colors.ON_SURFACE_VARIANT),
+            ft.TextButton("Ir a Categorías", on_click=lambda: page.navigate("/categorias")),
         ]
-
-        ids_comp = {c.idCompetencia for c in competencias}
-        dd_competencia.options = [
-            ft.dropdown.Option(key=str(c.idCompetencia), text=f"{c.nombre} ({c.anio})") for c in competencias
-        ]
-        if dd_competencia.value and int(dd_competencia.value) not in ids_comp:
-            dd_competencia.value = None
-
-        dd_categoria.options = [ft.dropdown.Option(key=str(c.idCategoria), text=c.nombre) for c in categorias]
-        if dd_categoria.value and int(dd_categoria.value) not in ids_cat:
-            dd_categoria.value = None
 
     def crear_competencia() -> None:
         def accion() -> None:
@@ -266,7 +259,7 @@ def crear_competencias_view(
                 nombre=nombre_comp.value or "",
                 anio=anio_num,
                 tipo=tipo_limpio,
-                idCategorias=_casillas_seleccionadas(),
+                idCategorias=_casillas_seleccionadas(casillas_categorias),
             )
             creada = crear_competencia_uc.ejecutar(dto)
             if creada is None:
@@ -282,64 +275,7 @@ def crear_competencias_view(
         ejecutar_mostrando_errores(accion, error_comp)
         page.update()
 
-    def crear_categoria() -> None:
-        def accion() -> None:
-            creada = crear_categoria_uc.ejecutar(CrearCategoriaDTO(nombre=nombre_cat.value or ""))
-            if creada is None:
-                raise RuntimeError("Crear la categoria no devolvio el registro (fallo al guardar en la base)")
-            nombre_cat.value = ""
-            refrescar()
-
-        ejecutar_mostrando_errores(accion, error_cat)
-        page.update()
-
-    def _leer_competencia_y_categoria() -> CategoriaCompetenciaDTO:
-        if not dd_competencia.value:
-            raise DatoInvalidoError("Elegí una competencia")
-        if not dd_categoria.value:
-            raise DatoInvalidoError("Elegí una categoría")
-        return CategoriaCompetenciaDTO(
-            idCompetencia=int(dd_competencia.value),
-            idCategoria=int(dd_categoria.value),
-        )
-
-    def habilitar_categoria() -> None:
-        def accion() -> None:
-            dto = _leer_competencia_y_categoria()
-            if habilitar_categoria_uc.ejecutar(dto) is None:
-                raise RuntimeError("Habilitar la categoria no devolvio confirmacion (fallo al guardar en la base)")
-            refrescar()
-
-        ejecutar_mostrando_errores(accion, error_gestion)
-        page.update()
-
-    def quitar_categoria() -> None:
-        def accion() -> None:
-            dto = _leer_competencia_y_categoria()
-            if quitar_categoria_uc.ejecutar(dto) is None:
-                raise RuntimeError("Quitar la categoria no devolvio confirmacion (fallo al borrar en la base)")
-            refrescar()
-
-        ejecutar_mostrando_errores(accion, error_gestion)
-        page.update()
-
     refrescar()
-
-    gestion_categorias_comp = ft.Column(
-        [
-            ft.Text("Categorías por competencia", weight=ft.FontWeight.W_600),
-            ft.Row([dd_competencia, dd_categoria], spacing=ESPACIO, wrap=True),
-            error_gestion,
-            ft.Row(
-                [
-                    ft.FilledButton("Habilitar categoría", on_click=habilitar_categoria),
-                    ft.TextButton("Quitar categoría", on_click=quitar_categoria),
-                ],
-                spacing=ESPACIO_CHICO,
-            ),
-        ],
-        spacing=ESPACIO_CHICO,
-    )
 
     lateral = ft.Column(
         [
@@ -357,9 +293,6 @@ def crear_competencias_view(
                 crear_competencia,
                 ancho=None,
             ),
-            ft.Divider(),
-            ft.Text("Nueva categoría", weight=ft.FontWeight.W_600),
-            crear_formulario([nombre_cat], error_cat, "Crear categoría", crear_categoria, ancho=None),
         ],
         spacing=ESPACIO,
     )
@@ -368,14 +301,9 @@ def crear_competencias_view(
         "Torneos · Competencias",
         [
             crear_subnav_torneos(page, "/competencias"),
-            ft.Text("Competencias", weight=ft.FontWeight.W_600),
             ft.Row([dd_filtro_anio, dd_filtro_categoria], spacing=ESPACIO, wrap=True),
             contenedor_tabla_comp,
             error_tabla_comp,
-            gestion_categorias_comp,
-            ft.Text("Catálogo de categorías", weight=ft.FontWeight.W_600),
-            contenedor_tabla_cat,
-            error_tabla_cat,
         ],
         subtitulo=f"Club activo: {club.nombre}",
         lateral=lateral,

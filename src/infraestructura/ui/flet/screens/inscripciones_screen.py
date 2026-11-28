@@ -1,17 +1,26 @@
-"""Pantalla de inscripciones del club activo (US-107): inscribir, filtrar y dar de baja inscripciones."""
+"""Pantalla de inscripciones del club activo (US-107): inscribir, filtrar y dar de baja inscripciones.
+
+US-114: al inscribir, "Agregar todo el plantel a la lista" (marcado de entrada) pasa todos los jugadores del
+club a la lista de buena fe nueva, para no tener que ir despues a "Listas" a sumarlos de a uno. La tabla
+muestra cuantos jugadores tiene cada lista en vez del numero interno de la lista.
+"""
 
 from datetime import date
 
 import flet as ft
 
+from aplicacion.casos_uso.agregar_jugadores_lista import AgregarJugadoresAListaBuenaFeUseCase
 from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
+from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
+from aplicacion.casos_uso.listar_lista_buena_fe import ListarListaBuenaFeUseCase
 from aplicacion.dtos.categoria_dto import CategoriaDTO
 from aplicacion.dtos.competencia_dto import CompetenciaDTO, InscribirClubDTO, InscripcionDTO
+from aplicacion.dtos.lista_buena_fe_dto import AgregarJugadoresListaDTO
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.exceptions import DatoInvalidoError
 from infraestructura.ui.flet.components.confirmacion import pedir_confirmacion
@@ -23,22 +32,25 @@ from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostr
 from infraestructura.ui.flet.estilo import ESPACIO
 
 TABLA_INSCRIPCIONES = "tabla_inscripciones"
-COLUMNAS_INSCRIPCIONES = ("Competencia", "Año", "Categoría", "Lista", "Acción")
+COLUMNAS_INSCRIPCIONES = ("Competencia", "Año", "Categoría", "Jugadores en la lista", "Acción")
 SIN_INSCRIPCIONES = "No hay inscripciones para mostrar."
+CLAVE_AGREGAR_PLANTEL = "agregar_plantel"
+CLAVE_RESULTADO_INSCRIPCION = "resultado_inscripcion"
 
 
 def fila_inscripcion(
     inscripcion: InscripcionDTO,
     competencias_por_id: dict[int, CompetenciaDTO],
     categorias_por_id: dict[int, CategoriaDTO],
+    jugadores_en_lista: int,
 ) -> tuple[str, str, str, str]:
-    """Convierte una inscripcion en las columnas de texto sin exponer IDs de competencia o categoria."""
+    """Convierte una inscripcion en las columnas de texto sin exponer IDs de competencia, categoria o lista."""
     comp = competencias_por_id.get(inscripcion.idCompetencia)
     cat = categorias_por_id.get(inscripcion.idCategoria)
     nombre_comp = comp.nombre if comp is not None else f"Competencia #{inscripcion.idCompetencia}"
     anio_comp = str(comp.anio) if comp is not None else "—"
     nombre_cat = cat.nombre if cat is not None else f"Categoría #{inscripcion.idCategoria}"
-    return (nombre_comp, anio_comp, nombre_cat, f"Lista #{inscripcion.idListaBuenaFe}")
+    return (nombre_comp, anio_comp, nombre_cat, str(jugadores_en_lista))
 
 
 def filtrar_inscripciones(
@@ -68,6 +80,9 @@ def crear_inscripciones_view(
     listar_categorias_uc: ListarCategoriasUseCase,
     listar_categorias_comp_uc: ListarCategoriasDeCompetenciaUseCase,
     eliminar_inscripcion_uc: EliminarInscripcionUseCase,
+    listar_jugadores_club_uc: ListarJugadoresClubUseCase,
+    agregar_jugadores_lista_uc: AgregarJugadoresAListaBuenaFeUseCase,
+    listar_lista_uc: ListarListaBuenaFeUseCase,
     sesion: SessionManager,
 ) -> ft.View:
     """
@@ -81,6 +96,9 @@ def crear_inscripciones_view(
         listar_categorias_uc (ListarCategoriasUseCase): Catalogo de categorias para resolver nombres.
         listar_categorias_comp_uc (ListarCategoriasDeCompetenciaUseCase): Filtra categorias habilitadas.
         eliminar_inscripcion_uc (EliminarInscripcionUseCase): Da de baja una inscripcion sin partidos cargados.
+        listar_jugadores_club_uc (ListarJugadoresClubUseCase): El plantel, para pasarlo a la lista nueva.
+        agregar_jugadores_lista_uc (AgregarJugadoresAListaBuenaFeUseCase): Suma el plantel a la lista.
+        listar_lista_uc (ListarListaBuenaFeUseCase): Jugadores de cada lista, para contarlos en la tabla.
         sesion (SessionManager): Sesion activa con club elegido.
 
     Returns:
@@ -93,7 +111,9 @@ def crear_inscripciones_view(
     dd_competencia = ft.Dropdown(label="Competencia", options=[])
     dd_categoria = ft.Dropdown(label="Categoría", options=[])
     fecha_presentacion = ft.TextField(label="Fecha de presentación", value=date.today().isoformat())
+    agregar_plantel = ft.Checkbox(label="Agregar todo el plantel a la lista", value=True, key=CLAVE_AGREGAR_PLANTEL)
     error = crear_etiqueta_error()
+    resultado = ft.Text("", key=CLAVE_RESULTADO_INSCRIPCION, color=ft.Colors.ON_SURFACE_VARIANT)
 
     dd_filtro_anio = ft.Dropdown(label="Filtrar por año", options=[ft.dropdown.Option(key="", text="Todos")], value="")
     dd_filtro_categoria = ft.Dropdown(
@@ -157,8 +177,17 @@ def crear_inscripciones_view(
             anio=anio_sel,
             id_categoria=cat_sel,
         )
+        # shortcut: una consulta por fila; alcanza para las pocas inscripciones de un club. Si crece, un COUNT agrupado.
         filas = [
-            (*fila_inscripcion(ins, competencias_por_id_cache, categorias_por_id_cache), _boton_dar_de_baja(ins))
+            (
+                *fila_inscripcion(
+                    ins,
+                    competencias_por_id_cache,
+                    categorias_por_id_cache,
+                    len(listar_lista_uc.ejecutar(ins.idInscripcion)),
+                ),
+                _boton_dar_de_baja(ins),
+            )
             for ins in visibles
         ]
         contenedor_tabla.controls = [
@@ -219,8 +248,22 @@ def crear_inscripciones_view(
             ft.dropdown.Option(key=str(c.idCompetencia), text=f"{c.nombre} ({c.anio})") for c in competencias
         ]
 
+    def _pasar_plantel(id_inscripcion: int) -> str:
+        """Suma todos los jugadores del club a la lista nueva y devuelve el mensaje para el entrenador."""
+        plantel = listar_jugadores_club_uc.ejecutar(club.idClub)
+        if not plantel:
+            return "Club inscripto. Todavía no tenés jugadores: cargalos en Jugadores y sumalos a la lista."
+        agregado = agregar_jugadores_lista_uc.ejecutar(
+            AgregarJugadoresListaDTO(idInscripcion=id_inscripcion, idJugadores=[j.id for j in plantel])
+        )
+        texto = f"Club inscripto. Se agregaron {len(agregado.agregados)} jugador(es) a la lista."
+        if agregado.rechazados:
+            texto += f" {len(agregado.rechazados)} no entraron: revisalos en Listas."
+        return texto
+
     def inscribir() -> None:
         def accion() -> None:
+            resultado.value = ""
             if not dd_competencia.value:
                 raise DatoInvalidoError("Elegí una competencia")
             if not dd_categoria.value:
@@ -239,6 +282,7 @@ def crear_inscripciones_view(
             if creada is None:
                 raise RuntimeError("Inscribir al club no devolvio la inscripcion (fallo al guardar en la base)")
             dd_categoria.value = None
+            resultado.value = _pasar_plantel(creada.idInscripcion) if agregar_plantel.value else "Club inscripto."
             refrescar()
 
         ejecutar_mostrando_errores(accion, error)
@@ -250,12 +294,13 @@ def crear_inscripciones_view(
         [
             ft.Text("Inscribir club", weight=ft.FontWeight.W_600),
             crear_formulario(
-                [dd_competencia, dd_categoria, fecha_presentacion],
+                [dd_competencia, dd_categoria, fecha_presentacion, agregar_plantel],
                 error,
                 "Inscribir club",
                 inscribir,
                 ancho=None,
             ),
+            resultado,
         ],
         spacing=ESPACIO,
     )

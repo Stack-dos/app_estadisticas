@@ -1,83 +1,76 @@
-"""Pantalla de partidos del club activo (US-112): listado filtrado por inscripciones y detalle de boxscore."""
+"""Pantalla de partidos del club activo (US-112): listado filtrado por competencia y categoria.
+
+US-113: el listado muestra el resultado. US-114 (ajuste con la maqueta): suma la categoria y el
+cuadradito G/P, el filtro de categoria ofrece todo el catalogo y "Ver" abre el detalle en su propia
+pantalla (`detalle_partido_screen.py`), donde estan editar y eliminar.
+"""
 
 import flet as ft
 
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
-from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
 from aplicacion.casos_uso.partidos_por_club import ListarPartidosPorClubUseCase
 from aplicacion.dtos.categoria_dto import CategoriaDTO
-from aplicacion.dtos.competencia_dto import CompetenciaDTO, InscripcionDTO
-from aplicacion.dtos.partido_dto import BoxscoreFilaDTO, PartidoResumenDTO
+from aplicacion.dtos.competencia_dto import CompetenciaDTO
+from aplicacion.dtos.partido_dto import PartidoResumenDTO
 from aplicacion.servicios.session_manager import SessionManager
 from infraestructura.ui.flet.components.pagina import crear_pagina, crear_vista_interna
 from infraestructura.ui.flet.components.tabla_datos import crear_tabla_datos
-from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostrando_errores
-from infraestructura.ui.flet.estilo import ESPACIO, ESPACIO_CHICO
+from infraestructura.ui.flet.errores import crear_etiqueta_error
+from infraestructura.ui.flet.estilo import ESPACIO
+from infraestructura.ui.flet.screens.detalle_partido_screen import ruta_detalle_partido
 
 TABLA_PARTIDOS = "tabla_partidos"
-TABLA_BOXSCORE = "tabla_boxscore"
-DETALLE_PARTIDO = "detalle_partido"
-COLUMNAS_PARTIDOS = ("Fecha", "Competencia", "Año", "Local", "Visitante", "Estadio", "Acción")
-COLUMNAS_BOXSCORE = (
-    "Club",
-    "Jugador",
-    "Min",
-    "PTS",
-    "T2",
-    "T3",
-    "T1",
-    "RD",
-    "RO",
-    "REB",
-    "AST",
-    "REC",
-    "PER",
-    "TAP+",
-    "TAP-",
-    "FR",
-    "FC",
-)
+COLUMNAS_PARTIDOS = ("Fecha", "Competencia", "Cat.", "Local", "Resultado", "Visitante", "", "")
 SIN_PARTIDOS = "No hay partidos para mostrar con los filtros elegidos."
-SIN_BOXSCORE = "Este partido todavía no tiene estadísticas cargadas en el boxscore."
 AVISO_CATEGORIA_PENDIENTE = (
     "Los partidos cargados antes de la carga por categoría todavía no tienen categoría asignada."
 )
+GANADO, PERDIDO = "G", "P"
 
 
 def fila_partido(partido: PartidoResumenDTO) -> tuple[str, str, str, str, str, str]:
     """Convierte un `PartidoResumenDTO` en las columnas de texto de la tabla sin exponer IDs."""
     return (
         partido.fecha,
-        partido.competencia,
-        str(partido.anioCompetencia),
+        f"{partido.competencia} {partido.anioCompetencia}",
+        partido.categoria or "—",
         partido.clubLocal,
+        partido.resultado,
         partido.clubVisitante,
-        partido.estadio or "—",
     )
 
 
-def fila_boxscore(fila: BoxscoreFilaDTO) -> tuple[str, ...]:
-    """Convierte una `BoxscoreFilaDTO` en celdas legibles para la tabla de boxscore."""
-    return (
-        fila.nombreClub,
-        fila.nombreJugador,
-        f"{fila.minutosJugados:g}",
-        str(fila.puntos),
-        f"{fila.t2c}/{fila.t2l}",
-        f"{fila.t3c}/{fila.t3l}",
-        f"{fila.t1c}/{fila.t1l}",
-        str(fila.rebotesDef),
-        str(fila.rebotesOf),
-        str(fila.rebotesTotales),
-        str(fila.asistencias),
-        str(fila.recuperos),
-        str(fila.perdidas),
-        str(fila.taponesRealizados),
-        str(fila.taponesRecibidos),
-        str(fila.faltasRecibidas),
-        str(fila.faltasCometidas),
+def resultado_del_club(partido: PartidoResumenDTO, nombre_club: str) -> str | None:
+    """Devuelve "G" si el club gano, "P" si perdio y None sin puntos cargados (no hay empates, US-114).
+
+    Compara por nombre: los nombres de club son unicos (`ClubYaExisteError`).
+    """
+    if partido.puntosLocal is None or partido.puntosVisitante is None:
+        return None
+    gano_local = partido.puntosLocal > partido.puntosVisitante
+    return GANADO if gano_local == (partido.clubLocal == nombre_club) else PERDIDO
+
+
+def crear_marca_resultado(resultado: str | None) -> ft.Control:
+    """Cuadradito "G" (color primario) o "P" (color de error) como en la maqueta; vacio sin resultado."""
+    if resultado is None:
+        return ft.Text("")
+    ganado = resultado == GANADO
+    return ft.Container(
+        content=ft.Text(
+            resultado,
+            size=12,
+            weight=ft.FontWeight.W_600,
+            color=ft.Colors.ON_PRIMARY_CONTAINER if ganado else ft.Colors.ON_ERROR_CONTAINER,
+        ),
+        width=24,
+        height=24,
+        border_radius=6,
+        alignment=ft.Alignment.CENTER,
+        bgcolor=ft.Colors.PRIMARY_CONTAINER if ganado else ft.Colors.ERROR_CONTAINER,
+        tooltip="Ganado" if ganado else "Perdido",
     )
 
 
@@ -104,22 +97,20 @@ def filtrar_partidos(
 def crear_partidos_view(
     page: ft.Page,
     listar_partidos_uc: ListarPartidosPorClubUseCase,
-    obtener_boxscore_uc: ObtenerBoxscorePartidoUseCase,
     listar_inscripciones_uc: ListarInscripcionesClubUseCase,
     listar_competencias_uc: ListarCompetenciasUseCase,
     listar_categorias_uc: ListarCategoriasUseCase,
     sesion: SessionManager,
 ) -> ft.View:
     """
-    Arma la pantalla de partidos y boxscore del club activo. Exige sesion y club activo.
+    Arma el listado de partidos del club activo. Exige sesion y club activo.
 
     Args:
-        page (ft.Page): La ventana, para redibujar al filtrar o abrir el detalle de un partido.
+        page (ft.Page): La ventana, para redibujar al filtrar y navegar al detalle o a la carga.
         listar_partidos_uc (ListarPartidosPorClubUseCase): Partidos del club activo desde `v_partidos_resumen`.
-        obtener_boxscore_uc (ObtenerBoxscorePartidoUseCase): Boxscore desde `v_boxscore_completo`.
-        listar_inscripciones_uc (ListarInscripcionesClubUseCase): Inscripciones del club para poblar los filtros.
+        listar_inscripciones_uc (ListarInscripcionesClubUseCase): Inscripciones: las competencias del filtro.
         listar_competencias_uc (ListarCompetenciasUseCase): Competencias para resolver nombres y años.
-        listar_categorias_uc (ListarCategoriasUseCase): Categorias para resolver nombres.
+        listar_categorias_uc (ListarCategoriasUseCase): Todas las categorias, para el filtro.
         sesion (SessionManager): Sesion activa con club elegido.
 
     Returns:
@@ -142,54 +133,13 @@ def crear_partidos_view(
     error = crear_etiqueta_error()
     aviso_filtro = ft.Text("", color=ft.Colors.ON_SURFACE_VARIANT, visible=False)
     contenedor_tabla = ft.Column()
-    contenedor_detalle = ft.Column(key=DETALLE_PARTIDO, spacing=ESPACIO_CHICO)
 
     partidos_cache: list[PartidoResumenDTO] = []
-    inscripciones_cache: list[InscripcionDTO] = []
     competencias_por_id: dict[int, CompetenciaDTO] = {}
     categorias_por_id: dict[int, CategoriaDTO] = {}
 
-    def _cargar_opciones_categoria() -> None:
-        comp_sel = int(dd_competencia.value) if dd_competencia.value else None
-        ids_cat = {ins.idCategoria for ins in inscripciones_cache if comp_sel is None or ins.idCompetencia == comp_sel}
-        cats = sorted(
-            (categorias_por_id[cid] for cid in ids_cat if cid in categorias_por_id),
-            key=lambda c: c.nombre,
-        )
-        dd_categoria.options = [
-            ft.dropdown.Option(key="", text="Todas"),
-            *(ft.dropdown.Option(key=str(c.idCategoria), text=c.nombre) for c in cats),
-        ]
-        if dd_categoria.value and int(dd_categoria.value) not in ids_cat:
-            dd_categoria.value = ""
-
-    def _ver_boxscore(partido: PartidoResumenDTO) -> None:
-        def accion() -> None:
-            filas = obtener_boxscore_uc.ejecutar(partido.idPartido)
-            subtitulo_partido = f"{partido.competencia} ({partido.anioCompetencia}) · {partido.fecha}"
-            if partido.estadio:
-                subtitulo_partido = f"{subtitulo_partido} · {partido.estadio}"
-            tabla_bs = crear_tabla_datos(
-                COLUMNAS_BOXSCORE,
-                [fila_boxscore(f) for f in filas],
-                mensaje_vacio=SIN_BOXSCORE,
-                clave=TABLA_BOXSCORE,
-            )
-            contenedor_detalle.controls = [
-                ft.Divider(),
-                ft.Text(
-                    f"Boxscore: {partido.clubLocal} vs {partido.clubVisitante}",
-                    weight=ft.FontWeight.W_600,
-                ),
-                ft.Text(subtitulo_partido, color=ft.Colors.ON_SURFACE_VARIANT),
-                ft.Row([tabla_bs], scroll=ft.ScrollMode.AUTO),
-            ]
-
-        ejecutar_mostrando_errores(accion, error)
-        page.update()
-
-    def _boton_boxscore(partido: PartidoResumenDTO) -> ft.TextButton:
-        return ft.TextButton("Ver boxscore", on_click=lambda: _ver_boxscore(partido))
+    def _boton_ver(partido: PartidoResumenDTO) -> ft.TextButton:
+        return ft.TextButton("Ver", on_click=lambda: page.navigate(ruta_detalle_partido(partido.idPartido)))
 
     def _redibujar_tabla() -> None:
         comp_sel = competencias_por_id.get(int(dd_competencia.value)) if dd_competencia.value else None
@@ -209,7 +159,10 @@ def crear_partidos_view(
             aviso_filtro.value = ""
             aviso_filtro.visible = False
 
-        filas = [(*fila_partido(p), _boton_boxscore(p)) for p in visibles]
+        filas = [
+            (*fila_partido(p), crear_marca_resultado(resultado_del_club(p, club.nombre)), _boton_ver(p))
+            for p in visibles
+        ]
         contenedor_tabla.controls = [
             crear_tabla_datos(
                 COLUMNAS_PARTIDOS,
@@ -219,26 +172,21 @@ def crear_partidos_view(
             )
         ]
 
-    def al_cambiar_competencia() -> None:
-        _cargar_opciones_categoria()
+    def al_cambiar_filtro() -> None:
         _redibujar_tabla()
         page.update()
 
-    def al_cambiar_categoria() -> None:
-        _redibujar_tabla()
-        page.update()
-
-    dd_competencia.on_select = al_cambiar_competencia
-    dd_categoria.on_select = al_cambiar_categoria
+    dd_competencia.on_select = al_cambiar_filtro
+    dd_categoria.on_select = al_cambiar_filtro
 
     def cargar_inicial() -> None:
-        nonlocal partidos_cache, inscripciones_cache, competencias_por_id, categorias_por_id
+        nonlocal partidos_cache, competencias_por_id, categorias_por_id
         partidos_cache = listar_partidos_uc.ejecutar(club.idClub)
-        inscripciones_cache = listar_inscripciones_uc.ejecutar(club.idClub)
+        inscripciones = listar_inscripciones_uc.ejecutar(club.idClub)
         competencias_por_id = {c.idCompetencia: c for c in listar_competencias_uc.ejecutar()}
         categorias_por_id = {c.idCategoria: c for c in listar_categorias_uc.ejecutar()}
 
-        ids_comp = {ins.idCompetencia for ins in inscripciones_cache}
+        ids_comp = {ins.idCompetencia for ins in inscripciones}
         comps_inscriptas = sorted(
             (competencias_por_id[cid] for cid in ids_comp if cid in competencias_por_id),
             key=lambda c: (c.anio, c.nombre),
@@ -248,7 +196,14 @@ def crear_partidos_view(
             ft.dropdown.Option(key="", text="Todas"),
             *(ft.dropdown.Option(key=str(c.idCompetencia), text=f"{c.nombre} ({c.anio})") for c in comps_inscriptas),
         ]
-        _cargar_opciones_categoria()
+        # Todo el catalogo de categorias, no solo las inscriptas en la competencia elegida.
+        dd_categoria.options = [
+            ft.dropdown.Option(key="", text="Todas"),
+            *(
+                ft.dropdown.Option(key=str(c.idCategoria), text=c.nombre)
+                for c in sorted(categorias_por_id.values(), key=lambda c: c.nombre)
+            ),
+        ]
         _redibujar_tabla()
 
     cargar_inicial()
@@ -269,7 +224,6 @@ def crear_partidos_view(
             aviso_filtro,
             error,
             contenedor_tabla,
-            contenedor_detalle,
         ],
         subtitulo=f"Club activo: {club.nombre}",
     )

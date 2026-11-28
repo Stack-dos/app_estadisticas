@@ -1,4 +1,14 @@
-"""Pantalla de plantel de jugadores del club activo (US-112): listar, alta sin duplicados, buscar/vincular y baja."""
+"""Pantalla de plantel de jugadores del club activo (US-112): listar, alta sin duplicados, buscar y baja.
+
+US-113: la tabla ocupa todo el ancho; el alta se abre en un dialogo ("Nuevo jugador"), las acciones de
+cada fila son iconos con descripcion al pasar el mouse, y la fecha de baja se pide dentro del dialogo de
+baja (antes era un campo suelto arriba de la tabla que no se entendia para que estaba).
+
+US-114 (ajuste con la maqueta): un buscador y un selector "Del club" / "En todos los clubes". "En todos
+los clubes" es solo para consultar (cada jugador con su club actual). Se quito "Vincular jugador existente":
+un jugador siempre se crea con club y no se puede traer de otro club (tiene un vinculo abierto). Solo si
+al dar de alta aparece el mismo jugador **sin club** (lo dieron de baja), se ofrece sumarlo en vez de duplicarlo.
+"""
 
 from datetime import date
 
@@ -9,26 +19,42 @@ from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeCl
 from aplicacion.casos_uso.editar_jugador import EditarJugadorUseCase
 from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
+from aplicacion.casos_uso.listar_jugadores_todos import ListarJugadoresTodosUseCase
 from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
 from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.dtos.club_dto import DesvincularJugadorDTO, VincularJugadorClubDTO
-from aplicacion.dtos.jugador_dto import CrearJugadorDTO, EditarJugadorDTO, JugadorDTO
+from aplicacion.dtos.jugador_dto import CrearJugadorDTO, EditarJugadorDTO, JugadorConClubDTO, JugadorDTO
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.entidades.jugador import Jugador
 from dominio.exceptions import DatoInvalidoError
 from infraestructura.ui.flet.components.confirmacion import pedir_confirmacion
-from infraestructura.ui.flet.components.formulario import crear_formulario
 from infraestructura.ui.flet.components.pagina import crear_pagina, crear_vista_interna
 from infraestructura.ui.flet.components.tabla_datos import crear_tabla_datos
 from infraestructura.ui.flet.errores import crear_etiqueta_error, ejecutar_mostrando_errores
 from infraestructura.ui.flet.estilo import ESPACIO, ESPACIO_CHICO, RADIO
+from utils import normalizar_texto
 
 TABLA_JUGADORES = "tabla_jugadores"
-RESULTADOS_BUSQUEDA = "resultados_busqueda_jugadores"
+SELECTOR_ALCANCE = "selector_alcance_jugadores"
 COINCIDENCIAS_ALTA = "coincidencias_alta_jugador"
+DEL_CLUB, TODOS_LOS_CLUBES = "club", "todos"
 COLUMNAS_JUGADORES = ("Jugador", "Año nac.", "Acciones")
-SIN_JUGADORES = "Este club todavía no tiene jugadores vinculados."
+COLUMNAS_TODOS = ("Jugador", "Año nac.", "Club actual", "Acciones")
+SIN_JUGADORES = "Este club todavía no tiene jugadores."
 SIN_COINCIDENCIAS = "No se encontraron jugadores con ese nombre."
+SIN_CLUB = "Sin club"
+
+
+def coincide(nombre_completo: str, consulta: str) -> bool:
+    """Igual que la busqueda del repositorio: todas las palabras, sin mayusculas ni tildes."""
+    nombre = normalizar_texto(nombre_completo)
+    return all(termino in nombre for termino in normalizar_texto(consulta).split())
+
+
+def fila_jugador_todos(jugador: JugadorConClubDTO) -> tuple[str, str, str]:
+    """Fila de "En todos los clubes": nombre, año y club actual."""
+    anio = str(jugador.anioNacimiento) if jugador.anioNacimiento is not None else "—"
+    return (jugador.nombre_completo, anio, jugador.club or SIN_CLUB)
 
 
 def fila_jugador(jugador: JugadorDTO) -> tuple[str, str]:
@@ -69,6 +95,7 @@ def crear_jugadores_view(
     buscar_jugadores_uc: BuscarJugadoresPorNombreUseCase,
     editar_jugador_uc: EditarJugadorUseCase,
     eliminar_jugador_uc: EliminarJugadorUseCase,
+    listar_jugadores_todos_uc: ListarJugadoresTodosUseCase,
     sesion: SessionManager,
 ) -> ft.View:
     """
@@ -78,11 +105,12 @@ def crear_jugadores_view(
         page (ft.Page): La ventana, para confirmar bajas, editar y redibujar.
         listar_jugadores_club_uc (ListarJugadoresClubUseCase): Plantel actual del club activo.
         registrar_jugador_uc (RegistrarJugadorUseCase): Alta de un jugador nuevo.
-        vincular_jugador_uc (VincularJugadorAClubUseCase): Vincula un jugador existente o recien creado al club.
+        vincular_jugador_uc (VincularJugadorAClubUseCase): Vincula al club el jugador recien creado (o uno sin club).
         desvincular_jugador_uc (DesvincularJugadorDeClubUseCase): Cierra el vinculo vigente con el club.
-        buscar_jugadores_uc (BuscarJugadoresPorNombreUseCase): Busca por nombre/apellido en todos los clubes.
+        buscar_jugadores_uc (BuscarJugadoresPorNombreUseCase): Busca homonimos antes de dar de alta.
         editar_jugador_uc (EditarJugadorUseCase): Corrige nombre, apellido y año de nacimiento de un jugador.
         eliminar_jugador_uc (EliminarJugadorUseCase): Elimina un jugador sin partidos ni listas de buena fe.
+        listar_jugadores_todos_uc (ListarJugadoresTodosUseCase): Todos los jugadores con su club ("En todos").
         sesion (SessionManager): Sesion activa con club elegido.
 
     Returns:
@@ -97,19 +125,33 @@ def crear_jugadores_view(
     anio_nacimiento = ft.TextField(label="Año de nacimiento (opcional)")
     fecha_ingreso = ft.TextField(label="Fecha de ingreso", value=date.today().isoformat())
     error_alta = crear_etiqueta_error()
-    panel_coincidencias = ft.Column(key=COINCIDENCIAS_ALTA, spacing=ESPACIO_CHICO)
+    panel_coincidencias = ft.Column(key=COINCIDENCIAS_ALTA, spacing=ESPACIO_CHICO, scroll=ft.ScrollMode.AUTO)
+    dialogo_abierto = [False]  # si el alta esta abierta en un dialogo, se cierra al terminar bien
 
-    campo_busqueda = ft.TextField(label="Buscar jugador existente (nombre o apellido)")
-    error_busqueda = crear_etiqueta_error()
-    panel_resultados = ft.Column(key=RESULTADOS_BUSQUEDA, spacing=ESPACIO_CHICO)
+    campo_busqueda = ft.TextField(
+        label="Buscar",
+        hint_text="Apellido o nombre",
+        prefix_icon=ft.Icons.SEARCH,
+        width=360,
+        dense=True,
+    )
+    selector_alcance = ft.SegmentedButton(
+        key=SELECTOR_ALCANCE,
+        segments=[
+            ft.Segment(value=DEL_CLUB, label="Del club"),
+            ft.Segment(value=TODOS_LOS_CLUBES, label="En todos los clubes"),
+        ],
+        selected=[DEL_CLUB],
+        show_selected_icon=False,
+    )
 
-    fecha_baja = ft.TextField(label="Fecha de baja", value=date.today().isoformat(), width=200)
     error_tabla = crear_etiqueta_error()
     contenedor_tabla = ft.Column()
+    plantel: list[JugadorDTO] = []
 
-    ids_plantel_actual: set[int] = set()
+    def _vincular_sin_club(jugador: JugadorConClubDTO) -> None:
+        """Suma al club un jugador que hoy no tiene club (lo dieron de baja en otro), en vez de duplicarlo."""
 
-    def _vincular_a_club(jugador: JugadorDTO, destino_error: ft.Text) -> None:
         def accion() -> None:
             fecha = fecha_ingreso.value.strip()
             if not fecha:
@@ -119,43 +161,58 @@ def crear_jugadores_view(
             )
             if vinculo is None:
                 raise RuntimeError("No se pudo vincular el jugador al club en la base")
-            panel_coincidencias.controls = []
-            nombre.value = ""
-            apellido.value = ""
-            anio_nacimiento.value = ""
+            _limpiar_alta()
             refrescar_plantel()
-            _actualizar_resultados_si_hay_busqueda()
 
-        ejecutar_mostrando_errores(accion, destino_error)
+        ejecutar_mostrando_errores(accion, error_alta)
         page.update()
 
-    def _boton_dar_de_baja(jugador: JugadorDTO) -> ft.TextButton:
-        def al_confirmar() -> None:
-            def accion() -> None:
-                fecha = fecha_baja.value.strip()
-                if not fecha:
-                    raise DatoInvalidoError("Indicá la fecha de baja")
-                cerrado = desvincular_jugador_uc.ejecutar(DesvincularJugadorDTO(idJugador=jugador.id, fechaHasta=fecha))
-                if cerrado is None:
-                    raise RuntimeError("No se pudo dar de baja al jugador en la base")
-                refrescar_plantel()
-                _actualizar_resultados_si_hay_busqueda()
+    def _boton_dar_de_baja(jugador: JugadorDTO) -> ft.IconButton:
+        def abrir_dialogo() -> None:
+            campo_fecha_baja = ft.TextField(label="Fecha de baja", value=date.today().isoformat())
+            error_baja = crear_etiqueta_error()
 
-            ejecutar_mostrando_errores(accion, error_tabla)
-            page.update()
+            def confirmar() -> None:
+                def accion() -> None:
+                    fecha = (campo_fecha_baja.value or "").strip()
+                    if not fecha:
+                        raise DatoInvalidoError("Indicá la fecha de baja")
+                    cerrado = desvincular_jugador_uc.ejecutar(
+                        DesvincularJugadorDTO(idJugador=jugador.id, fechaHasta=fecha)
+                    )
+                    if cerrado is None:
+                        raise RuntimeError("No se pudo dar de baja al jugador en la base")
+                    page.pop_dialog()
+                    refrescar_plantel()
 
-        def abrir_confirmacion() -> None:
-            pedir_confirmacion(
-                page,
-                "Dar de baja jugador",
-                f"¿Querés desvincular a {jugador.nombre_completo} de {club.nombre}?",
-                al_confirmar,
-                texto_confirmar="Dar de baja",
+                ejecutar_mostrando_errores(accion, error_baja)
+                page.update()
+
+            page.show_dialog(
+                ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text("Dar de baja jugador"),
+                    content=ft.Column(
+                        [
+                            ft.Text(
+                                f"{jugador.nombre_completo} deja de ser parte de {club.nombre} desde esta fecha. "
+                                "Sus partidos y estadísticas se conservan."
+                            ),
+                            campo_fecha_baja,
+                            error_baja,
+                        ],
+                        tight=True,
+                    ),
+                    actions=[
+                        ft.TextButton("Cancelar", on_click=lambda: page.pop_dialog()),
+                        ft.FilledButton("Dar de baja", on_click=confirmar),
+                    ],
+                )
             )
 
-        return ft.TextButton("Dar de baja", on_click=abrir_confirmacion)
+        return ft.IconButton(icon=ft.Icons.PERSON_REMOVE_OUTLINED, tooltip="Dar de baja", on_click=abrir_dialogo)
 
-    def _boton_editar(jugador: JugadorDTO) -> ft.TextButton:
+    def _boton_editar(jugador: JugadorDTO) -> ft.IconButton:
         def abrir_edicion() -> None:
             nom_inicial, ape_inicial = _nombre_y_apellido(jugador)
             campo_nombre = ft.TextField(label="Nombre", value=nom_inicial, autofocus=True)
@@ -184,7 +241,6 @@ def crear_jugadores_view(
                         raise RuntimeError("No se pudo actualizar el jugador en la base")
                     page.pop_dialog()
                     refrescar_plantel()
-                    _actualizar_resultados_si_hay_busqueda()
 
                 ejecutar_mostrando_errores(accion, error_edicion)
                 page.update()
@@ -200,17 +256,16 @@ def crear_jugadores_view(
             )
             page.show_dialog(dialogo)
 
-        return ft.TextButton("Editar", on_click=abrir_edicion)
+        return ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, tooltip="Editar", on_click=abrir_edicion)
 
-    def _boton_eliminar(jugador: JugadorDTO, destino_error: ft.Text = error_tabla) -> ft.TextButton:
+    def _boton_eliminar(jugador: JugadorDTO) -> ft.IconButton:
         def al_confirmar() -> None:
             def accion() -> None:
                 if not eliminar_jugador_uc.ejecutar(jugador.id):
                     raise RuntimeError("No se pudo eliminar el jugador en la base")
                 refrescar_plantel()
-                _actualizar_resultados_si_hay_busqueda()
 
-            ejecutar_mostrando_errores(accion, destino_error)
+            ejecutar_mostrando_errores(accion, error_tabla)
             page.update()
 
         def abrir_confirmacion() -> None:
@@ -223,72 +278,54 @@ def crear_jugadores_view(
                 texto_confirmar="Eliminar",
             )
 
-        return ft.TextButton("Eliminar", on_click=abrir_confirmacion)
+        return ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, tooltip="Eliminar", on_click=abrir_confirmacion)
+
+    def _redibujar_tabla() -> None:
+        """Dibuja la tabla segun el selector y el buscador (filtra en memoria, mientras se escribe)."""
+        consulta = campo_busqueda.value or ""
+        if selector_alcance.selected == [TODOS_LOS_CLUBES]:
+            todos = [j for j in listar_jugadores_todos_uc.ejecutar() if coincide(j.nombre_completo, consulta)]
+            columnas: tuple[str, ...] = COLUMNAS_TODOS
+            # Solo se puede borrar desde aca a quien no tiene club (lo dieron de baja); el resto es de consulta.
+            filas: list[tuple[str | ft.Control, ...]] = [
+                (
+                    *fila_jugador_todos(j),
+                    _boton_eliminar(JugadorDTO(j.nombre_completo, j.id, j.anioNacimiento)) if j.club is None else "",
+                )
+                for j in todos
+            ]
+            vacio = SIN_COINCIDENCIAS
+        else:
+            visibles = [j for j in plantel if coincide(j.nombre_completo, consulta)]
+            columnas = COLUMNAS_JUGADORES
+            filas = [
+                (
+                    *fila_jugador(j),
+                    ft.Row([_boton_editar(j), _boton_dar_de_baja(j), _boton_eliminar(j)], spacing=0),
+                )
+                for j in visibles
+            ]
+            vacio = SIN_COINCIDENCIAS if consulta.strip() else SIN_JUGADORES
+        contenedor_tabla.controls = [crear_tabla_datos(columnas, filas, mensaje_vacio=vacio, clave=TABLA_JUGADORES)]
 
     def refrescar_plantel() -> None:
-        jugadores = listar_jugadores_club_uc.ejecutar(club.idClub)
-        ids_plantel_actual.clear()
-        ids_plantel_actual.update(j.id for j in jugadores)
-        filas = [
-            (
-                *fila_jugador(j),
-                ft.Row([_boton_editar(j), _boton_dar_de_baja(j), _boton_eliminar(j)], spacing=0),
-            )
-            for j in jugadores
-        ]
-        contenedor_tabla.controls = [
-            crear_tabla_datos(
-                COLUMNAS_JUGADORES,
-                filas,
-                mensaje_vacio=SIN_JUGADORES,
-                clave=TABLA_JUGADORES,
-            )
-        ]
+        plantel.clear()
+        plantel.extend(listar_jugadores_club_uc.ejecutar(club.idClub))
+        _redibujar_tabla()
 
-    def _renglon_busqueda(
-        jugador: JugadorDTO, destino_error: ft.Text, *, permitir_gestion: bool = False
-    ) -> ft.Container:
-        ya_en_club = jugador.id in ids_plantel_actual
-        accion_control: ft.Control = (
-            ft.Text("Ya está en el club", color=ft.Colors.ON_SURFACE_VARIANT)
-            if ya_en_club
-            else ft.TextButton("Vincular al club", on_click=lambda: _vincular_a_club(jugador, destino_error))
-        )
-        acciones = [accion_control]
-        if permitir_gestion:
-            acciones.extend([_boton_editar(jugador), _boton_eliminar(jugador, destino_error)])
-        return ft.Container(
-            content=ft.Row(
-                [ft.Text(_etiqueta_jugador(jugador), expand=True), ft.Row(acciones, spacing=0)],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            ),
-            padding=ESPACIO_CHICO,
-            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT),
-            border_radius=RADIO,
-        )
-
-    def _renderizar_busqueda(consulta: str) -> None:
-        if not consulta.strip():
-            panel_resultados.controls = []
-            return
-        encontrados = buscar_jugadores_uc.ejecutar(consulta)
-        if not encontrados:
-            panel_resultados.controls = [ft.Text(SIN_COINCIDENCIAS, color=ft.Colors.ON_SURFACE_VARIANT)]
-            return
-        panel_resultados.controls = [_renglon_busqueda(j, error_busqueda, permitir_gestion=True) for j in encontrados]
-
-    def _actualizar_resultados_si_hay_busqueda() -> None:
-        if campo_busqueda.value.strip():
-            _renderizar_busqueda(campo_busqueda.value)
-
-    def buscar() -> None:
-        def accion() -> None:
-            _renderizar_busqueda(campo_busqueda.value)
-
-        ejecutar_mostrando_errores(accion, error_busqueda)
+    def al_filtrar() -> None:
+        ejecutar_mostrando_errores(_redibujar_tabla, error_tabla)
         page.update()
 
-    campo_busqueda.on_submit = buscar
+    campo_busqueda.on_change = al_filtrar
+    selector_alcance.on_change = al_filtrar
+
+    def _limpiar_alta() -> None:
+        nombre.value = ""
+        apellido.value = ""
+        anio_nacimiento.value = ""
+        panel_coincidencias.controls = []
+        _cerrar_alta()
 
     def _crear_y_vincular(datos: CrearJugadorDTO, fecha: str) -> None:
         nuevo = registrar_jugador_uc.ejecutar(datos)
@@ -299,12 +336,13 @@ def crear_jugadores_view(
         )
         if vinculo is None:
             raise RuntimeError("El jugador se creó pero no se pudo vincular al club activo")
-        nombre.value = ""
-        apellido.value = ""
-        anio_nacimiento.value = ""
-        panel_coincidencias.controls = []
+        _limpiar_alta()
         refrescar_plantel()
-        _actualizar_resultados_si_hay_busqueda()
+
+    def _cerrar_alta() -> None:
+        if dialogo_abierto[0]:
+            dialogo_abierto[0] = False
+            page.pop_dialog()
 
     def _forzar_alta(datos: CrearJugadorDTO, fecha: str) -> None:
         def accion() -> None:
@@ -325,14 +363,12 @@ def crear_jugadores_view(
             Jugador(nombre=nom, apellido=ape, anioNacimiento=anio)
             datos = CrearJugadorDTO(nombre=nom, apellido=ape, anioNacimiento=anio)
 
-            coincidencias = buscar_jugadores_uc.ejecutar(f"{nom} {ape}")
-            if coincidencias:
+            ids_homonimos = {j.id for j in buscar_jugadores_uc.ejecutar(f"{nom} {ape}")}
+            if ids_homonimos:
+                homonimos = [j for j in listar_jugadores_todos_uc.ejecutar() if j.id in ids_homonimos]
                 panel_coincidencias.controls = [
-                    ft.Text(
-                        "Ya existen jugadores con ese nombre. Podés vincular uno en vez de duplicarlo:",
-                        weight=ft.FontWeight.W_600,
-                    ),
-                    *(_renglon_busqueda(j, error_alta) for j in coincidencias),
+                    ft.Text("Ya existe un jugador con ese nombre:", weight=ft.FontWeight.W_600),
+                    *(_aviso_homonimo(j) for j in homonimos),
                     ft.TextButton("Crear nuevo jugador de todas formas", on_click=lambda: _forzar_alta(datos, fecha)),
                 ]
                 return
@@ -342,37 +378,64 @@ def crear_jugadores_view(
         ejecutar_mostrando_errores(accion, error_alta)
         page.update()
 
-    refrescar_plantel()
+    def _aviso_homonimo(jugador: JugadorConClubDTO) -> ft.Container:
+        etiqueta = _etiqueta_jugador(JugadorDTO(jugador.nombre_completo, jugador.id, jugador.anioNacimiento))
+        if jugador.club is None:
+            detalle: ft.Control = ft.TextButton(
+                f"Sin club: sumarlo a {club.nombre}", on_click=lambda: _vincular_sin_club(jugador)
+            )
+        else:
+            detalle = ft.Text(f"en {jugador.club}", color=ft.Colors.ON_SURFACE_VARIANT)
+        return ft.Container(
+            content=ft.Row([ft.Text(etiqueta, expand=True), detalle], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            padding=ESPACIO_CHICO,
+            bgcolor=ft.Colors.TERTIARY_CONTAINER,
+            border_radius=RADIO,
+        )
 
-    lateral = ft.Column(
-        [
-            ft.Text("Nuevo jugador", weight=ft.FontWeight.W_600),
-            crear_formulario(
-                [nombre, apellido, anio_nacimiento, fecha_ingreso],
-                error_alta,
-                "Registrar jugador",
-                registrar,
-                ancho=None,
-            ),
-            panel_coincidencias,
-        ],
-        spacing=ESPACIO,
-    )
+    refrescar_plantel()
+    fecha_ingreso.on_submit = registrar
+
+    def abrir_alta() -> None:
+        error_alta.value = ""
+        panel_coincidencias.controls = []
+        dialogo_abierto[0] = True
+
+        def cancelar() -> None:
+            dialogo_abierto[0] = False
+            page.pop_dialog()
+
+        page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text(f"Nuevo jugador de {club.nombre}"),
+                content=ft.Column(
+                    [nombre, apellido, anio_nacimiento, fecha_ingreso, error_alta, panel_coincidencias],
+                    tight=True,
+                    width=420,
+                    spacing=ESPACIO_CHICO,
+                ),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=cancelar),
+                    ft.FilledButton("Registrar jugador", on_click=registrar),
+                ],
+            )
+        )
 
     contenido = crear_pagina(
         "Jugadores",
         [
-            ft.Text("Plantel actual", weight=ft.FontWeight.W_600),
-            fecha_baja,
-            contenedor_tabla,
+            ft.Row(
+                [
+                    ft.Row([campo_busqueda, selector_alcance], spacing=ESPACIO, wrap=True),
+                    ft.FilledButton("Nuevo jugador", icon=ft.Icons.PERSON_ADD, on_click=abrir_alta),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
             error_tabla,
-            ft.Divider(),
-            ft.Text("Vincular jugador existente", weight=ft.FontWeight.W_600),
-            ft.Row([campo_busqueda, ft.FilledButton("Buscar", on_click=buscar)], spacing=ESPACIO_CHICO),
-            error_busqueda,
-            panel_resultados,
+            contenedor_tabla,
         ],
         subtitulo=f"Club activo: {club.nombre}",
-        lateral=lateral,
     )
     return crear_vista_interna(page, sesion, "/jugadores", contenido)

@@ -55,7 +55,10 @@ def crear_login_view(page: ft.Page, login_uc: LoginLocalUseCase, sesion: Session
         error,
         "Ingresar",
         ingresar,
-        secundarios=[ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro"))],
+        secundarios=[
+            ft.TextButton("Crear cuenta", on_click=lambda: page.navigate("/registro")),
+            ft.TextButton("¿Cómo se usa?", icon=ft.Icons.HELP_OUTLINE, on_click=lambda: page.navigate("/guia")),
+        ],
     )
     return crear_vista_acceso(
         "/login", "Iniciar sesión", "Entrá para cargar y ver las estadísticas de tu club.", formulario
