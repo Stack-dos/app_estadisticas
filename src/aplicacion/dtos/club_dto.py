@@ -17,6 +17,14 @@ class ClubDTO:
 
 
 @dataclass
+class RenombrarClubDTO:
+    """Entra a RenombrarClubUseCase (US-114): corregir el nombre de un club rival"""
+
+    idClub: int
+    nombre: str
+
+
+@dataclass
 class VincularJugadorClubDTO:
     """entra a VincularJugadorAClubUseCase"""
 
