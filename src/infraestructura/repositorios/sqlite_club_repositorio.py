@@ -225,3 +225,52 @@ class SqliteClubRepositorio(ClubRepositorio):
         except TypeError as e:
             logger.critical(f"""Club linkeado pero no se pudo reconstruir el objeto de retorno: {e}""")
             raise
+
+    def listar_sin_usuario(self) -> list[Club]:
+        """Clubes sin ningun usuario vinculado (los rivales), ordenados por nombre (US-114)."""
+        filas = self.conexion.execute(
+            """
+            SELECT idClub, nombre FROM club c
+            WHERE NOT EXISTS (SELECT 1 FROM usuarioClub u WHERE u.idClub = c.idClub)
+            ORDER BY nombre
+            """
+        ).fetchall()
+        return [self._row_to_entity_Club(f) for f in filas]
+
+    def actualizar(self, club: Club) -> Club | None:
+        """Cambia el nombre del club (US-114).
+
+        Returns:
+            Club | None: El club con el nombre nuevo, o None si no existe o la base lo rechazo (nombre repetido).
+        """
+        try:
+            with self.conexion:
+                cursor = self.conexion.execute(
+                    "UPDATE club SET nombre = ? WHERE idClub = ?", (club.nombre, club.idClub)
+                )
+        except sqlite3.Error as e:
+            logger.error("No se pudo renombrar el club %s: %s", club.idClub, e, exc_info=True)
+            return None
+        return club if cursor.rowcount == 1 else None
+
+    def eliminar(self, id_club: int) -> bool:
+        """Elimina el club; inscripciones, listas y vinculos caen en cascada (US-114)."""
+        try:
+            with self.conexion:
+                cursor = self.conexion.execute("DELETE FROM club WHERE idClub = ?", (id_club,))
+        except sqlite3.Error as e:
+            logger.error("No se pudo eliminar el club %s: %s", id_club, e, exc_info=True)
+            return False
+        return cursor.rowcount == 1
+
+    def tiene_partidos(self, id_club: int) -> bool:
+        fila = self.conexion.execute(
+            "SELECT EXISTS (SELECT 1 FROM partido WHERE idClubLocal = ? OR idClubVisitante = ?)", (id_club, id_club)
+        ).fetchone()
+        return bool(fila[0])
+
+    def tiene_usuarios(self, id_club: int) -> bool:
+        fila = self.conexion.execute(
+            "SELECT EXISTS (SELECT 1 FROM usuarioClub WHERE idClub = ?)", (id_club,)
+        ).fetchone()
+        return bool(fila[0])

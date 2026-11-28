@@ -1,6 +1,19 @@
 import sqlite3
+from dataclasses import replace
 
-from dominio.entidades.partido import BoxscoreFila, JugadorPartido, Partido, PartidoCuarto, PartidoResumen
+from dominio.entidades.club import Club
+from dominio.entidades.partido import (
+    ID_CLUB_NUEVO,
+    AltaPlantelRival,
+    BoxscoreFila,
+    EstadisticaEquipo,
+    JugadorPartido,
+    LiderClub,
+    Partido,
+    PartidoCuarto,
+    PartidoResumen,
+    TotalesEquipoFila,
+)
 from dominio.repositorios.partido_repositorio import PartidoRepositorio
 from infraestructura.logger import get_logger
 
@@ -268,10 +281,21 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
         partido: Partido,
         boxscore: list[JugadorPartido],
         cuartos: list[PartidoCuarto] | None = None,
+        totales: list[EstadisticaEquipo] | None = None,
+        alta_rival: AltaPlantelRival | None = None,
+        club_rival_nuevo: Club | None = None,
     ) -> tuple[Partido, list[JugadorPartido]] | None:
         """
             Función que se encarga de guardar el partido, el boxscore de todos los jugadores y
             opcionalmente los puntos por cuarto en una única transacción atómica.
+
+        US-113: en la misma transaccion guarda los totales de los equipos sin boxscore (`totales`) y da de
+        alta lo que falte del plantel rival (`alta_rival`): su inscripcion y lista si no las tenia, los
+        jugadores existentes que hay que habilitar y los jugadores nuevos (con su vinculo al club).
+
+        US-114: con `partido.idPartido` actualiza ese partido y reemplaza su boxscore, cuartos y totales
+        (edicion). Con `club_rival_nuevo` crea el club rival primero, en la misma transaccion: si algo falla
+        despues, tampoco queda el club.
 
         Utiliza el context manager de sqlite3 que realiza
         COMMIT automático al salir sin error o ROLLBACK ante cualquier excepción.
@@ -281,13 +305,25 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
             partido (Partido): Entidad Partido a guardar.
             boxscore (list[JugadorPartido]): Filas de estadísticas individuales a guardar.
             cuartos (list[PartidoCuarto] | None): Puntos por cuarto/prórroga opcionales.
+            totales (list[EstadisticaEquipo] | None): Totales de los equipos que no tienen boxscore por jugador.
+            alta_rival (AltaPlantelRival | None): Inscripcion, lista y jugadores del rival a dar de alta.
+            club_rival_nuevo (Club | None): Club rival a crear; donde aparece `ID_CLUB_NUEVO` va su id real.
 
         Returns:
-            tuple[Partido, list[JugadorPartido]] | None: Partido y boxscore guardados, o None si ocurre un error.
+            tuple[Partido, list[JugadorPartido]] | None: Partido y boxscore guardados (los jugadores nuevos
+            ya con su id real), o None si ocurre un error.
         """
         try:
             with self.conexion:
                 cursor = self.conexion.cursor()
+
+                if club_rival_nuevo is not None:
+                    cursor.execute("INSERT INTO club (nombre) VALUES (?)", (club_rival_nuevo.nombre,))
+                    if cursor.lastrowid is None:
+                        raise sqlite3.DatabaseError("SQLite no devolvio el id del club rival recien creado")
+                    partido, boxscore, cuartos, totales, alta_rival = self._con_club_nuevo(
+                        cursor.lastrowid, partido, boxscore, cuartos, totales, alta_rival
+                    )
 
                 # Validar que la competencia, la categoría y los clubes del partido existan.
                 cursor.execute("SELECT * FROM competencia WHERE idCompetencia = ?", (partido.idCompetencia,))
@@ -325,26 +361,46 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
 
                 # --- Fin Validación ---
 
-                # Insertar cabecera del partido
-                cursor.execute(
-                    """
-                    INSERT INTO partido (fecha, estadio, idCompetencia, idCategoria, idClubLocal, idClubVisitante)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        partido.fecha,
-                        partido.estadio,
-                        partido.idCompetencia,
-                        partido.idCategoria,
-                        partido.idClubLocal,
-                        partido.idClubVisitante,
-                    ),
+                # US-113: alta del plantel rival (antes del boxscore, que referencia a sus jugadores)
+                filas_a_insertar = list(boxscore)
+                if alta_rival is not None:
+                    filas_a_insertar += self._dar_de_alta_plantel_rival(cursor, alta_rival)
+
+                datos_partido = (
+                    partido.fecha,
+                    partido.estadio,
+                    partido.idCompetencia,
+                    partido.idCategoria,
+                    partido.idClubLocal,
+                    partido.idClubVisitante,
                 )
-                id_partido = cursor.lastrowid
+                if partido.idPartido is None:
+                    cursor.execute(
+                        """
+                        INSERT INTO partido (fecha, estadio, idCompetencia, idCategoria, idClubLocal, idClubVisitante)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        datos_partido,
+                    )
+                    id_partido = cursor.lastrowid
+                else:
+                    # US-114, edicion: el partido conserva su id; sus filas se borran y se vuelven a insertar
+                    id_partido = partido.idPartido
+                    cursor.execute(
+                        """
+                        UPDATE partido SET fecha = ?, estadio = ?, idCompetencia = ?, idCategoria = ?,
+                            idClubLocal = ?, idClubVisitante = ?
+                        WHERE idPartido = ?
+                        """,
+                        (*datos_partido, id_partido),
+                    )
+                    if cursor.rowcount == 0:
+                        raise sqlite3.IntegrityError(f"El partido con id {id_partido} no existe.")
+                    self._borrar_filas_del_partido(cursor, id_partido)
 
                 # Insertar cada fila del boxscore
                 filas_guardadas = []
-                for bs in boxscore:
+                for bs in filas_a_insertar:
                     cursor.execute(
                         """
                         INSERT INTO jugadorPartido
@@ -390,6 +446,37 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                             (id_partido, cuarto.idClub, cuarto.nroCuarto, cuarto.puntos),
                         )
 
+                for tot in totales or []:
+                    cursor.execute(
+                        """
+                        INSERT INTO estadisticaEquipoPartido
+                        (idPartido, idClub, puntos, T2C, T2L, T3C, T3L, T1C, T1L,
+                         rebotesDef, rebotesOf, asistencias, recuperos, perdidas,
+                         taponesRecibidos, taponesRealizados, faltasRecibidas, faltasCometidas)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            id_partido,
+                            tot.idClub,
+                            tot.puntos,
+                            tot.t2c,
+                            tot.t2l,
+                            tot.t3c,
+                            tot.t3l,
+                            tot.t1c,
+                            tot.t1l,
+                            tot.rebotesDef,
+                            tot.rebotesOf,
+                            tot.asistencias,
+                            tot.recuperos,
+                            tot.perdidas,
+                            tot.taponesRecibidos,
+                            tot.taponesRealizados,
+                            tot.faltasRecibidas,
+                            tot.faltasCometidas,
+                        ),
+                    )
+
             partido_guardado = Partido(
                 fecha=partido.fecha,
                 estadio=partido.estadio,
@@ -417,6 +504,123 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
 
             return None
 
+    @staticmethod
+    def _borrar_filas_del_partido(cursor: sqlite3.Cursor, id_partido: int) -> None:
+        """Borra boxscore, cuartos y totales del partido (jugadorPartido tiene ON DELETE RESTRICT)."""
+        cursor.execute("DELETE FROM jugadorPartido WHERE idPartido = ?", (id_partido,))
+        cursor.execute("DELETE FROM partidoCuarto WHERE idPartido = ?", (id_partido,))
+        cursor.execute("DELETE FROM estadisticaEquipoPartido WHERE idPartido = ?", (id_partido,))
+
+    @staticmethod
+    def _con_club_nuevo(
+        id_nuevo: int,
+        partido: Partido,
+        boxscore: list[JugadorPartido],
+        cuartos: list[PartidoCuarto] | None,
+        totales: list[EstadisticaEquipo] | None,
+        alta_rival: AltaPlantelRival | None,
+    ) -> tuple[
+        Partido,
+        list[JugadorPartido],
+        list[PartidoCuarto] | None,
+        list[EstadisticaEquipo] | None,
+        AltaPlantelRival | None,
+    ]:
+        """Cambia `ID_CLUB_NUEVO` por el id real del club rival recien creado."""
+
+        def real(id_club: int) -> int:
+            return id_nuevo if id_club == ID_CLUB_NUEVO else id_club
+
+        return (
+            replace(partido, idClubLocal=real(partido.idClubLocal), idClubVisitante=real(partido.idClubVisitante)),
+            [replace(b, idClub=real(b.idClub)) for b in boxscore],
+            [replace(c, idClub=real(c.idClub)) for c in cuartos] if cuartos else cuartos,
+            [replace(t, idClub=real(t.idClub)) for t in totales] if totales else totales,
+            replace(alta_rival, idClub=real(alta_rival.idClub)) if alta_rival is not None else None,
+        )
+
+    def eliminar(self, id_partido: int) -> bool:
+        """Elimina el partido con su boxscore, cuartos y totales, en una transaccion (US-114).
+
+        Args:
+            id_partido (int): El partido a eliminar.
+
+        Returns:
+            bool: True si se elimino; False si no existia o fallo la base.
+        """
+        try:
+            with self.conexion:
+                cursor = self.conexion.cursor()
+                self._borrar_filas_del_partido(cursor, id_partido)
+                cursor.execute("DELETE FROM partido WHERE idPartido = ?", (id_partido,))
+                return cursor.rowcount == 1
+        except sqlite3.Error as e:
+            logger.error("No se pudo eliminar el partido %s: %s", id_partido, e, exc_info=True)
+            return False
+
+    def cuartos_por_partido(self, id_partido: int) -> list[PartidoCuarto]:
+        """Puntos por cuarto del partido, ordenados por club y periodo (US-114)."""
+        filas = self.conexion.execute(
+            "SELECT idClub, nroCuarto, puntos FROM partidoCuarto WHERE idPartido = ? ORDER BY idClub, nroCuarto",
+            (id_partido,),
+        ).fetchall()
+        return [
+            PartidoCuarto(idClub=f["idClub"], nroCuarto=f["nroCuarto"], puntos=f["puntos"], idPartido=id_partido)
+            for f in filas
+        ]
+
+    @staticmethod
+    def _dar_de_alta_plantel_rival(cursor: sqlite3.Cursor, alta: AltaPlantelRival) -> list[JugadorPartido]:
+        """
+        Escribe, con el cursor de la transaccion en curso, lo que falta del plantel rival (US-113).
+
+        No hace commit: lo hace el `with self.conexion` de `save_with_boxscore`, junto con el partido.
+
+        Args:
+            cursor (sqlite3.Cursor): Cursor de la transaccion abierta.
+            alta (AltaPlantelRival): Que hay que crear o habilitar.
+
+        Returns:
+            list[JugadorPartido]: Las estadisticas de los jugadores nuevos, ya con su id real.
+        """
+        id_lista = alta.idListaBuenaFe
+        if id_lista is None:
+            cursor.execute(
+                "INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (?, ?, ?)",
+                (alta.idClub, alta.idCategoria, alta.idCompetencia),
+            )
+            cursor.execute(
+                "INSERT INTO listaBuenaFe (fechaPresentacion, idInscripcion) VALUES (?, ?)",
+                (alta.fecha, cursor.lastrowid),
+            )
+            id_lista = cursor.lastrowid
+
+        for id_jugador in alta.habilitar:
+            cursor.execute(
+                "INSERT OR IGNORE INTO jugadorListaBuenaFe (idJugador, idListaBuenaFe) VALUES (?, ?)",
+                (id_jugador, id_lista),
+            )
+
+        filas_nuevas: list[JugadorPartido] = []
+        for nuevo in alta.nuevos:
+            cursor.execute(
+                "INSERT INTO jugador (nombre, apellido, anioNacimiento) VALUES (?, ?, ?)",
+                (nuevo.jugador.nombre, nuevo.jugador.apellido, nuevo.jugador.anioNacimiento),
+            )
+            id_nuevo = cursor.lastrowid
+            if id_nuevo is None:
+                raise sqlite3.DatabaseError("SQLite no devolvio el id del jugador rival recien insertado")
+            cursor.execute(
+                "INSERT INTO jugadorClub (idJugador, idClub, fechaDesde, fechaHasta) VALUES (?, ?, ?, NULL)",
+                (id_nuevo, alta.idClub, alta.fecha),
+            )
+            cursor.execute(
+                "INSERT INTO jugadorListaBuenaFe (idJugador, idListaBuenaFe) VALUES (?, ?)",
+                (id_nuevo, id_lista),
+            )
+            filas_nuevas.append(replace(nuevo.estadistica, idJugador=id_nuevo, idClub=alta.idClub))
+        return filas_nuevas
+
     def resumen_por_club(self, id_club: int) -> list[PartidoResumen]:
         """
         Funcion que se encarga de listar los partidos de un club (como local o visitante) con los nombres
@@ -432,7 +636,8 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
         cursor = self.conexion.cursor()
 
         query = """
-        SELECT id_partido, fecha_partido, estadio, competencia, anio_competencia, categoria, club_local, club_visitante
+        SELECT id_partido, fecha_partido, estadio, competencia, anio_competencia, categoria, club_local, club_visitante,
+               puntos_local, puntos_visitante
         FROM v_partidos_resumen
         WHERE id_club_local = ? OR id_club_visitante = ?
         ORDER BY fecha_partido, id_partido;
@@ -449,6 +654,8 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                 clubLocal=row["club_local"],
                 clubVisitante=row["club_visitante"],
                 categoria=row["categoria"],
+                puntosLocal=row["puntos_local"],
+                puntosVisitante=row["puntos_visitante"],
             )
             for row in cursor.fetchall()
         ]
@@ -502,6 +709,89 @@ class SqlitePartidoRepositorio(PartidoRepositorio):
                 taponesRealizados=row["tapones_realizados"],
                 faltasRecibidas=row["faltas_recibidas"],
                 faltasCometidas=row["faltas_cometidas"],
+            )
+            for row in cursor.fetchall()
+        ]
+
+    def totales_por_partido(self, id_partido: int) -> list[TotalesEquipoFila]:
+        """
+        Devuelve los totales de cada equipo de un partido leyendo `v_totales_equipo_partido` (US-113).
+
+        Args:
+            id_partido (int): ID del partido.
+
+        Returns:
+            list[TotalesEquipoFila]: Una fila por equipo con datos, el local primero (vacia si no hay datos).
+        """
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT t.*, c.nombre AS nombre_club
+            FROM v_totales_equipo_partido AS t
+                INNER JOIN club AS c ON c.idClub = t.id_club
+                INNER JOIN partido AS p ON p.idPartido = t.id_partido
+            WHERE t.id_partido = ?
+            ORDER BY CASE WHEN t.id_club = p.idClubLocal THEN 0 ELSE 1 END;
+            """,
+            (id_partido,),
+        )
+        return [
+            TotalesEquipoFila(
+                idPartido=row["id_partido"],
+                idClub=row["id_club"],
+                nombreClub=row["nombre_club"],
+                origen=row["origen"],
+                puntos=row["puntos"],
+                t2c=row["t2c"],
+                t2l=row["t2l"],
+                t3c=row["t3c"],
+                t3l=row["t3l"],
+                t1c=row["t1c"],
+                t1l=row["t1l"],
+                rebotesDef=row["rebotes_def"],
+                rebotesOf=row["rebotes_of"],
+                asistencias=row["asistencias"],
+                recuperos=row["recuperos"],
+                perdidas=row["perdidas"],
+                taponesRecibidos=row["tapones_recibidos"],
+                taponesRealizados=row["tapones_realizados"],
+                faltasRecibidas=row["faltas_recibidas"],
+                faltasCometidas=row["faltas_cometidas"],
+            )
+            for row in cursor.fetchall()
+        ]
+
+    def lideres_por_club(self, id_club: int, limite: int) -> list[LiderClub]:
+        """
+        Devuelve los jugadores del club ordenados por promedio de puntos, desde `v_lideres_club` (US-113).
+
+        Args:
+            id_club (int): ID del club.
+            limite (int): Cuantos jugadores devolver como maximo.
+
+        Returns:
+            list[LiderClub]: Jugadores con al menos un partido en el club (lista vacia si no hay).
+        """
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT id_jugador, nombre_jugador, partidos_jugados, puntos_promedio, rebotes_promedio,
+                   asistencias_promedio
+            FROM v_lideres_club
+            WHERE id_club = ?
+            ORDER BY puntos_promedio DESC, nombre_jugador
+            LIMIT ?;
+            """,
+            (id_club, limite),
+        )
+        return [
+            LiderClub(
+                idJugador=row["id_jugador"],
+                nombreJugador=row["nombre_jugador"],
+                partidosJugados=row["partidos_jugados"],
+                puntosPromedio=float(row["puntos_promedio"]),
+                rebotesPromedio=float(row["rebotes_promedio"]),
+                asistenciasPromedio=float(row["asistencias_promedio"]),
             )
             for row in cursor.fetchall()
         ]

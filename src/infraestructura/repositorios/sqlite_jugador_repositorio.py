@@ -1,7 +1,7 @@
 import sqlite3
 
 from dominio.entidades.club import Club
-from dominio.entidades.jugador import Jugador, JugadorClub
+from dominio.entidades.jugador import Jugador, JugadorClub, JugadorConClub
 from dominio.exceptions import VinculoActivoExistenteError
 from dominio.repositorios.jugador_repositorio import JugadorRepositorio
 from infraestructura.logger import get_logger
@@ -339,3 +339,23 @@ class SqliteJugadorRepositorio(JugadorRepositorio):
         except TypeError as e:
             logger.critical(f"""Vinculo cerrado pero no se pudo reconstruir el objeto de retorno: {e}""")
             raise
+
+    def listar_con_club_actual(self) -> list[JugadorConClub]:
+        """
+        Lista todos los jugadores de la base con el nombre de su club vigente.
+
+        Returns:
+            list[JugadorConClub]: Ordenados por apellido y nombre. `nombreClub` es None si el jugador
+                no tiene un vinculo abierto (fechaHasta NULL).
+        """
+        cursor = self.conexion.cursor()
+        cursor.execute(
+            """
+            SELECT j.idJugador, j.nombre, j.apellido, j.anioNacimiento, c.nombre AS nombre_club
+            FROM jugador AS j
+            LEFT JOIN jugadorClub AS jc ON jc.idJugador = j.idJugador AND jc.fechaHasta IS NULL
+            LEFT JOIN club AS c ON c.idClub = jc.idClub
+            ORDER BY j.apellido, j.nombre;
+            """
+        )
+        return [JugadorConClub(self._row_to_entity(row), row["nombre_club"]) for row in cursor.fetchall()]
