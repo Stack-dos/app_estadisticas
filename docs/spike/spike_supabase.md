@@ -7,7 +7,7 @@
 | Rama sugerida   | `spike/sync-supabase`                                                              |
 | Timebox         | 2–3 días de trabajo. Si se pasa, se corta y se documenta lo aprendido.             |
 | Relacionado con | ADR-001 (Local-First), NFR-6 (Offline), Hito 5 del roadmap (sección 16)            |
-| Entregable      | Este documento completado + borrador de `docs/adr/ADR-010-sincronizacion-cloud.md` |
+| Entregable      | Resultados de este spike y actualización de `docs/adr/ADR-012-sincronizacion-local-first.md` |
 
 ---
 
@@ -53,32 +53,34 @@ real del Hito 5.
  │ la app lee/escribe │                                   │ la app lee/escribe │
  │ SIEMPRE acá        │                                   │ SIEMPRE acá        │
  │                    │   push (cuando hay red)           │                    │
- │ tabla outbox ──────┼──────────►  ┌──────────┐  ◄───────┼── tabla outbox     │
+ │ sync_outbox ───────┼──────────►  ┌──────────┐  ◄───────┼── sync_outbox      │
  │                    │             │ Supabase │          │                    │
  │ pull ◄─────────────┼──────────── │ Postgres │ ─────────┼──► pull            │
  └────────────────────┘             └──────────┘          └────────────────────┘
 ```
 
 1. **Escritura local:** cada alta/modificación/baja se guarda en SQLite y, en la misma
-   transacción, se agrega una fila a la tabla `outbox` ("cambios pendientes de subir").
-2. **Push:** cuando hay conexión, se suben las filas pendientes del `outbox` a Supabase (upsert)
+   transacción, se agrega una fila a `sync_outbox` ("cambios pendientes de subir").
+2. **Push:** cuando hay conexión, se suben las filas pendientes de `sync_outbox` a Supabase (upsert)
    y se marcan como enviadas.
 3. **Pull:** se piden a Supabase los registros con `updated_at` mayor al último pull exitoso
    (guardado en una tabla `sync_estado`) y se aplican localmente.
 4. **Conflictos:** _last-write-wins_ por `updated_at`. En este dominio un partido lo carga una
-   sola persona, así que los conflictos reales deberían ser rarísimos.
+   sola persona, así que los conflictos reales deberían ser rarísimos. Es una hipótesis del spike,
+   no una política aprobada: los relojes locales pueden estar desincronizados.
 
 ### Cambios de esquema que exige
 
 | Cambio                                                | Por qué                                                              | Costo si se hace tarde                                                  |
 | ----------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **PK UUID** (texto) en vez de `INTEGER AUTOINCREMENT` | Dos dispositivos offline generarían el mismo `idPartido = 5`         | **Alto**: hay que reescribir todas las FKs con datos reales de usuarios |
+| **`sync_id` UUID** adicional a la PK local | Dos dispositivos offline pueden tener el mismo ID entero local       | Bajo para las PK/FK actuales; requiere backfill de metadatos |
 | Columna `updated_at` (ISO-8601 UTC)                   | Saber qué cambió desde el último pull y resolver conflictos          | Medio                                                                   |
 | Borrado lógico `deleted_at`                           | Un `DELETE` físico no se puede sincronizar (no queda nada que subir) | Medio                                                                   |
-| Tablas `outbox` y `sync_estado`                       | Cola de cambios pendientes y marca del último pull                   | Bajo (son nuevas)                                                       |
+| Tablas `sync_outbox` y `sync_estado`                  | Cola de cambios pendientes y marca del último pull                   | Bajo (son nuevas)                                                       |
 
-> `jugadorPartido` ya tiene PK compuesta `(idJugador, idPartido)`: si esas dos son UUID, la PK
-> compuesta sirve tal cual.
+> La decisión de preparación es conservar las PK locales y agregar `sync_id` UUID. En la tabla
+> remota, las columnas UUID identifican esos `sync_id`; el spike debe probar el mapeo sin convertir
+> las PK locales ni reconstruir sus FK.
 
 ## 4. Preparación del entorno
 
@@ -131,7 +133,7 @@ En **SQL Editor** de Supabase, ejecutar `spike/sql/remoto.sql`:
 
 ```sql
 CREATE TABLE partido (
-    id_partido        uuid PRIMARY KEY,
+    id_partido        uuid PRIMARY KEY, -- sync_id local del partido
     fecha             date NOT NULL,
     estadio           text,
     id_club_local     uuid NOT NULL,
@@ -142,7 +144,7 @@ CREATE TABLE partido (
 );
 
 CREATE TABLE jugador_partido (
-    id_jugador      uuid NOT NULL,
+    id_jugador      uuid NOT NULL,       -- sync_id local del jugador
     id_partido      uuid NOT NULL REFERENCES partido (id_partido),
     id_club         uuid NOT NULL,
     minutos_jugados real NOT NULL DEFAULT 0,
@@ -170,11 +172,12 @@ Alcanza para probar el mecanismo; el esquema completo es trabajo del Hito 5.
 
 ### Paso 2 — Esquema local (SQLite)
 
-`spike/sql/local.sql`: las mismas dos tablas en SQLite (`STRICT`, PK `text` con UUID,
-`updated_at text`, `deleted_at text NULL`) más las de sincronización:
+`spike/sql/local.sql`: las tablas de prueba en SQLite, conservando el tipo/PK local y agregando
+`sync_id text UNIQUE NOT NULL`, `updated_at text` y `deleted_at text NULL`, más las tablas de
+sincronización:
 
 ```sql
-CREATE TABLE outbox (
+CREATE TABLE sync_outbox (
     id          integer PRIMARY KEY AUTOINCREMENT,  -- local, nunca se sincroniza
     tabla       text NOT NULL,                      -- 'partido' | 'jugador_partido'
     pk          text NOT NULL,                      -- JSON con la PK del registro
@@ -188,7 +191,7 @@ CREATE TABLE sync_estado (
 ) STRICT;
 ```
 
-El `outbox` guarda **qué** cambió, no el contenido: al hacer push se lee la fila actual de la
+`sync_outbox` guarda **qué** cambió, no el contenido: al hacer push se lee la fila actual de la
 tabla, así varias ediciones seguidas del mismo partido se suben una sola vez.
 
 ### Paso 3 — Escritura local con outbox
@@ -196,9 +199,9 @@ tabla, así varias ediciones seguidas del mismo partido se suben una sola vez.
 `spike/local.py`: funciones `crear_partido(...)`, `cargar_estadistica(...)`,
 `borrar_partido(...)` que:
 
-1. Generan `uuid.uuid4()` como PK.
+1. Generan `uuid.uuid4()` como `sync_id`; la PK SQLite local no cambia.
 2. Setean `updated_at = datetime.now(UTC).isoformat()`.
-3. En **una misma transacción** escriben la tabla y agregan la fila al `outbox` (mismo criterio
+3. En **una misma transacción** escriben la tabla y agregan la fila a `sync_outbox` (mismo criterio
    que la carga atómica de US-106: o entra todo o nada).
 4. `borrar_partido` hace `UPDATE ... SET deleted_at = ?, updated_at = ?`, nunca `DELETE`.
 
@@ -206,7 +209,7 @@ tabla, así varias ediciones seguidas del mismo partido se suben una sola vez.
 
 `spike/sync.py → push(conn_local, conn_remota)`:
 
-1. Leer `outbox WHERE enviado_en IS NULL` ordenado por `id`.
+1. Leer `sync_outbox WHERE enviado_en IS NULL` ordenado por `id`.
 2. Para cada PK, leer la fila actual local y hacer en Postgres:
 
    ```sql
@@ -216,7 +219,7 @@ tabla, así varias ediciones seguidas del mismo partido se suben una sola vez.
    ```
 
 3. Subir `partido` antes que `jugador_partido` (por la FK remota).
-4. Recién después del `COMMIT` remoto, marcar `enviado_en` en el outbox local. Si se corta la red
+4. Recién después del `COMMIT` remoto, marcar `enviado_en` en `sync_outbox`. Si se corta la red
    en el medio, se reintenta: el upsert es **idempotente**.
 
 ### Paso 5 — Pull
@@ -225,12 +228,16 @@ tabla, así varias ediciones seguidas del mismo partido se suben una sola vez.
 
 1. Leer `ultimo_pull` de `sync_estado` (o `1970-01-01` la primera vez).
 2. `SELECT * FROM partido WHERE updated_at > %s`, idem `jugador_partido`.
-3. Aplicar localmente con `INSERT ... ON CONFLICT DO UPDATE ... WHERE excluded.updated_at > updated_at`
-   (SQLite soporta upsert desde 3.24).
+3. Resolver el `sync_id` remoto a la identidad local y aplicar con `INSERT ... ON CONFLICT
+   (sync_id) DO UPDATE ...` (SQLite soporta upsert desde 3.24), conservando el ID entero local.
 4. Guardar como nuevo `ultimo_pull` el **máximo `updated_at` recibido** (no la hora local, para
    no depender de relojes desincronizados entre dispositivo y servidor).
 
 > **Orden recomendado:** primero `push`, después `pull`.
+>
+> **Hipótesis por validar:** filtrar solo con `updated_at > ultimo_pull` puede perder filas con
+> timestamps empatados o cambios concurrentes durante la paginación. El spike debe probar ese caso
+> y no considerar el timestamp local como cursor definitivo sin demostrar que no hay pérdidas.
 
 ### Paso 6 — Script de escenarios
 
@@ -260,7 +267,7 @@ Sin implementarlo, bocetar en el ADR cómo quedaría en el proyecto real:
 
 - **Puerto** en dominio/aplicación: `SincronizadorPort` con `sincronizar() -> ResultadoSync`.
 - **Adaptador** en `src/infraestructura/sync/supabase_sincronizador.py`.
-- El outbox se llena desde los repositorios SQLite existentes (o con triggers SQLite, alternativa
+- `sync_outbox` se llena desde los repositorios SQLite existentes (o con triggers SQLite, alternativa
   a evaluar: menos código Python, pero lógica escondida en la base).
 - El caso de uso no sabe que existe Supabase: si mañana se cambia por FastAPI + Postgres, solo
   cambia el adaptador.
@@ -271,11 +278,11 @@ Sin implementarlo, bocetar en el ADR cómo quedaría en el proyecto real:
 | --- | ------------------------------------------------------------------------- | ------------------------------------------------------- |
 | E1  | Celu crea partido + 10 estadísticas offline → push → PC hace pull         | PC tiene el partido y las 10 filas, con los mismos UUID |
 | E2  | Celu y PC crean partidos distintos offline → ambos sincronizan            | Ambos tienen los 2 partidos, sin choque de IDs          |
-| E3  | Se corta la red a mitad del push (simular con excepción) → reintento      | Sin duplicados ni pérdidas; outbox vacío al final       |
+| E3  | Se corta la red a mitad del push (simular con excepción) → reintento      | Sin duplicados ni pérdidas; sync_outbox vacío al final  |
 | E4  | Mismo partido editado en celu (10:00) y en PC (10:05) → ambos sincronizan | Gana la edición de las 10:05 en los dos dispositivos    |
 | E5  | Celu borra un partido → sincroniza → PC hace pull                         | En PC queda con `deleted_at` y las consultas lo ocultan |
 | E6  | Push/pull ejecutados dos veces seguidas sin cambios                       | No se modifica nada (idempotencia)                      |
-| E7  | Sin red, la app sigue creando y consultando datos                         | Funciona igual (NFR-6), solo crece el outbox            |
+| E7  | Sin red, la app sigue creando y consultando datos                         | Funciona igual (NFR-6), solo crece sync_outbox          |
 
 **El spike es exitoso si pasan E1–E7.** Si E3 o E4 no se pueden resolver de forma simple, es una
 señal fuerte para evaluar PowerSync/ElectricSQL o postergar.
@@ -306,8 +313,8 @@ Limitaciones del plan Free que sí importan para producción:
 
 ## 9. Riesgos conocidos
 
-- **Migración de IDs a UUID:** es el cambio más invasivo y toca todo el Hito 1. Conviene decidirlo
-  antes de tener usuarios reales, aunque la sync se implemente en el Hito 5.
+- **Identidad entre dispositivos:** el spike prueba UUID `sync_id` aparte de las PK locales (ADR-012);
+  el backfill de metadatos debe conservar PK, FK y datos de negocio de v1.0.0.
 - **Relojes desincronizados:** _last-write-wins_ depende de `updated_at`; un dispositivo con la
   hora mal puede "ganar" siempre. Mitigación posible: que el servidor estampe la hora en el push.
 - **Seguridad:** sin RLS, cualquiera con la cadena de conexión ve todo. En el spike no importa
@@ -339,10 +346,11 @@ validarlo con una pregunta en la próxima encuesta a DTs antes de programar el c
 - [ ] Código en `spike/` (rama `spike/sync-supabase`, **no se mergea a `main`**).
 - [ ] Tabla de la sección 6 completada con ✅/❌ y observaciones.
 - [ ] Números reales de espacio (Paso 7).
-- [ ] Borrador de `docs/adr/ADR-010-sincronizacion-cloud.md` con la plantilla canónica
-      (Contexto → Alternativas → Decisión → Ventajas y Desventajas).
-- [ ] Decisión explícita sobre **UUIDs en el esquema actual** (adoptar ya o no).
-- [ ] Actualizar el plan (`docs/plan_desarrollo_detallado.md`, secciones 8, 16 y 18) con el ADR-010.
+- [ ] Completar los escenarios E1–E7, medición de espacio y evaluación de seguridad; registrar qué
+      hipótesis quedan confirmadas o descartadas en ADR-012.
+- [ ] Validar el mapeo `sync_id` UUID ↔ PK local existente sin cambiar las PK/FK de SQLite.
+- [ ] Actualizar el plan (`docs/plan_desarrollo_detallado.md`, secciones 8, 16 y 18) con los
+      resultados y cualquier decisión de proveedor/protocolo pendiente de Hito 5.
 
 ## 12. Resultados
 

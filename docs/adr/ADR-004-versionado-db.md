@@ -1,65 +1,63 @@
 # ADR-004: Versionado de Esquema de Base de Datos
 
-- **Estado**: Pendiente — ver pregunta abierta antes de cerrarlo
-- **Fecha**: 2026-10-03
+- **Estado**: Aprobado
+- **Fecha**: 2026-11-28
 
 ## Contexto
 
-La US-204 (Hito 2) pide que el esquema de la base evolucione entre versiones sin perder datos: un
-mecanismo que aplique cambios de esquema en orden, sepa qué versión está instalada
-(`schema_version`) y, en lo posible, permita volver atrás. Hoy el esquema completo vive en un
-único archivo (`src/infraestructura/persistencia/sql/schema.sql`), sin ningún versionado — cada
-arranque de la aplicación simplemente ejecuta ese archivo contra la base.
+Desde la v1.0.0 hay instalaciones con datos reales en `~/.statspro/`. La aplicación debe poder
+agregar cambios de esquema sin borrar ni alterar esos datos. Hoy los repositorios trabajan
+directamente con `sqlite3.Connection` y SQL; el proyecto no usa ORM ni modelos de SQLAlchemy.
 
-**Dato técnico relevante para esta decisión:** el proyecto no usa ningún ORM. Los 5 repositorios
-(`src/infraestructura/repositorios/`) trabajan directo contra `sqlite3.Connection` con SQL crudo
-— no hay modelos de SQLAlchemy en ningún lado del código. Esto importa porque **Alembic está
-construido sobre SQLAlchemy** y su funcionalidad más fuerte (`alembic revision --autogenerate`,
-que compara modelos ORM contra la base y genera el script de migración solo) requiere justamente
-esos modelos que este proyecto no tiene. Usar Alembic acá significaría agregar SQLAlchemy como
-dependencia nueva, y usarlo solo en su modo "offline" de scripts SQL escritos a mano — sin la
-feature que más lo diferencia de escribir los scripts a mano directamente.
+La aplicación de escritorio ejecuta su punto de entrada en Python y se distribuye con `flet build`.
+Las migraciones deben poder ejecutarse desde el arranque de la app, sin depender de que el usuario
+tenga una CLI instalada ni de iniciar un proceso externo.
 
 ## Alternativas Consideradas
 
-- **Alembic:** herramienta de migraciones estándar del ecosistema Python/SQLAlchemy. Provee un
-  runner maduro (`upgrade`/`downgrade`), un historial de migraciones versionado automáticamente,
-  y comandos CLI propios (`alembic upgrade head`). En este proyecto, al no haber modelos
-  SQLAlchemy, se usaría en modo scripts SQL manuales — pierde la ventaja de autogeneración, pero
-  conserva el runner y las convenciones de nomenclatura/versionado ya resueltas y probadas por
-  una herramienta externa en vez de mantenidas a mano.
-- **Migraciones manuales con runner propio:** scripts `NNN_descripcion.sql` versionados a mano
-  (ya descritos en el listado de archivos de la US-204: `001_init.sql`, `002_*.sql`,
-  `migration_runner.py`), con una tabla `schema_version` que el propio runner actualiza. Cero
-  dependencias nuevas, consistente con el resto del proyecto (sin ORM), pero el runner (aplicar en
-  orden, detectar pendientes, bloquear si hay incompatibilidad) hay que escribirlo y mantenerlo
-  nosotros.
+- **yoyo-migrations:** biblioteca Python con API programática y CLI. Permite mantener migraciones
+  SQL y ejecutarlas desde el código de la aplicación. Añade una dependencia, pero evita implementar
+  y mantener un runner propio.
+- **Alembic:** runner maduro del ecosistema Python, pero su integración principal depende de
+  SQLAlchemy. Sin modelos ORM no se aprovecharía la autogeneración y se sumaría una dependencia
+  que el proyecto no necesita.
+- **Runner manual propio:** no agrega dependencias, pero obliga a implementar y mantener detección
+  de pendientes, orden, bloqueo, registro de versiones y aplicación segura de migraciones.
 
 ## Decisión Tomada
 
-**Todavía no se toma** — ver la pregunta abierta.
+Se elige **yoyo-migrations** y se invoca mediante su API Python desde la infraestructura de
+persistencia. La CLI queda disponible para desarrollo y mantenimiento; la aplicación de escritorio
+no la invoca como subproceso. La dependencia y los archivos SQL deben estar disponibles en el
+artefacto generado por `flet build`, lo cual se verifica en la US-204.
 
-## Pregunta abierta (a resolver entre nosotros antes de cerrar este ADR)
+La primera migración es una copia exacta del `schema.sql` de v1.0.0. En una base nueva se ejecuta;
+en una base existente de v1.0.0 se reconoce el esquema y se marca la migración base como aplicada
+sin ejecutarla. Las migraciones posteriores se aplican al arrancar antes de construir repositorios
+y vistas que dependan del nuevo esquema.
 
-> El punto central a decidir es: **¿vale la pena agregar SQLAlchemy como dependencia nueva solo
-> para tener el runner de Alembic, sabiendo que no se va a usar su autogeneración (no hay ORM en
-> el resto del proyecto) y que de todos modos los scripts SQL se van a escribir a mano?**
->
-> - Si la respuesta es que el runner maduro + el historial versionado de Alembic justifican la
->   dependencia nueva aunque sea en modo manual, se elige Alembic.
-> - Si la respuesta es que no vale la pena una dependencia nueva (y el stack de SQLAlchemy que
->   trae) para un runner que de todos modos no vamos a aprovechar al máximo, se elige el runner
->   propio — es más trabajo inicial (hay que escribirlo), pero es más chico y más consistente con
->   "sin ORM en ningún lado" que ya es la convención establecida del proyecto.
->
-> **Sobre el alcance del rollback (AC3 de la US-204), ya resuelto independientemente de esta
-> pregunta:** SQLite tiene soporte muy limitado para deshacer cambios de esquema (no se puede
-> borrar una columna con `ALTER TABLE` en versiones viejas; hay que recrear la tabla entera). El
-> rollback real (`down`) solo se escribe a mano cuando el cambio lo permite de forma simple (ej.
-> agregar/quitar una fila de seed, agregar una columna con default). Para cambios de estructura
-> complejos, la única forma real de "volver atrás" es restaurar un backup completo (ver ADR-008)
-> — no un `down` por migración. Esto aplica igual eligiendo Alembic o un runner propio.
+Las migraciones son inmutables una vez incorporadas a `main`. Se permiten cambios aditivos y
+backfills explícitos de metadatos técnicos cuando una historia aprobada los requiera; no se
+actualizan ni eliminan datos de negocio. Un fallo detiene el arranque, se registra y se informa:
+la app no debe continuar con una base parcialmente migrada. El backup anterior a migraciones queda
+en US-208 / ADR-008.
 
 ## Ventajas y Desventajas
 
-_Pendiente — depende de la decisión final, ver la pregunta abierta arriba._
+### Ventajas
+
+- El runner y el registro de migraciones son responsabilidad de una biblioteca probada, no código
+  propio.
+- Las migraciones siguen siendo archivos revisables y versionados, alineados con el uso actual de
+  SQL crudo.
+- La API Python permite migrar durante el arranque de la app empaquetada sin requerir Node,
+  SQLAlchemy ni una CLI externa.
+- El baseline protege las bases existentes de v1.0.0 y permite crear bases nuevas desde cero.
+
+### Desventajas
+
+- Se agrega una dependencia que debe incluirse y probarse en el empaquetado de Flet.
+- La detección del baseline y los backfills requieren pruebas específicas; no se debe asumir que
+  cualquier base con tablas es una instalación válida de v1.0.0.
+- SQLite limita los rollbacks de cambios estructurales. Las migraciones `down` solo se usan cuando
+  son seguras; ante cambios complejos se restaura un backup completo (ADR-008).
