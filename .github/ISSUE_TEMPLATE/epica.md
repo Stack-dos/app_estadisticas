@@ -1,8 +1,8 @@
 ---
 name: Épica
 about: Plantilla para definir una Épica dentro de un Hito
-title: "[Épica] - "
-labels: epic
+title: "[HN-EM] "
+labels: epica
 assignees: ""
 ---
 

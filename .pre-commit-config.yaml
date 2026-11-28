@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Ruff se ejecuta con "uv run" desde el entorno del proyecto (repo local, sin "rev"):
+  # asi usa SIEMPRE la version fijada en pyproject.toml / uv.lock, la misma del CI.
+  # Requiere tener uv instalado (ver RUNBOOK.md). Al subir ruff en pyproject.toml,
+  # pre-commit se actualiza solo: no hay ninguna version que cambiar aca.
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --locked ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --locked ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      # Revisa los workflows de GitHub Actions (US-109 AC12). Misma idea que ruff: la version sale de uv.lock.
+      - id: actionlint
+        name: actionlint
+        entry: uv run --locked actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+        require_serial: true

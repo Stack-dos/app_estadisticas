@@ -1,0 +1,117 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "statspro-basketball"
+version = "1.0.0"
+description = "Aplicación de estadísticas de básquet, ejecución local (offline-first)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flet[desktop]==1.1.2",
+    "pandas==3.0.6",
+]
+
+# Comando "statspro" al instalar el paquete (por ahora: uv tool install --editable .)
+[project.scripts]
+statspro = "main:main"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.16.8",
+    "mypy==2.3.1",
+    "pre-commit>=4.6.2",
+    "actionlint-py==1.7.12.25",
+    # Resumen de la PR en el CI: cobertura de las lineas cambiadas y benchmarks (ver benchmarks/)
+    "diff-cover==11.0.4",
+    "pytest-benchmark==5.3.1",
+]
+
+# Empaquetado con "flet build windows|linux" (US-109). La version del paquete sale de [project].version
+# y la descripcion de [project].description.
+[tool.flet]
+product = "StatsPro"             # nombre visible (ventana, menu Inicio)
+artifact = "StatsPro"            # nombre del ejecutable: StatsPro.exe
+org = "ar.statspro"              # prefijo del identificador del paquete (ar.statspro.statspro-basketball)
+company = "StatsPro"
+copyright = "Copyright (C) 2026: Nicolas Piñera - Marcos Battigane"
+
+[tool.flet.app]
+path = "src"                     # donde esta main.py; flet build toma tambien src/assets/
+# Lo deja "uv run" al instalar el proyecto en src/; no es parte de la app
+exclude = ["statspro_basketball.egg-info"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = true
+
+[tool.ruff]
+line-length = 120
+# docs/ son guias en Markdown: ruff no las revisa ni las formatea
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+# Unica fuente de reglas: el CI, pre-commit y el Makefile corren "ruff check" sin --select.
+# E/W: estilo (pycodestyle) · F: errores reales (pyflakes) · I: orden de imports · B: bugs comunes (bugbear)
+# UP: sintaxis moderna de Python · SIM: simplificaciones · C4: comprensiones · RUF: reglas propias de ruff
+# S: seguridad (las reglas de Bandit, SAST; US-109 AC13)
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "RUF", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# En los tests, assert es la herramienta (S101) y las contraseñas son datos de prueba (S105/S106)
+"tests/**" = ["S101", "S105", "S106"]
+# Scripts del CI: llaman a gh/git sin shell, y a los argumentos solo llegan numeros y "US-NNN" sacados con regex
+".github/scripts/**" = ["S603", "S607"]
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 72
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+strict = true
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+# pythonpath = src: los tests importan dominio, aplicacion... directo
+pythonpath = ["src"]
+testpaths = ["tests"]
+# Los benchmarks (tests/benchmarks/) no corren con la suite normal: son lentos y su resultado depende de la maquina.
+# Se corren aparte con "-m benchmark" (el ultimo -m gana): ver RUNBOOK.md y el job "benchmark" del CI.
+addopts = ["-m", "not benchmark"]
+log_cli = true
+log_cli_level = "INFO"
+
+[tool.coverage.run]
+source = ["src/"]
+branch = true
+omit = [
+    "tests/*",
+    "venv/*",
+    "setup.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+# Piso base (local, Windows y Docker). El job de Linux del CI exige mas: ver
+# "cobertura-minima" en .github/actions/coverage/linux/action.yml
+fail_under = 60
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "reportes_cobertura/html/"

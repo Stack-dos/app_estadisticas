@@ -1,0 +1,48 @@
+name: "MyPy"
+description: "Verificacion de tipos estaticos para Python"
+
+inputs:
+  python-version:
+    description: "Version de Python contra la que se chequean los tipos (ej. 3.12)"
+    required: false
+    default: "3.12"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Instalar uv y Python ${{ inputs.python-version }}
+      uses: astral-sh/setup-uv@v10.1.0
+      with:
+        python-version: ${{ inputs.python-version }}
+        enable-cache: true
+
+    # Se instala todo el proyecto: mypy necesita las dependencias para resolver sus imports.
+    # La version de mypy sale de pyproject.toml / uv.lock.
+    - name: Instalar dependencias (mypy en la version fijada en el proyecto)
+      shell: bash
+      run: uv sync --locked
+
+    # --python-version pisa el "python_version" de pyproject.toml: los tipos se chequean
+    # contra la version de Python de esta corrida.
+    # El "problem matcher" es un regex que GitHub aplica a la salida del paso: cada linea que coincide
+    # ("archivo.py:12: error: ...") se convierte en una anotacion sobre esa linea del diff de la PR.
+    # tee: la misma salida queda en un archivo para el resumen de la PR (pipefail: el paso sigue fallando si mypy falla).
+    - name: Ejecutar mypy
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+        MATCHER: ${{ github.action_path }}/mypy-matcher.json
+      run: |
+        echo "::add-matcher::$MATCHER"
+        mkdir -p resultados-mypy
+        uv run --no-sync mypy src/ --strict --explicit-package-bases --python-version "$PYTHON_VERSION" \
+          | tee resultados-mypy/mypy.txt
+
+    - name: Guardar resultados para el resumen de la PR
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: resultados-mypy
+        path: resultados-mypy/
+        if-no-files-found: warn
+        retention-days: 14

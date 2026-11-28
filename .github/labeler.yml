@@ -1,0 +1,34 @@
+# Labels por carpeta para actions/labeler (workflow PRMeta). Un label se pone si ALGUN archivo de la PR coincide.
+
+"capa:dominio":
+  - changed-files:
+      - any-glob-to-any-file: "src/dominio/**"
+
+"capa:aplicacion":
+  - changed-files:
+      - any-glob-to-any-file: "src/aplicacion/**"
+
+# Infraestructura sin la UI: algun archivo que este en infraestructura/ y NO en infraestructura/ui/
+"capa:infraestructura":
+  - changed-files:
+      - all-globs-to-any-file: ["src/infraestructura/**", "!src/infraestructura/ui/**"]
+
+"capa:ui":
+  - changed-files:
+      - any-glob-to-any-file: "src/infraestructura/ui/**"
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: "tests/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: [".github/**", "Makefile", ".pre-commit-config.yaml"]
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "*.md"]
+
+dependencias:
+  - changed-files:
+      - any-glob-to-any-file: ["pyproject.toml", "uv.lock", "Dockerfile*"]

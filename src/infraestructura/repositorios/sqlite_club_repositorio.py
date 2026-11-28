@@ -1,0 +1,278 @@
+import sqlite3
+
+from dominio.entidades.club import Club, UsuarioClub
+from dominio.repositorios.club_repositorio import ClubRepositorio
+from infraestructura.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class SqliteClubRepositorio(ClubRepositorio):
+    def __init__(self, conexion: sqlite3.Connection):
+        """Inicializa el repositorio de clubes con una conexión a la base de datos.
+
+        Args:
+            conexion (sqlite3.Connection): Conexión a la base de datos SQLite.
+
+        """
+        self.conexion = conexion
+
+    def _row_to_entity_Club(self, row: sqlite3.Row) -> Club:
+        """Convierte una fila de la base de datos en una entidad Club.
+
+        Args:
+            row (sqlite3.Row): Fila de la base de datos que representa un club.
+
+        Returns:
+            Club: Entidad Club construida a partir de la fila.
+        """
+        return Club(
+            idClub=row["idClub"],
+            nombre=row["nombre"],
+        )
+
+    def _row_to_entity_UsuarioClub(self, row: sqlite3.Row) -> UsuarioClub:
+        """Convierte una fila de la base de datos en una entidad UsuarioClub.
+
+        Args:
+            row (sqlite3.Row): Fila de la base de datos que representa un usuario en un club.
+
+        Returns:
+            UsuarioClub: Entidad UsuarioClub construida a partir de la fila.
+        """
+        return UsuarioClub(
+            idClub=row["idClub"],
+            idUsuario=row["idUsuario"],
+            rol=row["rolEntrenador"],
+        )
+
+    def buscar_por_id_usuario(self, id_usuario: int) -> list[Club] | None:
+        """Funcion que se encarga de buscar los clubes a los que pertenece un usuario
+
+        Args:
+            id_usuario (int): ID del usuario para el cual se buscan los clubes.
+
+        Returns:
+            list[Club] | None: Lista de clubes a los que pertenece el usuario o None si no se encuentra ninguno.
+        """
+        cursor = self.conexion.cursor()
+
+        query = """
+        SELECT c.idClub,c.nombre FROM club c
+        JOIN usuarioClub uc ON c.idClub = uc.idClub
+        WHERE uc.idUsuario = ?;
+        """
+        cursor.execute(query, (id_usuario,))
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+
+        lista_clubes = []
+        for r in rows:
+            aux = self._row_to_entity_Club(r)
+            lista_clubes.append(aux)
+        return lista_clubes
+
+    def buscar_por_id(self, id_club: int) -> Club | None:
+        """Funcion que se encarga de buscar un club por su ID en la base de datos.
+
+        Args:
+            id_club (int): ID del club que se desea buscar.
+
+        Returns:
+            Club | None: Entidad Club correspondiente al ID proporcionado o None si no se encuentra.
+        """
+        cursor = self.conexion.cursor()
+
+        query = "SELECT * FROM club WHERE idClub = ?;"
+        cursor.execute(query, (id_club,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_entity_Club(row)
+
+    def buscar_por_nombre(self, nombre: str) -> list[Club] | None:
+        """Funcion que se encarga de buscar clubes por su nombre en la base de datos.
+
+        Args:
+            nombre (str): Nombre del club que se desea buscar.
+
+        Returns:
+            list[Club] | None: Lista de clubes que coinciden con el nombre proporcionado
+            o None si no se encuentra ninguno.
+        """
+        cursor = self.conexion.cursor()
+
+        query = "SELECT * FROM club WHERE nombre LIKE ?;"
+        cursor.execute(query, (f"%{nombre}%",))
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+        resultados = []
+        for r in rows:
+            aux = self._row_to_entity_Club(r)
+            resultados.append(aux)
+        return resultados
+
+    def listar_todos(self) -> list[Club]:
+        """Lista todos los clubes registrados en la base de datos, ordenados por nombre.
+
+        Returns:
+            list[Club]: Lista de todos los clubes (vacia si no hay ninguno).
+        """
+        cursor = self.conexion.cursor()
+        cursor.execute("SELECT idClub, nombre FROM club ORDER BY nombre;")
+        return [self._row_to_entity_Club(row) for row in cursor.fetchall()]
+
+    def guardar(self, club: Club) -> Club | None:
+        """Función para guardar un club en la base de datos.
+
+        Args:
+            club (Club): Entidad Club que se desea guardar en la base de datos.
+
+        Returns:
+            Club | None: Entidad Club guardada en la base de datos o None si ocurre un error.
+        """
+        cursor = self.conexion.cursor()
+
+        try:
+            query = "INSERT INTO club (nombre) VALUES (?);"
+            cursor.execute(query, (club.nombre,))
+            self.conexion.commit()
+            id_club = cursor.lastrowid
+        except sqlite3.Error as e:
+            logger.error(f"Error al guardar club: {e}", exc_info=True)
+            return None
+        logger.debug("INSERT club", extra={"evento": "db_insert", "tabla": "club", "id_club": id_club})
+
+        try:
+            return Club(idClub=id_club, nombre=club.nombre)
+        except TypeError as e:
+            logger.critical(f"""Club guardado (id_club={id_club})
+                                pero no se pudo reconstruir el objeto de retorno: {e}""")
+            raise
+
+    def guardar_con_entrenador(self, club: Club, id_usuario: int, rol: str) -> Club | None:
+        """Guarda un club y vincula al usuario como su entrenador en una unica transaccion atomica.
+
+        Utiliza el context manager de sqlite3, que hace COMMIT al salir sin error o ROLLBACK ante
+        cualquier excepcion: si falla el vinculo (por ejemplo, un usuario inexistente, que rechaza la
+        clave foranea), el club tampoco queda guardado (no pueden existir clubes huerfanos, que nadie ve).
+
+        Args:
+            club (Club): Entidad Club a guardar (sin ID).
+            id_usuario (int): ID del usuario que crea el club.
+            rol (str): Rol del usuario en el club (`rolEntrenador`).
+
+        Returns:
+            Club | None: El club guardado con su ID, o None si ocurre un error.
+        """
+        try:
+            with self.conexion:
+                cursor = self.conexion.cursor()
+                cursor.execute("INSERT INTO club (nombre) VALUES (?);", (club.nombre,))
+                id_club = cursor.lastrowid
+                if id_club is None:
+                    raise sqlite3.DatabaseError("SQLite no devolvio el id del club recien insertado")
+                cursor.execute(
+                    "INSERT INTO usuarioClub (idUsuario, idClub, rolEntrenador) VALUES (?, ?, ?);",
+                    (id_usuario, id_club, rol),
+                )
+        except sqlite3.Error as e:
+            logger.error(f"Error al guardar el club con su entrenador: {e}", exc_info=True)
+            return None
+
+        logger.debug("INSERT club + usuarioClub", extra={"evento": "db_insert", "tabla": "club", "id_club": id_club})
+        return Club(idClub=id_club, nombre=club.nombre)
+
+    def link_user_to_club(self, us_club: UsuarioClub) -> UsuarioClub | None:
+        """Funcion para linkear un usuario a un club especifico
+
+        Args:
+            us_club (UsuarioClub): Entidad UsuarioClub que representa la relación entre un usuario y un club.
+
+        Returns:
+            UsuarioClub | None: Entidad UsuarioClub guardada en la base de datos o None si ocurre un error.
+        """
+        cursor = self.conexion.cursor()
+
+        try:
+            query = """
+            SELECT * FROM usuario WHERE idUsuario = ?;
+            """
+            cursor.execute(query, (us_club.idUsuario,))
+            row = cursor.fetchone()
+            if row is None:
+                return None
+
+            query = """
+            SELECT * FROM club WHERE idClub = ?;
+            """
+            cursor.execute(query, (us_club.idClub,))
+            row = cursor.fetchone()
+            if row is None:
+                return None
+
+            query = """
+            INSERT INTO usuarioClub (idUsuario, idClub, rolEntrenador) VALUES (?, ?, ?);
+            """
+            cursor.execute(query, (us_club.idUsuario, us_club.idClub, us_club.rol))
+            self.conexion.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error al linkear club y usuario: {e}", exc_info=True)
+            return None
+
+        try:
+            return UsuarioClub(idUsuario=us_club.idUsuario, idClub=us_club.idClub, rol=us_club.rol)
+        except TypeError as e:
+            logger.critical(f"""Club linkeado pero no se pudo reconstruir el objeto de retorno: {e}""")
+            raise
+
+    def listar_sin_usuario(self) -> list[Club]:
+        """Clubes sin ningun usuario vinculado (los rivales), ordenados por nombre (US-114)."""
+        filas = self.conexion.execute(
+            """
+            SELECT idClub, nombre FROM club c
+            WHERE NOT EXISTS (SELECT 1 FROM usuarioClub u WHERE u.idClub = c.idClub)
+            ORDER BY nombre
+            """
+        ).fetchall()
+        return [self._row_to_entity_Club(f) for f in filas]
+
+    def actualizar(self, club: Club) -> Club | None:
+        """Cambia el nombre del club (US-114).
+
+        Returns:
+            Club | None: El club con el nombre nuevo, o None si no existe o la base lo rechazo (nombre repetido).
+        """
+        try:
+            with self.conexion:
+                cursor = self.conexion.execute(
+                    "UPDATE club SET nombre = ? WHERE idClub = ?", (club.nombre, club.idClub)
+                )
+        except sqlite3.Error as e:
+            logger.error("No se pudo renombrar el club %s: %s", club.idClub, e, exc_info=True)
+            return None
+        return club if cursor.rowcount == 1 else None
+
+    def eliminar(self, id_club: int) -> bool:
+        """Elimina el club; inscripciones, listas y vinculos caen en cascada (US-114)."""
+        try:
+            with self.conexion:
+                cursor = self.conexion.execute("DELETE FROM club WHERE idClub = ?", (id_club,))
+        except sqlite3.Error as e:
+            logger.error("No se pudo eliminar el club %s: %s", id_club, e, exc_info=True)
+            return False
+        return cursor.rowcount == 1
+
+    def tiene_partidos(self, id_club: int) -> bool:
+        fila = self.conexion.execute(
+            "SELECT EXISTS (SELECT 1 FROM partido WHERE idClubLocal = ? OR idClubVisitante = ?)", (id_club, id_club)
+        ).fetchone()
+        return bool(fila[0])
+
+    def tiene_usuarios(self, id_club: int) -> bool:
+        fila = self.conexion.execute(
+            "SELECT EXISTS (SELECT 1 FROM usuarioClub WHERE idClub = ?)", (id_club,)
+        ).fetchone()
+        return bool(fila[0])

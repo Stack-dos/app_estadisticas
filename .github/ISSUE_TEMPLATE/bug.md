@@ -29,10 +29,10 @@ assignees: ""
 
 <!-- Secuencia mínima y exacta para ver el error -->
 
-1. 
-2. 
-3. 
-4. 
+1.
+2.
+3.
+4.
 
 ---
 

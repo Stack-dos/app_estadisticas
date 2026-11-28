@@ -1,8 +1,8 @@
 ---
 name: Hito
 about: Plantilla para el seguimiento de un Hito del proyecto
-title: "[Hito] - "
-labels: milestone
+title: "[HN] Hito N — "
+labels: hito
 assignees: ""
 ---
 
@@ -76,5 +76,5 @@ assignees: ""
 
 <!-- Links a documentación relevante, ADRs, diagramas, etc. -->
 
-- PRD: `PRD/Plan_Requerimientos_Producto_Pro.pdf`
+- PRD: `docs/plan_desarrollo_detallado.md`
 - ADRs relacionados: ADR-00X, ADR-00X

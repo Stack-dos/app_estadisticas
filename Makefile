@@ -1,11 +1,34 @@
-instalar_dependencias_w:
-	@echo "Instalando dependencias para windows..."
-	python -m pip install --upgrade pip;\
-	pip install -r requerimientos.txt
-
-instalar_dependencias_l:
-	@echo "Instalando dependencias para linux..."
+instalar_dependencias:
+	@echo "Instalando dependencias con uv (lee pyproject.toml y uv.lock)..."
+	uv sync
 
 run_test:
 	@echo "Ejecutando test..."
-	pytest --cov
+	uv run pytest -v --cov=src --cov-report=html
+
+run_linter_ruf:
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run actionlint
+
+corregir_linter:
+	uv run ruff check --fix . && uv run ruff format .
+	uv run ruff check .
+
+pre_commit:
+	uvx pre-commit run --all-files
+
+# Version de Python de la imagen Docker. Uso: make docker_test PYTHON_VERSION=3.13
+PYTHON_VERSION ?= 3.12
+
+docker_test:
+	docker build -f Dockerfile.test --build-arg PYTHON_VERSION=$(PYTHON_VERSION) -t app-estadisticas-tests .
+	docker run --rm app-estadisticas-tests
+
+static_check:
+	uv run mypy src/ --strict --explicit-package-bases
+
+# Borrador del CHANGELOG.md: los commits desde la ultima version, en pantalla (el archivo se escribe a mano).
+# Uso, en la rama release/vX.Y.Z: make changelog VERSION=X.Y.Z
+changelog:
+	uvx git-cliff@2.14.2 --unreleased --tag v$(VERSION)
