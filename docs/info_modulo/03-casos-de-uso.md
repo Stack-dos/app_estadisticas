@@ -535,6 +535,7 @@ partido siguiente, «JUAN rival» se reconoce y no se duplica.
 | `ListarClubesRivalesUseCase` | `listar_clubes_rivales.py` | _(nada)_           | `list[ClubDTO]`      | Los clubes sin ningún usuario                                                 |
 | `RenombrarClubUseCase`       | `renombrar_club.py`        | `RenombrarClubDTO` | `ClubDTO \| None`    | Que exista (`ClubNoEncontradoError`), que no sea propio (`ClubEnUsoError`) y que el nombre no lo use otro club (`ClubYaExisteError`) |
 | `EliminarClubUseCase`        | `eliminar_club.py`         | `id_club: int`     | `bool`               | Que no sea propio ni tenga partidos (`ClubEnUsoError`)                        |
+| `ListarJugadoresTodosUseCase` | `listar_jugadores_todos.py` | _(nada)_         | `list[JugadorConClubDTO]` | Nada: todos los jugadores con su club vigente (`None` si no tiene), para «En todos los clubes» |
 
 Ejemplo: al cargar un partido se escribió «Pezca». En «Mis clubes → Clubes rivales» se renombra a
 «Pesca» (aunque ya tenga partidos). Si se hubiera creado sin partidos, también se podría borrar.
@@ -680,6 +681,7 @@ siguientes ya están implementados y testeados; la columna "Pantalla" indica qu�
 | `RenombrarClubUseCase`                  | `ClubesScreen` (US-114)                   | ✅ En la GUI: diálogo «Renombrar club rival»                               |
 | `EliminarClubUseCase`                   | `ClubesScreen` (US-114)                   | ✅ En la GUI: solo rivales sin partidos                                    |
 | `AgregarJugadoresAListaBuenaFeUseCase`  | `InscripcionesScreen` (US-114)            | ✅ También al inscribirse: «Agregar todo el plantel a la lista»            |
+| `ListarJugadoresTodosUseCase`           | `JugadoresScreen` (US-114)                | ✅ En la GUI: «En todos los clubes» y en qué club está un homónimo         |
 
 Cómo abrir la aplicación y qué se puede hacer hoy: [RUNBOOK](../../RUNBOOK.md). Cómo está armada la GUI:
 [13-gui-flet-y-eventos.md](13-gui-flet-y-eventos.md).
