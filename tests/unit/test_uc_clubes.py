@@ -6,11 +6,14 @@ import pytest
 
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_club import ROL_CREADOR, CrearClubUseCase
+from aplicacion.casos_uso.eliminar_club import EliminarClubUseCase
 from aplicacion.casos_uso.listar_clubes import ListarClubesUseCase
+from aplicacion.casos_uso.listar_clubes_rivales import ListarClubesRivalesUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
-from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO
+from aplicacion.casos_uso.renombrar_club import RenombrarClubUseCase
+from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO, RenombrarClubDTO
 from dominio.entidades.club import Club
-from dominio.exceptions import ClubNoEncontradoError, ClubYaExisteError
+from dominio.exceptions import ClubEnUsoError, ClubNoEncontradoError, ClubYaExisteError
 from dominio.repositorios.club_repositorio import ClubRepositorio
 
 
@@ -137,3 +140,71 @@ def test_cambiar_club_activo_sin_acceso_lanza_club_no_encontrado(repo_club, club
 
     with pytest.raises(ClubNoEncontradoError, match=r"idUsuario=10.*idClub=2"):
         CambiarClubActivoUseCase(repo_club).ejecutar(idUsuario=10, idClub=2)
+
+
+# ----------------------------------------------------------------------------- clubes rivales (US-114)
+
+
+def test_listar_rivales_traduce_los_clubes_sin_usuario(repo_club):
+    repo_club.listar_sin_usuario.return_value = [Club("Pesca", idClub=20)]
+
+    assert ListarClubesRivalesUseCase(repo_club).ejecutar() == [ClubDTO(idClub=20, nombre="Pesca")]
+
+
+def test_renombrar_rival_corrige_el_nombre(repo_club):
+    repo_club.buscar_por_id.return_value = Club("Pezca", idClub=20)
+    repo_club.tiene_usuarios.return_value = False
+    repo_club.listar_todos.return_value = [Club("Pezca", idClub=20), Club("Atenas", idClub=1)]
+    repo_club.actualizar.return_value = Club("Pesca", idClub=20)
+
+    resultado = RenombrarClubUseCase(repo_club).ejecutar(RenombrarClubDTO(idClub=20, nombre="  Pesca "))
+
+    assert resultado == ClubDTO(idClub=20, nombre="Pesca")
+    repo_club.actualizar.assert_called_once_with(Club("Pesca", idClub=20))
+
+
+def test_renombrar_rival_se_puede_cambiar_solo_mayusculas_o_tildes(repo_club):
+    """Comparar con el mismo club no es "ya existe": "pesca" -> "Pesca" es una correccion valida."""
+    repo_club.buscar_por_id.return_value = Club("pesca", idClub=20)
+    repo_club.tiene_usuarios.return_value = False
+    repo_club.listar_todos.return_value = [Club("pesca", idClub=20)]
+    repo_club.actualizar.return_value = Club("Pesca", idClub=20)
+
+    assert RenombrarClubUseCase(repo_club).ejecutar(RenombrarClubDTO(idClub=20, nombre="Pesca")) is not None
+
+
+@pytest.mark.parametrize(
+    ("existe", "con_usuarios", "otros", "error"),
+    [
+        (False, False, [], ClubNoEncontradoError),
+        (True, True, [], ClubEnUsoError),
+        (True, False, [Club("Atenas", idClub=1)], ClubYaExisteError),
+    ],
+)
+def test_renombrar_rechaza(repo_club, existe, con_usuarios, otros, error):
+    repo_club.buscar_por_id.return_value = Club("Pezca", idClub=20) if existe else None
+    repo_club.tiene_usuarios.return_value = con_usuarios
+    repo_club.listar_todos.return_value = otros
+
+    with pytest.raises(error):
+        RenombrarClubUseCase(repo_club).ejecutar(RenombrarClubDTO(idClub=20, nombre="atenas"))
+    repo_club.actualizar.assert_not_called()
+
+
+def test_eliminar_rival_sin_partidos(repo_club):
+    repo_club.tiene_usuarios.return_value = False
+    repo_club.tiene_partidos.return_value = False
+    repo_club.eliminar.return_value = True
+
+    assert EliminarClubUseCase(repo_club).ejecutar(20)
+    repo_club.eliminar.assert_called_once_with(20)
+
+
+@pytest.mark.parametrize(("con_usuarios", "con_partidos"), [(True, False), (False, True)])
+def test_eliminar_rival_en_uso_se_rechaza(repo_club, con_usuarios, con_partidos):
+    repo_club.tiene_usuarios.return_value = con_usuarios
+    repo_club.tiene_partidos.return_value = con_partidos
+
+    with pytest.raises(ClubEnUsoError):
+        EliminarClubUseCase(repo_club).ejecutar(20)
+    repo_club.eliminar.assert_not_called()

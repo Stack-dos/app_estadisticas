@@ -357,6 +357,8 @@ def test_view_semantics_and_cardinality():
         "club_local",
         "id_club_visitante",
         "club_visitante",
+        "puntos_local",
+        "puntos_visitante",
     }
     assert len(datos) > 0  # Hay partidos en el seed
 

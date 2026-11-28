@@ -235,3 +235,20 @@ def test_eliminar_jugador_con_partido_o_lista_en_seed_es_rechazado(db_conexion):
         uc.ejecutar(3)
     assert jugador_rep.buscar_por_id(1) is not None
     assert jugador_rep.buscar_por_id(3) is not None
+
+
+def test_listar_con_club_actual_da_el_club_vigente_o_none(db_conexion, crear_jugador):
+    jugador_rep = SqliteJugadorRepositorio(db_conexion)
+    libre = jugador_rep.guardar(crear_jugador(nombre="Zeta", apellido="Zzz"))
+    jugador_rep.link_to_club(JugadorClub("2020-01-01", None, idJugador=libre.idJugador, idClub=1))
+    jugador_rep.cerrar_vinculo(libre.idJugador, "2021-01-01")  # se fue: hoy no tiene club
+    con_club = jugador_rep.guardar(crear_jugador(nombre="Yago", apellido="Zzy"))
+    jugador_rep.link_to_club(JugadorClub("2021-02-01", None, idJugador=con_club.idJugador, idClub=2))
+    nombre_club_2 = db_conexion.execute("SELECT nombre FROM club WHERE idClub = 2").fetchone()[0]
+
+    filas = {f.jugador.idJugador: f.nombreClub for f in jugador_rep.listar_con_club_actual()}
+
+    assert filas[libre.idJugador] is None
+    assert filas[con_club.idJugador] == nombre_club_2
+    # Un jugador aparece una sola vez aunque tenga vinculos cerrados
+    assert len(filas) == db_conexion.execute("SELECT COUNT(*) FROM jugador").fetchone()[0]

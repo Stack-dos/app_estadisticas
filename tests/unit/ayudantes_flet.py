@@ -41,9 +41,15 @@ def campo(vista: ft.View, label: str) -> ft.TextField:
     return next(c for c in controles(vista) if isinstance(c, ft.TextField) and c.label == label)
 
 
-def boton(vista: ft.View, texto: str) -> ft.Button | ft.TextButton:
+def boton(vista: ft.View, texto: str) -> ft.Button | ft.TextButton | ft.OutlinedButton:
     """Busca un boton por su texto en toda la pantalla, incluidas las acciones de la `AppBar`."""
-    return next(c for c in controles(vista) if isinstance(c, ft.Button | ft.TextButton) and c.content == texto)
+    tipos = ft.Button | ft.TextButton | ft.OutlinedButton
+    return next(c for c in controles(vista) if isinstance(c, tipos) and c.content == texto)
+
+
+def botones_icono(raiz: ft.BaseControl, tooltip: str) -> list[ft.IconButton]:
+    """Botones de icono (sin texto) con esa descripcion, p. ej. "Editar" en cada fila de una tabla."""
+    return [c for c in controles(raiz) if isinstance(c, ft.IconButton) and c.tooltip == tooltip]
 
 
 def casilla(vista: ft.View, label: str) -> ft.Checkbox:

@@ -10,18 +10,18 @@ from aplicacion.dtos.auth_dto import UsuarioDTO
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from infraestructura.ui.flet.components.formulario import crear_formulario
-from infraestructura.ui.flet.components.menu_lateral import DESTINOS, crear_menu_lateral
+from infraestructura.ui.flet.components.menu_lateral import CLAVE_BOTON_GUIA, DESTINOS, crear_menu_lateral
 from infraestructura.ui.flet.components.pagina import crear_pagina, crear_vista_acceso, crear_vista_interna
 from infraestructura.ui.flet.errores import crear_etiqueta_error
 from infraestructura.ui.flet.estilo import (
     ANCHO_FORMULARIO,
-    ANCHO_MAXIMO,
     COLOR_SEMILLA,
     FUENTE,
     LOGO,
     LOGO_BLANCO,
     aplicar_tema,
 )
+from infraestructura.ui.flet.screens.guia_screen import GUIA_NO_ENCONTRADA, leer_guia
 
 
 @pytest.fixture
@@ -64,8 +64,8 @@ def test_crear_pagina_incluye_titulo_subtitulo_y_contenido():
     assert textos(pagina)[:3] == ["Mis clubes", "Atenas", "contenido"]
 
 
-def test_crear_pagina_respeta_el_ancho_maximo():
-    assert crear_pagina("Titulo", []).max_width == ANCHO_MAXIMO
+def test_crear_pagina_usa_todo_el_ancho():
+    assert crear_pagina("Titulo", []).max_width is None  # US-113: usa todo el ancho
 
 
 def test_crear_pagina_pone_el_panel_lateral_a_la_derecha_del_contenido():
@@ -158,3 +158,27 @@ def test_las_subrutas_de_torneos_marcan_el_destino_torneos(page, ruta):
 
     assert menu.selected_index is not None
     assert DESTINOS[menu.selected_index].texto == "Torneos"
+
+
+# ----------------------------------------------------------------------------- guia y rutas con id (US-114)
+
+
+@pytest.mark.parametrize("ruta", ["/partidos/cargar", "/partidos/editar/5"])
+def test_cargar_y_editar_un_partido_marcan_el_destino_partidos(page, ruta):
+    menu = crear_menu_lateral(page, ruta)
+
+    assert DESTINOS[menu.selected_index].texto == "Partidos"
+
+
+def test_la_vista_interna_tiene_el_boton_guia_abajo_del_menu(page, sesion):
+    vista = crear_vista_interna(page, sesion, "/clubes", crear_pagina("Clubes", []))
+
+    [boton_guia] = [c for c in controles(vista) if c.key == CLAVE_BOTON_GUIA]
+    boton_guia.on_click()
+    page.navigate.assert_called_once_with("/guia")
+
+
+def test_leer_guia_sin_archivo_avisa_en_vez_de_romper(tmp_path):
+    assert leer_guia(str(tmp_path / "no_existe.md")) == GUIA_NO_ENCONTRADA
+    (tmp_path / "guia.md").write_text("# Hola", encoding="utf-8")
+    assert leer_guia(str(tmp_path / "guia.md")) == "# Hola"

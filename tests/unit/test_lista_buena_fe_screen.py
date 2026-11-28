@@ -1,12 +1,12 @@
-"""Tests unitarios de `ListaBuenaFeScreen` (US-107) sin ventana, con mocks."""
+"""Tests unitarios de `ListaBuenaFeScreen` (US-107; alta masiva de la US-113) sin ventana, con mocks."""
 
 from unittest.mock import MagicMock
 
 import flet as ft
 import pytest
-from ayudantes_flet import boton, controles, desplegable, por_clave, textos
+from ayudantes_flet import boton, casilla, controles, por_clave, textos
 
-from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
+from aplicacion.casos_uso.agregar_jugadores_lista import AgregarJugadoresAListaBuenaFeUseCase
 from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
@@ -20,12 +20,21 @@ from aplicacion.dtos.categoria_dto import CategoriaDTO
 from aplicacion.dtos.club_dto import ClubDTO
 from aplicacion.dtos.competencia_dto import CompetenciaDTO, InscripcionDTO
 from aplicacion.dtos.jugador_dto import JugadorDTO
-from aplicacion.dtos.lista_buena_fe_dto import AgregarJugadorListaDTO, JugadorEnListaDTO, QuitarJugadorListaDTO
+from aplicacion.dtos.lista_buena_fe_dto import (
+    AgregarJugadoresListaDTO,
+    JugadorEnListaDTO,
+    JugadorRechazadoDTO,
+    QuitarJugadorListaDTO,
+    ResultadoAgregarJugadoresDTO,
+)
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
-from dominio.exceptions import JugadorYaEnListaError
+from dominio.exceptions import DatoInvalidoError
 from infraestructura.ui.flet.errores import MENSAJE_ERROR_INESPERADO
 from infraestructura.ui.flet.screens.lista_buena_fe_screen import (
+    CASILLAS_PLANTEL,
+    PLANTEL_COMPLETO,
+    PLANTEL_VACIO,
     TABLA_LISTA_BUENA_FE,
     crear_lista_buena_fe_view,
 )
@@ -35,6 +44,7 @@ U21 = CategoriaDTO(idCategoria=2, nombre="U21")
 INSCRIPCION = InscripcionDTO(idInscripcion=5, idClub=7, idCategoria=2, idCompetencia=10, idListaBuenaFe=8)
 MANU = JugadorDTO(nombre_completo="Manu Ginobili", id=1, anioNacimiento=1977)
 SCOLA = JugadorDTO(nombre_completo="Luis Scola", id=2, anioNacimiento=1980)
+FACU = JugadorDTO(nombre_completo="Facundo Campazzo", id=3, anioNacimiento=None)
 
 
 @pytest.fixture
@@ -61,9 +71,9 @@ def mocks():
     listar_lista = MagicMock(spec=ListarListaBuenaFeUseCase)
     listar_lista.ejecutar.return_value = [MANU, SCOLA]
     listar_jugadores = MagicMock(spec=ListarJugadoresClubUseCase)
-    listar_jugadores.ejecutar.return_value = [MANU, SCOLA]
-    agregar = MagicMock(spec=AgregarJugadorAListaBuenaFeUseCase)
-    agregar.ejecutar.return_value = JugadorEnListaDTO(idListaBuenaFe=8, idInscripcion=5, idJugador=2)
+    listar_jugadores.ejecutar.return_value = [MANU, SCOLA, FACU]
+    agregar = MagicMock(spec=AgregarJugadoresAListaBuenaFeUseCase)
+    agregar.ejecutar.return_value = ResultadoAgregarJugadoresDTO(agregados=[3])
     quitar = MagicMock(spec=QuitarJugadorDeListaBuenaFeUseCase)
     quitar.ejecutar.return_value = JugadorEnListaDTO(idListaBuenaFe=8, idInscripcion=5, idJugador=1)
     vaciar = MagicMock(spec=VaciarListaBuenaFeUseCase)
@@ -120,15 +130,81 @@ def test_carga_inscripcion_y_lista_de_jugadores(armar, mocks):
     assert "Luis Scola" in contenido
 
 
-def test_agregar_jugador_a_la_lista_limpia_seleccion_y_refresca(armar, mocks, page):
+def _casillas(vista: ft.View) -> list[ft.Checkbox]:
+    return [c for c in controles(por_clave(vista, CASILLAS_PLANTEL)) if isinstance(c, ft.Checkbox)]
+
+
+def test_solo_ofrece_los_jugadores_del_plantel_que_no_estan_en_la_lista(armar):
     vista = armar()
-    desplegable(vista, "Jugador del club").value = "2"
 
-    boton(vista, "Agregar a la lista").on_click()
+    assert [c.label for c in _casillas(vista)] == ["Facundo Campazzo"]
 
-    mocks["agregar"].ejecutar.assert_called_once_with(AgregarJugadorListaDTO(idInscripcion=5, idJugador=2))
-    assert desplegable(vista, "Jugador del club").value is None
+
+def test_agregar_varios_seleccionados_de_una_vez(armar, mocks, page):
+    mocks["listar_lista"].ejecutar.return_value = [MANU]
+    mocks["agregar"].ejecutar.return_value = ResultadoAgregarJugadoresDTO(agregados=[2, 3])
+    vista = armar()
+    scola, facu = _casillas(vista)
+    assert [scola.label, facu.label] == ["Luis Scola (1980)", "Facundo Campazzo"]
+
+    scola.value = True
+    facu.value = True
+    facu.on_change()
+    assert boton(vista, "Agregar seleccionados (2)")  # el boton cuenta cuantos van
+
+    boton(vista, "Agregar seleccionados (2)").on_click()
+
+    mocks["agregar"].ejecutar.assert_called_once_with(AgregarJugadoresListaDTO(idInscripcion=5, idJugadores=[2, 3]))
+    assert "Se agregaron 2 jugadores a la lista." in textos(vista)
+    assert mocks["listar_lista"].ejecutar.call_count == 2  # refresca la lista
     page.update.assert_called()
+
+
+def test_seleccionar_todos_marca_cada_casilla(armar, mocks):
+    mocks["listar_lista"].ejecutar.return_value = []
+    vista = armar()
+
+    todos = casilla(vista, "Seleccionar todos")
+    todos.value = True
+    todos.on_change()
+
+    assert all(c.value for c in _casillas(vista))
+    assert boton(vista, "Agregar seleccionados (3)")
+
+
+def test_informa_los_rechazados_con_su_motivo_sin_frenar_al_resto(armar, mocks):
+    mocks["listar_lista"].ejecutar.return_value = []
+    mocks["agregar"].ejecutar.return_value = ResultadoAgregarJugadoresDTO(
+        agregados=[1], rechazados=[JugadorRechazadoDTO(idJugador=2, motivo="El jugador ya esta en la lista")]
+    )
+    vista = armar()
+    for c in _casillas(vista)[:2]:
+        c.value = True
+
+    boton(vista, "Agregar seleccionados").on_click()
+
+    assert "Se agregó 1 jugador a la lista." in textos(vista)
+    assert "Luis Scola: El jugador ya esta en la lista" in _errores_visibles(vista)
+
+
+def test_sin_seleccion_muestra_el_error_del_caso_de_uso(armar, mocks):
+    mocks["agregar"].ejecutar.side_effect = DatoInvalidoError("Elegí al menos un jugador para agregar a la lista.")
+    vista = armar()
+
+    boton(vista, "Agregar seleccionados").on_click()
+
+    assert "Elegí al menos un jugador para agregar a la lista." in _errores_visibles(vista)
+
+
+def test_plantel_completo_o_vacio_lo_avisa_y_deshabilita_agregar(armar, mocks):
+    mocks["listar_lista"].ejecutar.return_value = [MANU, SCOLA, FACU]
+    vista = armar()
+    assert PLANTEL_COMPLETO in textos(por_clave(vista, CASILLAS_PLANTEL))
+    assert boton(vista, "Agregar seleccionados").disabled
+
+    mocks["listar_jugadores"].ejecutar.return_value = []
+    mocks["listar_lista"].ejecutar.return_value = []
+    assert PLANTEL_VACIO in textos(por_clave(armar(), CASILLAS_PLANTEL))
 
 
 def test_cada_boton_quitar_usa_su_propio_jugador(armar, mocks):
@@ -155,21 +231,11 @@ def test_vaciar_lista_y_dar_de_baja_inscripcion_piden_confirmacion(armar, mocks,
     mocks["eliminar_ins"].ejecutar.assert_called_once_with(5)
 
 
-def test_jugador_ya_en_lista_muestra_error_de_dominio(armar, mocks):
-    mocks["agregar"].ejecutar.side_effect = JugadorYaEnListaError("El jugador ya esta en la lista")
-    vista = armar()
-    desplegable(vista, "Jugador del club").value = "1"
-
-    boton(vista, "Agregar a la lista").on_click()
-
-    assert "El jugador ya esta en la lista" in _errores_visibles(vista)
-
-
 def test_error_inesperado_al_agregar_muestra_mensaje_generico(armar, mocks):
     mocks["agregar"].ejecutar.side_effect = OSError("error inesperado")
     vista = armar()
-    desplegable(vista, "Jugador del club").value = "1"
+    _casillas(vista)[0].value = True
 
-    boton(vista, "Agregar a la lista").on_click()
+    boton(vista, "Agregar seleccionados").on_click()
 
     assert MENSAJE_ERROR_INESPERADO in _errores_visibles(vista)

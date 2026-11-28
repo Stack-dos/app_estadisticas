@@ -1,13 +1,14 @@
 """Tests unitarios de `tabla_datos` y de las funciones puras de conversion DTO -> fila (US-107)."""
 
 import flet as ft
-from ayudantes_flet import controles
+from ayudantes_flet import controles, por_clave
 
 from aplicacion.dtos.categoria_dto import CategoriaDTO
 from aplicacion.dtos.competencia_dto import CompetenciaDTO, InscripcionDTO
 from aplicacion.dtos.jugador_dto import JugadorDTO
 from infraestructura.ui.flet.components.tabla_datos import crear_tabla_datos
-from infraestructura.ui.flet.screens.competencias_screen import fila_categoria, fila_competencia, filtrar_competencias
+from infraestructura.ui.flet.screens.categorias_screen import fila_categoria
+from infraestructura.ui.flet.screens.competencias_screen import fila_competencia, filtrar_competencias
 from infraestructura.ui.flet.screens.inscripciones_screen import fila_inscripcion, filtrar_inscripciones
 from infraestructura.ui.flet.screens.lista_buena_fe_screen import etiqueta_inscripcion, fila_jugador_lista
 
@@ -20,13 +21,15 @@ def test_tabla_vacia_muestra_el_mensaje_sin_datos():
 
 
 def test_tabla_con_filas_alterna_color_en_filas_impares_y_envuelve_textos():
-    tabla = crear_tabla_datos(
+    contenedor = crear_tabla_datos(
         ("Nombre", "Acción"),
         [("A", ft.TextButton("Ver")), ("B", "ok"), ("C", "ok")],
         clave="tabla_test",
     )
+    tabla = por_clave(contenedor, "tabla_test")
 
     assert isinstance(tabla, ft.DataTable)
+    assert tabla.expand  # ocupa todo el ancho, no solo lo que mide su contenido
     assert tabla.key == "tabla_test"
     assert [c.label.value for c in tabla.columns] == ["Nombre", "Acción"]
     assert [r.color for r in tabla.rows] == [None, ft.Colors.SURFACE_CONTAINER_LOW, None]
@@ -54,7 +57,7 @@ def test_fila_inscripcion_y_etiqueta_resuelven_nombres_por_id():
     comps = {10: CompetenciaDTO(idCompetencia=10, nombre="Provincial", anio=2026, tipo="PROVINCIAL")}
     cats = {2: CategoriaDTO(idCategoria=2, nombre="U21")}
 
-    assert fila_inscripcion(ins, comps, cats) == ("Provincial", "2026", "U21", "Lista #8")
+    assert fila_inscripcion(ins, comps, cats, 11) == ("Provincial", "2026", "U21", "11")
     assert etiqueta_inscripcion(ins, comps, cats) == "Provincial (2026) — U21"
 
 

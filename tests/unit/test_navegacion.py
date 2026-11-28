@@ -4,9 +4,10 @@ from unittest.mock import MagicMock
 
 import flet as ft
 import pytest
-from ayudantes_flet import textos
+from ayudantes_flet import controles, textos
 
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
+from aplicacion.casos_uso.agregar_jugadores_lista import AgregarJugadoresAListaBuenaFeUseCase
 from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.cargar_partido import CargarPartidoUseCase
@@ -16,30 +17,39 @@ from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
 from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeClubUseCase
 from aplicacion.casos_uso.editar_jugador import EditarJugadorUseCase
 from aplicacion.casos_uso.eliminar_categoria import EliminarCategoriaUseCase
+from aplicacion.casos_uso.eliminar_club import EliminarClubUseCase
 from aplicacion.casos_uso.eliminar_competencia import EliminarCompetenciaUseCase
 from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
 from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
+from aplicacion.casos_uso.eliminar_partido import EliminarPartidoUseCase
 from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCategoriaEnCompetenciaUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
 from aplicacion.casos_uso.listar_clubes import ListarClubesUseCase
+from aplicacion.casos_uso.listar_clubes_rivales import ListarClubesRivalesUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
+from aplicacion.casos_uso.listar_jugadores_todos import ListarJugadoresTodosUseCase
+from aplicacion.casos_uso.listar_lideres_club import ListarLideresClubUseCase
 from aplicacion.casos_uso.listar_lista_buena_fe import ListarListaBuenaFeUseCase
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
+from aplicacion.casos_uso.obtener_partido import ObtenerPartidoUseCase
+from aplicacion.casos_uso.obtener_totales_partido import ObtenerTotalesPartidoUseCase
 from aplicacion.casos_uso.partidos_por_club import ListarPartidosPorClubUseCase
 from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeCompetenciaUseCase
 from aplicacion.casos_uso.quitar_jugador_lista import QuitarJugadorDeListaBuenaFeUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
 from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
+from aplicacion.casos_uso.renombrar_club import RenombrarClubUseCase
 from aplicacion.casos_uso.vaciar_lista_buena_fe import VaciarListaBuenaFeUseCase
 from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.dtos.auth_dto import UsuarioDTO
 from aplicacion.dtos.club_dto import ClubDTO
+from aplicacion.dtos.partido_dto import PartidoDTO
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from infraestructura.ui.flet.app import (
@@ -51,6 +61,7 @@ from infraestructura.ui.flet.app import (
     _main,
     requiere_club_activo,
     resolver_ruta,
+    separar_ruta,
 )
 
 
@@ -115,6 +126,10 @@ def test_con_sesion_cualquier_otra_ruta_va_al_inicio(ruta):
         "/listas",
         "/jugadores",
         "/partidos",
+        "/partidos/editar/5",
+        "/partidos/editar",
+        "/partidos/ver/5",
+        "/guia",
         "/no-existe",
     ],
 )
@@ -156,6 +171,7 @@ def deps():
         listar_inscripciones_uc=MagicMock(spec=ListarInscripcionesClubUseCase, **{"ejecutar.return_value": []}),
         eliminar_inscripcion_uc=MagicMock(spec=EliminarInscripcionUseCase),
         agregar_jugador_lista_uc=MagicMock(spec=AgregarJugadorAListaBuenaFeUseCase),
+        agregar_jugadores_lista_uc=MagicMock(spec=AgregarJugadoresAListaBuenaFeUseCase),
         quitar_jugador_lista_uc=MagicMock(spec=QuitarJugadorDeListaBuenaFeUseCase),
         vaciar_lista_uc=MagicMock(spec=VaciarListaBuenaFeUseCase),
         listar_lista_uc=MagicMock(spec=ListarListaBuenaFeUseCase, **{"ejecutar.return_value": []}),
@@ -164,11 +180,19 @@ def deps():
         vincular_jugador_uc=MagicMock(spec=VincularJugadorAClubUseCase),
         desvincular_jugador_uc=MagicMock(spec=DesvincularJugadorDeClubUseCase),
         buscar_jugadores_uc=MagicMock(spec=BuscarJugadoresPorNombreUseCase, **{"ejecutar.return_value": []}),
+        listar_jugadores_todos_uc=MagicMock(spec=ListarJugadoresTodosUseCase, **{"ejecutar.return_value": []}),
         editar_jugador_uc=MagicMock(spec=EditarJugadorUseCase),
         eliminar_jugador_uc=MagicMock(spec=EliminarJugadorUseCase),
         listar_partidos_uc=MagicMock(spec=ListarPartidosPorClubUseCase, **{"ejecutar.return_value": []}),
         obtener_boxscore_uc=MagicMock(spec=ObtenerBoxscorePartidoUseCase, **{"ejecutar.return_value": []}),
+        obtener_totales_uc=MagicMock(spec=ObtenerTotalesPartidoUseCase, **{"ejecutar.return_value": []}),
+        listar_lideres_uc=MagicMock(spec=ListarLideresClubUseCase, **{"ejecutar.return_value": []}),
         cargar_partido_uc=MagicMock(spec=CargarPartidoUseCase),
+        obtener_partido_uc=MagicMock(spec=ObtenerPartidoUseCase, **{"ejecutar.return_value": None}),
+        eliminar_partido_uc=MagicMock(spec=EliminarPartidoUseCase),
+        listar_clubes_rivales_uc=MagicMock(spec=ListarClubesRivalesUseCase, **{"ejecutar.return_value": []}),
+        renombrar_club_uc=MagicMock(spec=RenombrarClubUseCase),
+        eliminar_club_uc=MagicMock(spec=EliminarClubUseCase),
     )
 
 
@@ -269,3 +293,78 @@ def test_con_club_activo_dibuja_las_pantallas_de_torneos(page, deps, ruta):
     page.on_route_change()
 
     assert [v.route for v in page.views] == [ruta]
+
+
+# ----------------------------------------------------------------------------- rutas con id y guia (US-114)
+
+
+@pytest.mark.parametrize(
+    ("ruta", "esperado"),
+    [
+        ("/partidos/editar/5", ("/partidos/editar", 5)),
+        ("/partidos/editar/abc", ("/partidos/editar/abc", None)),
+        ("/partidos/editar", ("/partidos/editar", None)),
+        ("/partidos/ver/12", ("/partidos/ver", 12)),
+        ("/jugadores/5", ("/jugadores/5", None)),  # solo las rutas de RUTAS_CON_ID llevan id
+    ],
+)
+def test_separar_ruta(ruta, esperado):
+    assert separar_ruta(ruta) == esperado
+
+
+def test_editar_partido_es_interna_y_pide_club_activo():
+    assert resolver_ruta("/partidos/editar/5", autenticado=True, tiene_club=True) == "/partidos/editar/5"
+    assert resolver_ruta("/partidos/editar/5", autenticado=True, tiene_club=False) == "/clubes"
+    assert resolver_ruta("/partidos/editar/5", autenticado=False) == "/login"
+    assert resolver_ruta("/partidos/editar", autenticado=True) == "/inicio"  # sin id no es una ruta
+
+
+def test_el_detalle_de_partido_es_interno_y_pide_club_activo():
+    assert resolver_ruta("/partidos/ver/5", autenticado=True, tiene_club=True) == "/partidos/ver/5"
+    assert resolver_ruta("/partidos/ver/5", autenticado=True, tiene_club=False) == "/clubes"
+
+
+@pytest.mark.parametrize("autenticado", [False, True])
+def test_la_guia_se_abre_con_o_sin_sesion(autenticado):
+    assert resolver_ruta("/guia", autenticado=autenticado, tiene_club=False) == "/guia"
+
+
+def test_la_ruta_de_editar_dibuja_la_carga_con_ese_partido(page, deps):
+    deps.sesion.iniciar_sesion(UsuarioDTO(idUsuario=1, nombre="Profesor", email="profe@test.com"))
+    deps.sesion.set_active_club(ClubDTO(idClub=7, nombre="Atenas"))
+    deps.obtener_partido_uc.ejecutar.return_value = PartidoDTO(
+        fecha="2026-08-01", idCompetencia=10, idCategoria=1, idClubLocal=7, idClubVisitante=8, idPartido=5
+    )
+    _main(page, deps)
+
+    page.route = "/partidos/editar/5"
+    page.on_route_change()
+
+    deps.obtener_partido_uc.ejecutar.assert_called_once_with(5)
+    assert [v.route for v in page.views] == ["/partidos/editar/5"]
+
+
+def test_la_ruta_de_detalle_dibuja_ese_partido(page, deps):
+    deps.sesion.iniciar_sesion(UsuarioDTO(idUsuario=1, nombre="Profesor", email="profe@test.com"))
+    deps.sesion.set_active_club(ClubDTO(idClub=7, nombre="Atenas"))
+    _main(page, deps)
+
+    page.route = "/partidos/ver/5"
+    page.on_route_change()
+
+    deps.listar_partidos_uc.ejecutar.assert_called_with(7)
+    assert [v.route for v in page.views] == ["/partidos/ver/5"]
+
+
+@pytest.mark.parametrize("con_sesion", [False, True])
+def test_la_guia_dibuja_el_manual(page, deps, con_sesion):
+    if con_sesion:
+        deps.sesion.iniciar_sesion(UsuarioDTO(idUsuario=1, nombre="Profesor", email="profe@test.com"))
+    _main(page, deps)
+
+    page.route = "/guia"
+    page.on_route_change()
+
+    vista = page.views[0]
+    assert vista.route == "/guia"
+    assert any(isinstance(c, ft.Markdown) and "Cómo se usa" in c.value for c in controles(vista))

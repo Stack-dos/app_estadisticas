@@ -4,10 +4,20 @@ from aplicacion.casos_uso.cargar_partido import CargarPartidoUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
 from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
 from aplicacion.dtos.club_dto import CrearClubDTO
-from aplicacion.dtos.partido_dto import BoxscoreDTO, CuartoDTO, EstadisticaInputDTO, PartidoDTO
-from dominio.entidades.partido import PartidoCuarto
+from aplicacion.dtos.partido_dto import BoxscoreDTO, CuartoDTO, EstadisticaInputDTO, PartidoDTO, TotalesEquipoDTO
+from dominio.entidades.club import Club
+from dominio.entidades.jugador import Jugador
+from dominio.entidades.partido import (
+    ID_CLUB_NUEVO,
+    AltaPlantelRival,
+    JugadorPartido,
+    JugadorRivalNuevo,
+    Partido,
+    PartidoCuarto,
+)
 from infraestructura.repositorios.sqlite_club_repositorio import SqliteClubRepositorio
 from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCompetenciaRepositorio
+from infraestructura.repositorios.sqlite_jugador_repositorio import SqliteJugadorRepositorio
 from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartidoRepositorio
 
 # `crear_partido` y `crear_boxscore` son fabricas de datos validos (ver tests/conftest.py):
@@ -188,73 +198,252 @@ def test_save_with_boxscore_guarda_cuartos_en_la_misma_transaccion(db_conexion, 
     ]
 
 
-def test_cargar_partido_use_case_flujo_completo_con_clubes_sin_usuario_y_cuartos(db_conexion):
-    """US-108 AC5/AC7 integracion: carga un partido completo entre dos clubes sin vinculo con ningun usuario."""
-    repo_club = SqliteClubRepositorio(db_conexion)
-    repo_comp = SqliteCompetenciaRepositorio(db_conexion)
-    repo_partido = SqlitePartidoRepositorio(db_conexion)
+def _uc_cargar(db_conexion) -> CargarPartidoUseCase:
+    return CargarPartidoUseCase(
+        SqlitePartidoRepositorio(db_conexion),
+        SqliteCompetenciaRepositorio(db_conexion),
+        SqliteJugadorRepositorio(db_conexion),
+    )
 
-    # Creamos dos clubes de terceros sin vincular a ningun usuario (idUsuario=None)
-    crear_club = CrearClubUseCase(repo_club)
-    club_a = crear_club.ejecutar(CrearClubDTO(nombre="Barrio Parque"))
-    club_b = crear_club.ejecutar(CrearClubDTO(nombre="Hindú"))
-    assert club_a is not None and club_b is not None
 
-    # Inscribimos ambos clubes en la competencia 1 / categoria 1 del seed y habilitamos 1 jugador por club
-    cursor = db_conexion.cursor()
-    cursor.execute("INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (?, 1, 1)", (club_a.idClub,))
-    insc_a = cursor.lastrowid
-    cursor.execute("INSERT INTO listaBuenaFe (fechaPresentacion, idInscripcion) VALUES ('2026-03-01', ?)", (insc_a,))
-    lista_a = cursor.lastrowid
-    cursor.execute("INSERT INTO jugadorListaBuenaFe (idJugador, idListaBuenaFe) VALUES (3, ?)", (lista_a,))
+def _contar(db_conexion, sql: str, *params) -> int:
+    return db_conexion.execute(sql, params).fetchone()[0]
 
-    cursor.execute("INSERT INTO inscripcion (idClub, idCategoria, idCompetencia) VALUES (?, 1, 1)", (club_b.idClub,))
-    insc_b = cursor.lastrowid
-    cursor.execute("INSERT INTO listaBuenaFe (fechaPresentacion, idInscripcion) VALUES ('2026-03-01', ?)", (insc_b,))
-    lista_b = cursor.lastrowid
-    cursor.execute("INSERT INTO jugadorListaBuenaFe (idJugador, idListaBuenaFe) VALUES (8, ?)", (lista_b,))
-    db_conexion.commit()
 
-    uc = CargarPartidoUseCase(repo_partido, repo_comp)
+def test_rival_nuevo_con_boxscore_se_da_de_alta_entero_en_la_misma_transaccion(db_conexion):
+    """US-113: club rival sin usuario, sin inscripcion y con un jugador que no existe: todo se crea al guardar."""
+    pesca = CrearClubUseCase(SqliteClubRepositorio(db_conexion)).ejecutar(CrearClubDTO(nombre="Pesca"))
+    assert pesca is not None
+
     partido_dto = PartidoDTO(
         fecha="2026-09-01",
         estadio="El Teatro",
         idCompetencia=1,
         idCategoria=1,
-        idClubLocal=club_a.idClub,
-        idClubVisitante=club_b.idClub,
+        idClubLocal=1,  # Atenas (seed), con el jugador 1 en su lista
+        idClubVisitante=pesca.idClub,
         cuartos=[
-            CuartoDTO(idClub=club_a.idClub, nroCuarto=1, puntos=6),
-            CuartoDTO(idClub=club_a.idClub, nroCuarto=2, puntos=6),
-            CuartoDTO(idClub=club_b.idClub, nroCuarto=1, puntos=4),
-            CuartoDTO(idClub=club_b.idClub, nroCuarto=2, puntos=5),
+            CuartoDTO(idClub=1, nroCuarto=1, puntos=6),
+            CuartoDTO(idClub=1, nroCuarto=2, puntos=6),
+            CuartoDTO(idClub=pesca.idClub, nroCuarto=1, puntos=4),
+            CuartoDTO(idClub=pesca.idClub, nroCuarto=2, puntos=5),
         ],
     )
-    box_local = BoxscoreDTO(
-        idClub=club_a.idClub,
-        estadisticas=[EstadisticaInputDTO(idJugador=3, minutosJugados=30.0, puntos=12, t2c=6, t2l=10)],
+    propio = BoxscoreDTO(
+        idClub=1, estadisticas=[EstadisticaInputDTO(idJugador=1, minutosJugados=30.0, puntos=12, t2c=6, t2l=10)]
     )
-    box_visitante = BoxscoreDTO(
-        idClub=club_b.idClub,
-        estadisticas=[EstadisticaInputDTO(idJugador=8, minutosJugados=28.0, puntos=9, t3c=3, t3l=6)],
+    rival = BoxscoreDTO(
+        idClub=pesca.idClub,
+        estadisticas=[
+            EstadisticaInputDTO(
+                idJugador=None, nombre="Juan", apellido="Rival", minutosJugados=28.0, puntos=9, t3c=3, t3l=6
+            )
+        ],
     )
 
-    guardado = uc.ejecutar(partido_dto, box_local, box_visitante)
+    guardado = _uc_cargar(db_conexion).ejecutar(partido_dto, propio, rival)
+
+    assert guardado is not None and guardado.idPartido is not None
+    # El rival quedo inscripto, con su lista, y el jugador nuevo vinculado al club y habilitado
+    fila = db_conexion.execute(
+        """
+        SELECT j.idJugador, jc.fechaDesde
+        FROM jugador j
+            JOIN jugadorClub jc ON jc.idJugador = j.idJugador AND jc.fechaHasta IS NULL
+            JOIN jugadorListaBuenaFe jl ON jl.idJugador = j.idJugador
+            JOIN listaBuenaFe l ON l.idListaBuenaFe = jl.idListaBuenaFe
+            JOIN inscripcion i ON i.idInscripcion = l.idInscripcion
+        WHERE j.nombre = 'Juan' AND j.apellido = 'Rival' AND jc.idClub = ? AND i.idClub = ?
+        """,
+        (pesca.idClub, pesca.idClub),
+    ).fetchone()
+    assert fila is not None
+    assert fila["fechaDesde"] == "2026-09-01"
+    # Sigue sin vinculo con ningun usuario: no aparece en "Mis clubes"
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM usuarioClub WHERE idClub = ?", pesca.idClub) == 0
+
+    boxscore = ObtenerBoxscorePartidoUseCase(SqlitePartidoRepositorio(db_conexion)).ejecutar(guardado.idPartido)
+    assert {(f.nombreClub, f.puntos) for f in boxscore} == {("Atenas", 12), ("Pesca", 9)}
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM partidoCuarto WHERE idPartido = ?", guardado.idPartido) == 4
+
+    # El segundo partido contra Pesca reconoce al jugador por nombre: no lo duplica
+    partido_dto.fecha = "2026-10-01"
+    partido_dto.cuartos = []
+    rival.estadisticas[0].nombre = "JUAN"
+    assert _uc_cargar(db_conexion).ejecutar(partido_dto, propio, rival) is not None
+    assert (
+        _contar(db_conexion, "SELECT COUNT(*) FROM jugador WHERE nombre IN ('Juan', 'JUAN') AND apellido = 'Rival'")
+        == 1
+    )
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM inscripcion WHERE idClub = ?", pesca.idClub) == 1
+
+
+def test_rival_con_totales_se_guarda_en_estadistica_equipo_y_la_vista_unifica(db_conexion):
+    pesca = CrearClubUseCase(SqliteClubRepositorio(db_conexion)).ejecutar(CrearClubDTO(nombre="Pesca"))
+    assert pesca is not None
+    repo = SqlitePartidoRepositorio(db_conexion)
+    partido_dto = PartidoDTO(
+        fecha="2026-09-01", idCompetencia=1, idCategoria=1, idClubLocal=pesca.idClub, idClubVisitante=1
+    )
+    propio = BoxscoreDTO(
+        idClub=1, estadisticas=[EstadisticaInputDTO(idJugador=1, minutosJugados=30.0, puntos=12, t2c=6, t2l=10)]
+    )
+    rival = TotalesEquipoDTO(idClub=pesca.idClub, puntos=51, t2c=19, t2l=52, t3c=3, t3l=19, t1c=4, t1l=10, perdidas=26)
+
+    guardado = _uc_cargar(db_conexion).ejecutar(partido_dto, propio, rival)
+
+    assert guardado is not None and guardado.idPartido is not None
+    # El rival con totales no se inscribe ni crea jugadores
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM inscripcion WHERE idClub = ?", pesca.idClub) == 0
+    totales = repo.totales_por_partido(guardado.idPartido)
+    assert [(t.nombreClub, t.origen, t.puntos) for t in totales] == [
+        ("Pesca", "totales", 51),
+        ("Atenas", "boxscore", 12),
+    ]
+    assert totales[0].perdidas == 26
+
+    (resumen,) = [p for p in repo.resumen_por_club(pesca.idClub) if p.idPartido == guardado.idPartido]
+    assert (resumen.puntosLocal, resumen.puntosVisitante) == (51, 12)
+
+
+def test_si_falla_el_boxscore_no_queda_nada_del_alta_del_rival(db_conexion):
+    """Atomicidad US-113: el alta del rival (inscripcion, lista, jugadores) se revierte junto con el partido."""
+    pesca = CrearClubUseCase(SqliteClubRepositorio(db_conexion)).ejecutar(CrearClubDTO(nombre="Pesca"))
+    assert pesca is not None
+    repo = SqlitePartidoRepositorio(db_conexion)
+    jugadores_antes = _contar(db_conexion, "SELECT COUNT(*) FROM jugador")
+    alta = AltaPlantelRival(
+        idClub=pesca.idClub,
+        idCompetencia=1,
+        idCategoria=1,
+        fecha="2026-09-01",
+        nuevos=[
+            JugadorRivalNuevo(
+                jugador=Jugador("Juan", "Rival"), estadistica=JugadorPartido(idJugador=0, idPartido=0, idClub=0)
+            )
+        ],
+    )
+    partido = Partido("2026-09-01", None, 1, 1, 1, pesca.idClub)
+    fila_rota = JugadorPartido(idJugador=999999, idPartido=0, idClub=1)  # jugador inexistente
+
+    assert repo.save_with_boxscore(partido, [fila_rota], alta_rival=alta) is None
+
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM jugador") == jugadores_antes
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM inscripcion WHERE idClub = ?", pesca.idClub) == 0
+
+
+def test_lideres_por_club_promedia_desde_la_vista(db_conexion):
+    lideres = SqlitePartidoRepositorio(db_conexion).lideres_por_club(1, 3)
+
+    assert 0 < len(lideres) <= 3
+    promedios = [lider.puntosPromedio for lider in lideres]
+    assert promedios == sorted(promedios, reverse=True)
+    assert all(lider.partidosJugados >= 1 for lider in lideres)
+
+
+# ----------------------------------------------------------------------------- US-114: rival nuevo, editar y eliminar
+
+
+def _propio(puntos_dobles: int = 6) -> BoxscoreDTO:
+    return BoxscoreDTO(
+        idClub=1,
+        estadisticas=[
+            EstadisticaInputDTO(idJugador=1, minutosJugados=30.0, puntos=puntos_dobles * 2, t2c=puntos_dobles, t2l=10)
+        ],
+    )
+
+
+def test_rival_nuevo_se_crea_en_la_misma_transaccion_que_el_partido(db_conexion):
+    partido_dto = PartidoDTO(
+        fecha="2026-09-01", idCompetencia=1, idCategoria=1, idClubLocal=1, idClubVisitante=ID_CLUB_NUEVO
+    )
+
+    guardado = _uc_cargar(db_conexion).ejecutar(
+        partido_dto, _propio(), TotalesEquipoDTO(idClub=ID_CLUB_NUEVO, puntos=40), nombre_rival_nuevo="Pesca"
+    )
 
     assert guardado is not None
-    assert guardado.idPartido is not None
+    id_pesca = db_conexion.execute("SELECT idClub FROM club WHERE nombre = 'Pesca'").fetchone()["idClub"]
+    assert guardado.idClubVisitante == id_pesca
+    totales = SqlitePartidoRepositorio(db_conexion).totales_por_partido(guardado.idPartido)
+    assert ("Pesca", "totales", 40) in [(t.nombreClub, t.origen, t.puntos) for t in totales]
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM usuarioClub WHERE idClub = ?", id_pesca) == 0
 
-    # Verificamos que el boxscore y los cuartos se persistieron en la base
-    boxscore_leido = ObtenerBoxscorePartidoUseCase(repo_partido).ejecutar(guardado.idPartido)
-    assert len(boxscore_leido) == 2
-    assert {f.puntos for f in boxscore_leido} == {12, 9}
 
-    cursor.execute("SELECT COUNT(*) FROM partidoCuarto WHERE idPartido = ?", (guardado.idPartido,))
-    assert cursor.fetchone()[0] == 4
+def test_si_falla_el_partido_no_queda_el_rival_nuevo(db_conexion):
+    """El rival mal escrito no queda suelto en la base si el partido no se guardo (US-114)."""
+    repo = SqlitePartidoRepositorio(db_conexion)
+    partido = Partido("2026-09-01", None, 1, 1, 1, ID_CLUB_NUEVO)
+    fila_rota = JugadorPartido(idJugador=999999, idPartido=0, idClub=1)  # jugador inexistente
 
-    # Ninguno de los dos clubes quedo vinculado a usuarioClub
-    cursor.execute(
-        "SELECT COUNT(*) FROM usuarioClub WHERE idClub IN (?, ?)",
-        (club_a.idClub, club_b.idClub),
+    assert repo.save_with_boxscore(partido, [fila_rota], club_rival_nuevo=Club("Pezca")) is None
+
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM club WHERE nombre = 'Pezca'") == 0
+
+
+def test_editar_reemplaza_las_filas_y_conserva_el_id(db_conexion):
+    uc = _uc_cargar(db_conexion)
+    partido_dto = PartidoDTO(
+        fecha="2026-09-01",
+        idCompetencia=1,
+        idCategoria=1,
+        idClubLocal=1,
+        idClubVisitante=2,
+        cuartos=[CuartoDTO(idClub=1, nroCuarto=1, puntos=12), CuartoDTO(idClub=2, nroCuarto=1, puntos=40)],
     )
-    assert cursor.fetchone()[0] == 0
+    guardado = uc.ejecutar(partido_dto, _propio(6), TotalesEquipoDTO(idClub=2, puntos=40))
+    assert guardado is not None
+    partidos_antes = _contar(db_conexion, "SELECT COUNT(*) FROM partido")
+
+    partido_dto.idPartido = guardado.idPartido
+    partido_dto.estadio = "Cancha nueva"
+    partido_dto.cuartos = []  # se sacan los cuartos
+    editado = uc.ejecutar(partido_dto, _propio(8), TotalesEquipoDTO(idClub=2, puntos=41))
+
+    assert editado is not None and editado.idPartido == guardado.idPartido
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM partido") == partidos_antes
+    repo = SqlitePartidoRepositorio(db_conexion)
+    assert repo.buscar_por_id(guardado.idPartido).estadio == "Cancha nueva"
+    assert [f.puntos for f in repo.boxscore_por_partido(guardado.idPartido)] == [16]
+    assert {(t.idClub, t.puntos) for t in repo.totales_por_partido(guardado.idPartido)} == {(1, 16), (2, 41)}
+    assert repo.cuartos_por_partido(guardado.idPartido) == []
+
+
+def test_editar_un_partido_que_no_existe_no_crea_otro(db_conexion):
+    partidos_antes = _contar(db_conexion, "SELECT COUNT(*) FROM partido")
+    partido = Partido("2026-09-01", None, 1, 1, 1, 2, idPartido=999999)
+
+    assert SqlitePartidoRepositorio(db_conexion).save_with_boxscore(partido, []) is None
+    assert _contar(db_conexion, "SELECT COUNT(*) FROM partido") == partidos_antes
+
+
+def test_eliminar_borra_el_partido_con_sus_filas(db_conexion):
+    guardado = _uc_cargar(db_conexion).ejecutar(
+        PartidoDTO(
+            fecha="2026-09-01",
+            idCompetencia=1,
+            idCategoria=1,
+            idClubLocal=1,
+            idClubVisitante=2,
+            cuartos=[CuartoDTO(idClub=1, nroCuarto=1, puntos=12), CuartoDTO(idClub=2, nroCuarto=1, puntos=40)],
+        ),
+        _propio(),
+        TotalesEquipoDTO(idClub=2, puntos=40),
+    )
+    assert guardado is not None
+    repo = SqlitePartidoRepositorio(db_conexion)
+    assert [(c.idClub, c.nroCuarto, c.puntos) for c in repo.cuartos_por_partido(guardado.idPartido)] == [
+        (1, 1, 12),
+        (2, 1, 40),
+    ]
+
+    assert repo.eliminar(guardado.idPartido)
+
+    assert repo.buscar_por_id(guardado.idPartido) is None
+    for consulta in (
+        "SELECT COUNT(*) FROM jugadorPartido WHERE idPartido = ?",
+        "SELECT COUNT(*) FROM partidoCuarto WHERE idPartido = ?",
+        "SELECT COUNT(*) FROM estadisticaEquipoPartido WHERE idPartido = ?",
+    ):
+        assert _contar(db_conexion, consulta, guardado.idPartido) == 0
+    assert not repo.eliminar(guardado.idPartido)  # ya no existe

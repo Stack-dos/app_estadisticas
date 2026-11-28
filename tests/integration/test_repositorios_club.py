@@ -99,3 +99,40 @@ def test_listar_todos_devuelve_todos_los_clubes_ordenados(db_conexion):
     clubes = club_rep.listar_todos()
 
     assert [c.nombre for c in clubes] == ["Atenas", "Belgrano", "Universitario"]
+
+
+# ----------------------------------------------------------------------------- clubes rivales (US-114)
+
+
+def test_listar_sin_usuario_trae_solo_los_rivales(db_conexion):
+    repo = SqliteClubRepositorio(db_conexion)
+    propio = repo.guardar_con_entrenador(Club("Hindú"), id_usuario=1, rol="principal")
+    assert propio is not None
+
+    nombres = [c.nombre for c in repo.listar_sin_usuario()]
+
+    assert "Hindú" not in nombres
+    assert {"Atenas", "Universitario"} <= set(nombres)
+    assert repo.tiene_usuarios(propio.idClub)
+    assert not repo.tiene_usuarios(1)
+
+
+def test_actualizar_cambia_el_nombre(db_conexion):
+    repo = SqliteClubRepositorio(db_conexion)
+
+    assert repo.actualizar(Club("Atenas de Córdoba", idClub=1)) == Club("Atenas de Córdoba", idClub=1)
+    assert repo.buscar_por_id(1).nombre == "Atenas de Córdoba"
+    assert repo.actualizar(Club("Nadie", idClub=999999)) is None
+
+
+def test_eliminar_solo_un_club_sin_partidos(db_conexion):
+    repo = SqliteClubRepositorio(db_conexion)
+    pezca = repo.guardar(Club("Pezca"))
+    assert pezca is not None
+    assert repo.tiene_partidos(1)  # Atenas juega en el seed
+    assert not repo.tiene_partidos(pezca.idClub)
+
+    assert repo.eliminar(pezca.idClub)
+
+    assert repo.buscar_por_id(pezca.idClub) is None
+    assert not repo.eliminar(pezca.idClub)

@@ -4,23 +4,36 @@ from unittest.mock import MagicMock
 
 import flet as ft
 import pytest
-from ayudantes_flet import boton, campo, controles, desplegable, por_clave, textos
+from ayudantes_flet import boton, campo, casilla, controles, desplegable, por_clave, textos
 
+from aplicacion.casos_uso.agregar_jugadores_lista import AgregarJugadoresAListaBuenaFeUseCase
 from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
+from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
+from aplicacion.casos_uso.listar_lista_buena_fe import ListarListaBuenaFeUseCase
 from aplicacion.dtos.auth_dto import UsuarioDTO
 from aplicacion.dtos.categoria_dto import CategoriaDTO
 from aplicacion.dtos.club_dto import ClubDTO
 from aplicacion.dtos.competencia_dto import CompetenciaDTO, InscribirClubDTO, InscripcionDTO
+from aplicacion.dtos.jugador_dto import JugadorDTO
+from aplicacion.dtos.lista_buena_fe_dto import (
+    AgregarJugadoresListaDTO,
+    JugadorRechazadoDTO,
+    ResultadoAgregarJugadoresDTO,
+)
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
 from dominio.exceptions import InscripcionDuplicadaError, InscripcionEnUsoError
 from infraestructura.ui.flet.errores import MENSAJE_ERROR_INESPERADO
-from infraestructura.ui.flet.screens.inscripciones_screen import TABLA_INSCRIPCIONES, crear_inscripciones_view
+from infraestructura.ui.flet.screens.inscripciones_screen import (
+    CLAVE_RESULTADO_INSCRIPCION,
+    TABLA_INSCRIPCIONES,
+    crear_inscripciones_view,
+)
 
 LIGA = CompetenciaDTO(idCompetencia=10, nombre="Liga Provincial", anio=2026, tipo="PROVINCIAL")
 ASOCIATIVO = CompetenciaDTO(idCompetencia=11, nombre="Asociativo", anio=2027, tipo="ASOCIATIVO")
@@ -64,6 +77,15 @@ def mocks():
         "listar_cat": listar_cat,
         "listar_cat_comp": listar_cat_comp,
         "eliminar_ins": eliminar_ins,
+        "listar_plantel": MagicMock(
+            spec=ListarJugadoresClubUseCase,
+            **{"ejecutar.return_value": [JugadorDTO(nombre_completo="Pepe Argento", id=1, anioNacimiento=2005)]},
+        ),
+        "agregar_lista": MagicMock(
+            spec=AgregarJugadoresAListaBuenaFeUseCase,
+            **{"ejecutar.return_value": ResultadoAgregarJugadoresDTO(agregados=[1])},
+        ),
+        "listar_lista": MagicMock(spec=ListarListaBuenaFeUseCase, **{"ejecutar.return_value": [object()] * 3}),
     }
 
 
@@ -77,6 +99,9 @@ def armar(page, mocks, sesion):
         mocks["listar_cat"],
         mocks["listar_cat_comp"],
         mocks["eliminar_ins"],
+        mocks["listar_plantel"],
+        mocks["agregar_lista"],
+        mocks["listar_lista"],
         sesion,
     )
 
@@ -184,3 +209,60 @@ def test_error_inesperado_al_inscribir_muestra_mensaje_generico(armar, mocks):
     boton(vista, "Inscribir club").on_click()
 
     assert MENSAJE_ERROR_INESPERADO in _errores_visibles(vista)
+
+
+# ----------------------------------------------------------------------------- agregar plantel (US-114)
+
+
+def _inscribir(vista: ft.View) -> None:
+    desplegable(vista, "Competencia").value = "10"
+    desplegable(vista, "Competencia").on_select()
+    desplegable(vista, "Categoría").value = "2"
+    boton(vista, "Inscribir club").on_click()
+
+
+def _resultado(vista: ft.View) -> str:
+    return por_clave(vista, CLAVE_RESULTADO_INSCRIPCION).value or ""
+
+
+def test_al_inscribir_pasa_todo_el_plantel_a_la_lista_por_defecto(armar, mocks):
+    vista = armar()
+    assert casilla(vista, "Agregar todo el plantel a la lista").value
+
+    _inscribir(vista)
+
+    mocks["agregar_lista"].ejecutar.assert_called_once_with(AgregarJugadoresListaDTO(idInscripcion=5, idJugadores=[1]))
+    assert _resultado(vista) == "Club inscripto. Se agregaron 1 jugador(es) a la lista."
+
+
+def test_si_se_desmarca_no_toca_la_lista(armar, mocks):
+    vista = armar()
+    casilla(vista, "Agregar todo el plantel a la lista").value = False
+
+    _inscribir(vista)
+
+    mocks["agregar_lista"].ejecutar.assert_not_called()
+    assert _resultado(vista) == "Club inscripto."
+
+
+def test_avisa_los_jugadores_que_no_entraron_y_si_no_hay_plantel(armar, mocks):
+    mocks["agregar_lista"].ejecutar.return_value = ResultadoAgregarJugadoresDTO(
+        rechazados=[JugadorRechazadoDTO(idJugador=1, motivo="Ya está en otra lista")]
+    )
+    vista = armar()
+    _inscribir(vista)
+    assert "1 no entraron" in _resultado(vista)
+
+    mocks["listar_plantel"].ejecutar.return_value = []
+    _inscribir(vista)
+    assert "Todavía no tenés jugadores" in _resultado(vista)
+
+
+def test_la_tabla_muestra_cuantos_jugadores_tiene_cada_lista_y_no_el_numero_de_lista(armar, mocks):
+    vista = armar()
+
+    contenido = textos(por_clave(vista, TABLA_INSCRIPCIONES))
+    assert "Jugadores en la lista" in contenido
+    assert "3" in contenido
+    assert not any(t.startswith("Lista #") for t in contenido)
+    mocks["listar_lista"].ejecutar.assert_called_with(INSCRIPCION.idInscripcion)

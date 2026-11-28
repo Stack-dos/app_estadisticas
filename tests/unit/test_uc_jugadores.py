@@ -13,12 +13,13 @@ from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeCl
 from aplicacion.casos_uso.editar_jugador import EditarJugadorUseCase
 from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
+from aplicacion.casos_uso.listar_jugadores_todos import ListarJugadoresTodosUseCase
 from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
 from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.dtos.club_dto import DesvincularJugadorDTO, VincularJugadorClubDTO, VinculoDTO
-from aplicacion.dtos.jugador_dto import CrearJugadorDTO, EditarJugadorDTO, JugadorDTO
+from aplicacion.dtos.jugador_dto import CrearJugadorDTO, EditarJugadorDTO, JugadorConClubDTO, JugadorDTO
 from dominio.entidades.club import Club
-from dominio.entidades.jugador import Jugador, JugadorClub
+from dominio.entidades.jugador import Jugador, JugadorClub, JugadorConClub
 from dominio.exceptions import (
     ClubNoEncontradoError,
     DatoInvalidoError,
@@ -377,3 +378,18 @@ def test_eliminar_jugador_en_uso_lanza_error_y_no_borra(repo_jugador):
         EliminarJugadorUseCase(repo_jugador).ejecutar(1)
 
     repo_jugador.eliminar.assert_not_called()
+
+
+def test_listar_jugadores_todos_devuelve_cada_jugador_con_su_club():
+    repo = MagicMock(spec=JugadorRepositorio)
+    repo.listar_con_club_actual.return_value = [
+        JugadorConClub(Jugador("Manu", "Ginobili", 1977, idJugador=7), "Atenas"),
+        JugadorConClub(Jugador("Facu", "Campazzo", idJugador=10), None),
+    ]
+
+    resultado = ListarJugadoresTodosUseCase(repo).ejecutar()
+
+    assert resultado == [
+        JugadorConClubDTO("Manu Ginobili", 7, 1977, "Atenas"),
+        JugadorConClubDTO("Facu Campazzo", 10, None, None),
+    ]

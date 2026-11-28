@@ -4,18 +4,33 @@ from unittest.mock import MagicMock
 
 import flet as ft
 import pytest
-from ayudantes_flet import boton, campo, etiqueta_error, por_clave, textos
+from ayudantes_flet import boton, botones_icono, campo, etiqueta_error, por_clave, textos
 
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.crear_club import CrearClubUseCase
+from aplicacion.casos_uso.eliminar_club import EliminarClubUseCase
+from aplicacion.casos_uso.listar_clubes_rivales import ListarClubesRivalesUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
+from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
+from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
+from aplicacion.casos_uso.renombrar_club import RenombrarClubUseCase
 from aplicacion.dtos.auth_dto import UsuarioDTO
-from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO
+from aplicacion.dtos.club_dto import ClubDTO, CrearClubDTO, RenombrarClubDTO
+from aplicacion.dtos.competencia_dto import InscripcionDTO
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
-from dominio.exceptions import ClubNoEncontradoError, ClubYaExisteError, DatoInvalidoError
+from dominio.exceptions import ClubEnUsoError, ClubNoEncontradoError, ClubYaExisteError, DatoInvalidoError
 from infraestructura.ui.flet.errores import MENSAJE_ERROR_INESPERADO
-from infraestructura.ui.flet.screens.clubes_screen import EN_USO, LISTA_CLUBES, SIN_CLUBES, crear_clubes_view
+from infraestructura.ui.flet.screens.clubes_screen import (
+    EN_USO,
+    LISTA_CLUBES,
+    LISTA_RIVALES,
+    SIN_CLUBES,
+    SIN_RIVALES,
+    crear_clubes_view,
+    iniciales,
+    resumen_club,
+)
 
 ATENAS = ClubDTO(idClub=7, nombre="Atenas")
 INSTITUTO = ClubDTO(idClub=8, nombre="Instituto")
@@ -55,8 +70,25 @@ def cambiar_club_uc():
 
 
 @pytest.fixture
-def armar(page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, sesion):
-    return lambda: crear_clubes_view(page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, sesion)
+def rivales():
+    """Casos de uso de "Clubes rivales" (US-114) y los que cuentan categorias y jugadores de cada club."""
+    inscripciones = [
+        InscripcionDTO(idInscripcion=1, idClub=7, idCategoria=1, idCompetencia=10, idListaBuenaFe=1),
+        InscripcionDTO(idInscripcion=2, idClub=7, idCategoria=1, idCompetencia=11, idListaBuenaFe=2),
+        InscripcionDTO(idInscripcion=3, idClub=7, idCategoria=2, idCompetencia=11, idListaBuenaFe=3),
+    ]
+    return (
+        MagicMock(spec=ListarClubesRivalesUseCase, **{"ejecutar.return_value": []}),
+        MagicMock(spec=RenombrarClubUseCase),
+        MagicMock(spec=EliminarClubUseCase),
+        MagicMock(spec=ListarInscripcionesClubUseCase, **{"ejecutar.return_value": inscripciones}),
+        MagicMock(spec=ListarJugadoresClubUseCase, **{"ejecutar.return_value": [object()] * 41}),
+    )
+
+
+@pytest.fixture
+def armar(page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, rivales, sesion):
+    return lambda: crear_clubes_view(page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, *rivales, sesion)
 
 
 def renglones(vista: ft.View) -> list[ft.Control]:
@@ -94,8 +126,24 @@ def test_el_club_activo_se_marca_en_uso_y_los_demas_tienen_boton(armar, listar_c
 
     vista = armar()
 
-    assert renglon(vista, "Atenas").trailing.value == EN_USO
+    assert renglon(vista, "Atenas").trailing.content.value == EN_USO
     assert renglon(vista, "Instituto").trailing.content == "Usar este club"
+
+
+def test_cada_club_tiene_iniciales_y_resumen_de_categorias_y_jugadores(armar, listar_clubes_uc):
+    listar_clubes_uc.ejecutar.return_value = [ATENAS]
+
+    fila = renglon(armar(), "Atenas")
+
+    assert fila.leading.content.value == "AT"
+    assert fila.subtitle.value == "2 categorías · 41 jugadores"  # U17 en dos torneos cuenta una vez
+
+
+def test_iniciales_y_resumen_club():
+    assert iniciales("Hindú Club") == "HC"
+    assert iniciales("atenas") == "AT"
+    assert resumen_club(1, 1) == "1 categoría · 1 jugador"
+    assert resumen_club(0, 12) == "0 categorías · 12 jugadores"
 
 
 # ----------------------------------------------------------------------------- crear
@@ -187,18 +235,85 @@ def test_club_sin_acceso_muestra_el_error_y_no_navega(armar, cambiar_club_uc, se
     page.navigate.assert_not_called()
 
 
-def test_sin_sesion_no_se_puede_construir(page, crear_club_uc, listar_clubes_uc, cambiar_club_uc):
+def test_sin_sesion_no_se_puede_construir(page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, rivales):
     with pytest.raises(RuntimeError):
         crear_clubes_view(
-            page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, SessionManager(MagicMock(spec=SesionAlmacen))
+            page,
+            crear_club_uc,
+            listar_clubes_uc,
+            cambiar_club_uc,
+            *rivales,
+            SessionManager(MagicMock(spec=SesionAlmacen)),
         )
 
 
 def test_muestra_el_aviso_cuando_se_pasa_por_guard_de_club_activo(
-    page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, sesion
+    page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, rivales, sesion
 ):
     vista = crear_clubes_view(
-        page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, sesion, aviso="Elegí un club para seguir."
+        page, crear_club_uc, listar_clubes_uc, cambiar_club_uc, *rivales, sesion, aviso="Elegí un club para seguir."
     )
 
     assert "Elegí un club para seguir." in textos(vista)
+
+
+# ----------------------------------------------------------------------------- clubes rivales (US-114)
+
+PEZCA = ClubDTO(idClub=20, nombre="Pezca")
+
+
+def _dialogo(page: MagicMock) -> ft.AlertDialog:
+    dialogo = page.show_dialog.call_args.args[0]
+    assert isinstance(dialogo, ft.AlertDialog)
+    return dialogo
+
+
+def test_sin_rivales_explica_de_donde_salen(armar):
+    assert SIN_RIVALES in textos(por_clave(armar(), LISTA_RIVALES))
+
+
+def test_renombrar_un_rival_abre_el_dialogo_y_rehace_la_lista(armar, rivales, page):
+    listar, renombrar, _eliminar, *_ = rivales
+    listar.ejecutar.side_effect = [[PEZCA], [ClubDTO(idClub=20, nombre="Pesca")]]
+    renombrar.ejecutar.return_value = ClubDTO(idClub=20, nombre="Pesca")
+    vista = armar()
+
+    botones_icono(por_clave(vista, LISTA_RIVALES), "Renombrar")[0].on_click()
+    dialogo = _dialogo(page)
+    campo_nombre = dialogo.content.controls[0]
+    assert campo_nombre.value == "Pezca"
+    campo_nombre.value = "Pesca"
+    dialogo.actions[1].on_click()
+
+    renombrar.ejecutar.assert_called_once_with(RenombrarClubDTO(idClub=20, nombre="Pesca"))
+    page.pop_dialog.assert_called_once()
+    assert "Pesca" in textos(por_clave(vista, LISTA_RIVALES))
+
+
+def test_renombrar_a_un_nombre_que_ya_existe_muestra_el_error_en_el_dialogo(armar, rivales, page):
+    listar, renombrar, _eliminar, *_ = rivales
+    listar.ejecutar.return_value = [PEZCA]
+    renombrar.ejecutar.side_effect = ClubYaExisteError("Ya existe un club llamado 'Atenas'.")
+    vista = armar()
+
+    botones_icono(por_clave(vista, LISTA_RIVALES), "Renombrar")[0].on_click()
+    dialogo = _dialogo(page)
+    dialogo.actions[1].on_click()
+
+    assert dialogo.content.controls[1].value == "Ya existe un club llamado 'Atenas'."
+    page.pop_dialog.assert_not_called()
+
+
+def test_eliminar_un_rival_con_partidos_pide_confirmar_y_muestra_por_que_no(armar, rivales, page):
+    listar, _renombrar, eliminar, *_ = rivales
+    listar.ejecutar.return_value = [PEZCA]
+    eliminar.ejecutar.side_effect = ClubEnUsoError(
+        "El club tiene partidos cargados. Si el nombre está mal, renombralo."
+    )
+    vista = armar()
+
+    botones_icono(por_clave(vista, LISTA_RIVALES), "Eliminar")[0].on_click()
+    _dialogo(page).actions[1].on_click()
+
+    eliminar.ejecutar.assert_called_once_with(20)
+    assert "renombralo" in etiqueta_error(vista).value
