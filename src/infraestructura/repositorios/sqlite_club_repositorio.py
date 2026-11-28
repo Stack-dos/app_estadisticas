@@ -143,6 +143,7 @@ class SqliteClubRepositorio(ClubRepositorio):
         except sqlite3.Error as e:
             logger.error(f"Error al guardar club: {e}", exc_info=True)
             return None
+        logger.debug("INSERT club", extra={"evento": "db_insert", "tabla": "club", "id_club": id_club})
 
         try:
             return Club(idClub=id_club, nombre=club.nombre)
@@ -181,6 +182,7 @@ class SqliteClubRepositorio(ClubRepositorio):
             logger.error(f"Error al guardar el club con su entrenador: {e}", exc_info=True)
             return None
 
+        logger.debug("INSERT club + usuarioClub", extra={"evento": "db_insert", "tabla": "club", "id_club": id_club})
         return Club(idClub=id_club, nombre=club.nombre)
 
     def link_user_to_club(self, us_club: UsuarioClub) -> UsuarioClub | None:
