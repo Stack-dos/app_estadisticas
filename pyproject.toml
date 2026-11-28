@@ -9,8 +9,8 @@ description = "Aplicación de estadísticas de básquet, ejecución local (offli
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "flet[desktop]==1.1.2",
-    "pandas==3.0.6",
+    "flet[desktop]==1.1.3",
+    "pandas==3.1.1",
 ]
 
 # Comando "statspro" al instalar el paquete (por ahora: uv tool install --editable .)
@@ -19,10 +19,10 @@ statspro = "main:main"
 
 [dependency-groups]
 dev = [
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     "pytest-cov==7.1.0",
-    "ruff==0.16.8",
-    "mypy==2.3.1",
+    "ruff==0.17.6",
+    "mypy==2.4.1",
     "pre-commit>=4.6.2",
     "actionlint-py==1.7.12.25",
     # Resumen de la PR en el CI: cobertura de las lineas cambiadas y benchmarks (ver benchmarks/)
