@@ -416,6 +416,10 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
   de su club para la competencia y categoría del partido. La importación de una planilla de
   partido (US-201) o de un listado de la CAB (US-206) **genera o completa** esas listas en vez de
   rechazar a los jugadores.
+- **Desde la US-113 (2026-11-27) la regla anterior vale solo para el club propio.** Del rival se cargan
+  sus totales (o solo el resultado) o su boxscore por jugador. Si se carga su boxscore, en la misma
+  transacción del partido se crean su inscripción, su lista de buena fe y los jugadores que no
+  existían, y se habilitan en la lista los de su plantel que faltaban: el rival nunca frena la carga.
 
 **Partidos y Estadísticas**:
 
@@ -423,6 +427,29 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 - Se puede cargar **cualquier partido de la competencia**, aunque el club activo no juegue: cuantos
   más partidos de otros clubes haya, más confiables son las comparaciones (decisión del
   2026-10-31). Un club creado como rival o por importación no queda vinculado al usuario.
+  **Revisada por la US-113 (2026-11-27):** la pantalla de carga es del club activo (su boxscore y el
+  del rival). **Cerrada por la US-114:** los partidos entre dos clubes ajenos no se cargan a mano; van a
+  entrar por la importación de planillas (US-201) y la carga masiva (US-207).
+- **Jugadores por partido (US-114):** como máximo **12 por equipo** (`MAX_JUGADORES_PARTIDO`), y se
+  rechaza en el caso de uso. Con menos de **5** del club propio (`MIN_JUGADORES_PARTIDO`) la pantalla
+  solo avisa y deja guardar igual: puede faltar cargar a alguno, o el equipo terminó con menos.
+- **No hay empates (US-114):** si los dos equipos suman los mismos puntos, el partido no se guarda
+  (si hubo prórroga, va sumada en el total).
+- **Partido repetido (US-114):** mismo día, mismo torneo y mismo rival se avisa y se puede guardar
+  igual (dos partidos el mismo día son raros, pero posibles en un torneo corto).
+- **El rival nuevo se crea con el partido (US-114):** el club que se escribe y no existe se inserta en
+  la misma transacción que el partido; si el partido falla, el club no queda.
+- **Editar y eliminar (US-114):** editar un partido lo reemplaza entero conservando su id (mismos
+  datos, boxscore, cuartos y totales, todo en una transacción). Eliminarlo borra sus filas; lo que se
+  dio de alta del rival (inscripción, lista, jugadores) se conserva.
+- **Clubes rivales (US-114):** un club sin usuario se puede renombrar; se puede eliminar solo si no
+  tiene partidos. Los clubes propios no se tocan desde ahí.
+- **Totales de un equipo (US-113):** convertidos ≤ lanzados y todo ≥ 0. Si se cargan tiros, los
+  puntos tienen que dar `2×T2C + 3×T3C + T1C`; si no se carga ningún tiro, alcanza con los puntos
+  (solo el resultado). Los totales cargados a mano y la suma del boxscore se leen juntos en
+  `v_totales_equipo_partido`.
+- **Fila vacía = no jugó (US-113):** en la planilla, la fila de un jugador sin ningún dato no se
+  guarda; un jugador que entró y no hizo nada se registra con sus minutos.
 - Toda carga de partido y boxscore es atómica (todo o nada).
 - Estadísticas de tiro: convertidos ≤ lanzados; todos los valores no negativos.
 - Puntos de jugador = T1C + T2C×2 + T3C×3 (coherencia verificada).
@@ -501,6 +528,7 @@ Centraliza las reglas obligatorias del dominio para que desarrollo y testing sea
 | ADR-007 | Motor de Visualización   | Aprobado (`docs/adr/ADR-007-motor-visualizacion.md`)                                      | `matplotlib`; se descarta `plotly` para este motor                                                                                                 | US-301          |
 | ADR-008 | Estrategia de Backup     | Aprobado (`docs/adr/ADR-008-estrategia-backup.md`)                                        | Exportación/restauración manual con `VACUUM INTO`/backup online de SQLite                                                                          | Hito 4          |
 | ADR-009 | Pipeline CI/CD           | Aprobado, ya implementado (`docs/adr/ADR-009-pipeline-cicd.md`)                           | GitHub Actions (hosted) para lint, tests y cobertura automáticos                                                                                   | US-109          |
+| ADR-010 | Carga del rival          | Aprobado, ya implementado (`docs/adr/ADR-010-carga-rival-y-totales.md`)                   | Boxscore completo solo del club propio; del rival, totales en `estadisticaEquipoPartido` o boxscore con alta automática en la misma transacción   | US-113          |
 
 Estructura canónica de un ADR (ver `docs/documentacion_app_estadistica/ADR/template_adr.md`): Contexto → Alternativas Consideradas → Decisión Tomada → Ventajas y Desventajas. Los ADR escritos viven en `docs/adr/` (no en el submódulo de documentación, que es de otro repositorio). **Estado (2026-10-03): los 9 ADR ya están redactados en `docs/adr/`.** Aprobados sin preguntas
 pendientes: ADR-001, ADR-002, ADR-005, ADR-007, ADR-008, ADR-009. Con preguntas abiertas a
@@ -514,14 +542,16 @@ de contraseñas comprometidas, ambas para la parte de v1.0).
 
 **Objetivo del hito:** construir una base técnica funcional con persistencia robusta, autenticación local, casos de uso operativos, validaciones de integridad, una interfaz gráfica de escritorio (Flet) que cubra la gestión completa y la carga de partidos, y un entorno de calidad que garantice reproducibilidad desde el primer commit.
 
-**Épicas:** 3 · **Historias:** 12 (US-101 a US-112; la US-104 original se dividió en Autenticación
+**Épicas:** 3 · **Historias:** 14 (US-101 a US-114; la US-104 original se dividió en Autenticación
 y Sesión el 2026-10-03, el 2026-10-31 se agregó la US-105 de GUI base y se renumeraron las
 siguientes — ver la tabla al inicio del documento —, el 2026-11-08 se agregó la US-111 de base
 visual, que va antes de la US-107 aunque tenga número más alto, y ese mismo día la US-107 se
-dividió en US-107 (competencias, inscripciones y listas) y US-112 (jugadores y partidos)) · **Esfuerzo total estimado:** ~60 días·persona
+dividió en US-107 (competencias, inscripciones y listas) y US-112 (jugadores y partidos); el
+2026-11-27 se agregó la US-113, que rehace la carga de partido después de probar la app con datos
+reales, y después la US-114, con lo que salió de simular el uso de un entrenador) · **Esfuerzo total estimado:** ~65 días·persona
 
 **Orden de ejecución:** US-101 → US-102 → US-103 → US-104 (todas ✅) → ajuste previo (quitar el
-DNI, en paralelo con el arranque de la US-105) → US-105 → US-106 → US-111 → US-107 → US-112 → US-108 → US-110. La US-109 (CI/CD) es transversal: no depende de ninguna y se va completando a lo
+DNI, en paralelo con el arranque de la US-105) → US-105 → US-106 → US-111 → US-107 → US-112 → US-108 → US-113 → US-114 → US-110. La US-109 (CI/CD) es transversal: no depende de ninguna y se va completando a lo
 largo del hito.
 
 ### Plan de trabajo en paralelo (equipo de dos, 2026-10-31)
@@ -1133,6 +1163,10 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
 > 1. **Cualquier partido de la competencia.** Se puede cargar un partido aunque el club activo no juegue; el club activo (US-106) solo viene **preseleccionado** como local y el usuario puede cambiar los dos equipos. Motivo: si solo se cargan los partidos propios, el club activo tiene N partidos y cada rival 0 o 1, y el promedio de un rival con un solo partido no dice nada.
 > 2. **El partido guarda la categoría.** Un partido es de una categoría que juega una competencia. Las categorías se repiten (U13 juega el Asociativo 2026, el Asociativo 2027 y el Provincial 2026) y cada combinación tiene su inscripción y su lista de buena fe por club; sin la categoría no se sabe contra qué lista validar.
 > 3. **Clubes rivales o de terceros.** `ClubRepositorio.listar_todos` para elegir cualquier club, y `CrearClubUseCase` con `idUsuario` opcional: sin usuario, el club se crea **sin** vínculo en `usuarioClub`.
+>
+> **Revisada el 2026-11-27 por la US-113:** la decisión 1 y el AC5 ya no valen para la pantalla (carga
+> los partidos del club activo), y la validación contra la lista de buena fe es solo para el club
+> propio. El formulario de varios pasos se reemplazó por una sola pantalla. El resto sigue igual.
 
 - **Puntos por cuarto (2026-11-08):** opcionales (regla de la sección 6). Van en una tabla aparte y
   no en columnas de `partido`: así entran las prórrogas sin columnas vacías y "no se cargaron" es
@@ -1168,6 +1202,9 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
   - No se puede cargar un partido si los clubes involucrados no existen en la DB (ya lo valida `save_with_boxscore`).
   - **En el boxscore de cada equipo solo figuran jugadores de la lista de buena fe de ese club para la competencia y categoría del partido** (regla de la sección 6). Las listas se cargan desde `ListaBuenaFeScreen` (US-107) o se importan (US-206, US-201); si un jugador no está, se lanza una excepción de dominio.
   - **Nota (campo propuesto, no implementado todavía):** si se agrega a `Partido` un resultado final (`puntosLocalFinal`/`puntosVisitanteFinal`, ver sección 20 y el DER en `docs/diagramas/diagramas.md`), esta US sería el lugar natural para completarlo, con una regla que valide que la suma de puntos del boxscore por club coincide con ese resultado. La importación (US-201) ya no lo necesita: valida contra la fila `TOTALES` del archivo.
+    **Resuelto distinto en la US-113:** el resultado no es una columna de `partido`; sale de
+    `v_totales_equipo_partido` (suma del boxscore o totales cargados), así no hay dos fuentes que
+    puedan contradecirse.
 - **Testing Mínimo:**
   - _Unitarias:_ `CargarPartidoUseCase` rechaza un jugador que no está en la lista de su club (en cualquiera de los dos equipos) y uno que está en la lista de otra categoría (mock de `CompetenciaRepositorio`); camino feliz llama a `save_with_boxscore` con los DTOs traducidos. `CrearClubUseCase` sin usuario no vincula. Cuartos (AC7): sin cuartos, con 4 cuartos válidos, con prórroga, de un solo equipo y con una suma que no coincide.
   - _Integración:_ flujo completo (partido + dos boxscores, con y sin cuartos) en DB `:memory:` con repositorios reales, incluido un partido entre dos clubes sin vínculo con el usuario — puede reusar el fixture de `tests/integration/test_repositorios_partido.py`.
@@ -1182,6 +1219,183 @@ Se revisó en modo oscuro. Login y registro usan el formato del muestrario para 
   `CargarPartidoUseCase` y sus tests unitarios y de integración.
 - **Pista A:** `CargaPartidoScreen` y `components/puntos_por_cuarto.py`, programados contra los DTOs acordados (puede arrancar con un
   caso de uso falso hasta que la Pista B mergee el real).
+
+#### US-113 — Carga de Partido Centrada en el Club Propio y Pantallas Más Cómodas
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-108, US-111, US-112
+- **Nueva (2026-11-27).** Sale de probar la app con los datos reales de una temporada (la planilla de
+  Excel del club): no se podía escribir el rival, había que crearlo en "Mis clubes" como si fuera
+  propio, se le exigía inscripción y lista, y el formulario desperdiciaba el espacio.
+- **Objetivo Funcional:** cargar un partido como lo anota un entrenador: el boxscore completo de su
+  equipo y, del rival, lo que tenga (sus totales, solo el resultado o su boxscore). De paso, que las
+  pantallas usen todo el ancho y que las tareas repetidas (armar una lista) se hagan de una vez.
+- **Narrativa:** Como DT, quiero cargar el partido de mi equipo en una sola pantalla parecida a mi
+  planilla, escribir el rival aunque no exista y no tener que armarle una lista de buena fe.
+
+> **Decisiones tomadas el 2026-11-27:**
+>
+> 1. **Rival: totales o boxscore (D1 = C).** Del rival se cargan sus totales en una fila (como la fila
+>    "Equipo Rival" de la planilla) o, si se tiene, su boxscore por jugador. Con boxscore, sus
+>    jugadores van a la base: en la misma transacción se crean su inscripción, su lista y los
+>    jugadores nuevos (se reconocen por nombre y apellido sin tildes ni mayúsculas, entre su plantel
+>    vigente).
+> 2. **El rival es un club sin usuario (D2 = A).** Se elige de la lista o se escribe; si no existe se
+>    crea con `CrearClubUseCase` sin usuario y no aparece en "Mis clubes". "Mis clubes" muestra solo
+>    los clubes propios.
+> 3. **Rival + Local/Visitante (D3).** En vez de elegir local y visitante, se elige el rival y si se
+>    jugó de local o de visitante.
+> 4. **Ancho completo y una sola pantalla (D4 = A-A).** `crear_pagina` deja de limitar el ancho; la
+>    carga es una sola pantalla con una planilla tipo Excel.
+> 5. **Dónde quedan los totales del rival (2 = A).** Tabla nueva `estadisticaEquipoPartido` y vista
+>    `v_totales_equipo_partido`, que une la suma del boxscore con los totales cargados a mano.
+> 6. **Encabezados T2C/T2L** como en la planilla (no se traducen a "Dobles").
+> 7. **Alta masiva en la lista de buena fe, no "todo o nada":** se agregan los válidos y se informa
+>    qué jugadores no entraron y por qué.
+
+- **Capa de Dominio:**
+  - `EstadisticaEquipo` (totales de un equipo, con las reglas de la sección 6), `AltaPlantelRival` y
+    `JugadorRivalNuevo` (qué hay que crear del rival), `TotalesEquipoFila` y `LiderClub` (lectura).
+    `PartidoResumen` suma `puntosLocal`/`puntosVisitante`.
+  - `PartidoRepositorio.save_with_boxscore(partido, boxscore, cuartos, totales, alta_rival)`;
+    métodos nuevos `totales_por_partido` y `lideres_por_club`.
+- **Capa de Aplicación:**
+  - `CargarPartidoUseCase(repo_partido, repo_competencia, repo_jugador).ejecutar(partido, boxscore_propio, rival)`,
+    donde `rival` es un `BoxscoreDTO` o un `TotalesEquipoDTO`. Valida todo antes de guardar: fecha
+    ISO, clubes distintos, el club propio inscripto y con todos sus jugadores en la lista, el rival
+    con jugadores de su club (por id) o nuevos (con nombre y apellido), sin repetidos, y los cuartos
+    contra los puntos de cada equipo. `EstadisticaInputDTO.idJugador` pasa a ser opcional y suma
+    `nombre`/`apellido` para los jugadores nuevos del rival.
+  - Casos de uso nuevos: `ObtenerTotalesPartidoUseCase`, `ListarLideresClubUseCase` (5 por defecto) y
+    `AgregarJugadoresAListaBuenaFeUseCase` (reusa el alta individual para cada jugador).
+- **Capa de Infraestructura:**
+  - **Base de datos:** tabla `estadisticaEquipoPartido` (PK `(idPartido, idClub)`, `ON DELETE CASCADE`
+    desde `partido`, CHECK de no negativos y convertidos ≤ lanzados); vistas `v_totales_equipo_partido`
+    (origen `boxscore` o `totales`), `v_lideres_club`, y `v_partidos_resumen` con los puntos de cada
+    equipo. Es una tabla nueva: `CREATE TABLE IF NOT EXISTS` la agrega sola a una base existente.
+  - **Componentes:** `planilla_boxscore.py` (`PlanillaBoxscore`: una fila por jugador con PTS y la fila
+    Equipo calculados solos, filas a mano para el rival; `FilaTotalesEquipo`: los puntos se calculan
+    si hay tiros y se escriben si no). `crear_pagina` sin ancho máximo.
+  - **Pantallas:**
+    - `CargaPartidoScreen` — tarjeta de datos (competencia y categoría en un solo desplegable,
+      preelegido si hay una sola inscripción; fecha con calendario; estadio; rival escribible;
+      Local/Visitante), planilla propia, bloque del rival («Solo totales o resultado» o «Boxscore por
+      jugador»), puntos por cuarto opcionales, marcador en vivo y Guardar. El club rival nuevo se crea
+      recién después de validar la planilla.
+    - `PartidosScreen` — columna Resultado y, en el detalle, la tabla «Totales por equipo».
+    - `InicioScreen` — accesos rápidos, último partido y líderes del club.
+    - `JugadoresScreen` — tabla a todo el ancho, alta en un diálogo, acciones con íconos y la fecha
+      de baja dentro del diálogo de baja.
+    - `ListaBuenaFeScreen` — casillas con el plantel que no está en la lista, «Seleccionar todos» y
+      «Agregar seleccionados (n)».
+    - `CompetenciasScreen` — las categorías de cada competencia se eligen desde su fila (diálogo con
+      casillas); el catálogo pasa a `CategoriasScreen` (ruta `/categorias`, pestaña nueva de Torneos).
+- **Criterios de Aceptación:**
+  - **AC1 — Rival escribible:** se puede escribir un rival que no existe; se crea sin usuario y no
+    aparece en "Mis clubes". Si se escribe igual que uno existente (sin importar tildes ni
+    mayúsculas), se usa ese.
+  - **AC2 — Rival sin lista:** con totales, el rival no necesita inscripción ni lista; con boxscore,
+    se le crean en la misma transacción. Si algo falla, no queda nada de ese alta (atomicidad).
+  - **AC3 — Solo el resultado:** del rival alcanza con los puntos.
+  - **AC4 — Totales coherentes:** con tiros cargados, los puntos tienen que cerrar.
+  - **AC5 — Un solo lugar para el resultado:** listado, detalle e inicio leen el resultado de
+    `v_totales_equipo_partido`.
+  - **AC6 — Alta masiva:** varios jugadores a la lista en un paso, con el motivo de cada rechazo.
+  - **AC7 — Sin pérdida de datos:** si el guardado falla, la planilla conserva lo cargado.
+- **Testing Mínimo:**
+  - _Unitarias:_ `CargarPartidoUseCase` con totales, solo resultado, totales incoherentes, de
+    visitante, rival inscripto, rival reconocido por nombre, rival nuevo, jugador de otro club,
+    repetidos y cuartos; `AgregarJugadoresAListaBuenaFeUseCase`; planilla y fila de totales; cada
+    pantalla con mocks.
+  - _Integración:_ rival nuevo con boxscore (y segundo partido sin duplicar jugadores), totales en la
+    vista, rollback del alta del rival, líderes.
+  - _Manual guiado:_ el flujo de un entrenador de punta a punta (registro → club → jugadores →
+    competencia → inscripción → lista masiva → partido con totales → partido con boxscore del rival).
+- **Pendiente de decisión (para cerrar el hito):** _resuelto en la US-114 (los tres puntos)._
+  - **Partidos entre dos clubes ajenos** (antes AC5 de la US-108): hoy no se pueden cargar desde la
+    pantalla. Opciones: (a) dejarlo fuera de v0.1; (b) un modo «Partido de otros» en la misma
+    pantalla con los dos equipos en totales; (c) esperar a la importación (US-201).
+  - **Empates:** en básquet no hay empates, pero hoy se puede guardar un partido empatado.
+  - **Crear el rival y guardar el partido no son atómicos:** si el guardado falla después de crear el
+    club rival, el club queda (vacío y sin usuario).
+
+#### US-114 — Editar Partidos, Convocados y Guía de Uso
+
+- **Esfuerzo:** M (3-5 días) · **Prioridad:** Alta · **Dependencias:** US-113
+- **Nueva (2026-11-27).** Sale de simular el flujo completo de un entrenador sobre la US-113: no se
+  podía corregir un partido ya cargado, la planilla mostraba toda la lista de buena fe, se guardaban
+  empates, un error de la planilla aparecía dos veces, el rival mal escrito quedaba para siempre y no
+  había ayuda dentro de la app.
+- **Objetivo Funcional:** que el entrenador pueda corregir lo que cargó, cargue solo a los que fueron
+  al partido y tenga a mano una guía simple de cómo se usa la aplicación.
+- **Narrativa:** Como DT, quiero marcar los convocados, corregir o borrar un partido mal cargado y
+  arreglar el nombre de un rival, y tener una guía a mano cuando no sé cómo seguir.
+
+> **Decisiones tomadas el 2026-11-27:**
+>
+> 1. **Editar (D1 = a):** todo el partido se puede editar, reusando la pantalla de carga llena con lo
+>    guardado (ruta `/partidos/editar/{id}`). Se suma «Eliminar partido» con confirmación.
+> 2. **Cantidad de jugadores (D2 = a y b):** máximo 12, fijo y obligatorio; el mínimo (5, como en el
+>    reglamento FIBA) solo avisa.
+> 3. **Convocados (D3 = a):** casillas con la lista de buena fe; la planilla muestra solo los
+>    marcados. Si la lista tiene 12 o menos vienen todos marcados; si tiene más, ninguno.
+> 4. **Guía (D4 = a):** pantalla `/guia` que muestra `src/assets/guia.md` con `ft.Markdown`; botón
+>    «Guía» abajo del menú lateral y link «¿Cómo se usa?» en el login (se abre sin sesión).
+> 5. **Partidos de otros clubes:** quedan fuera: la US-201 importa planillas de cualquier club y la
+>    US-207 hace la carga masiva.
+> 6. **Recomendaciones de la simulación:** rechazar empates; mostrar el error de la planilla una sola
+>    vez (abajo solo se dice dónde mirar); crear el rival nuevo en la misma transacción del partido;
+>    avisar si el partido ya existe; «Agregar todo el plantel a la lista» al inscribirse (marcado por
+>    defecto); sección «Clubes rivales» en «Mis clubes» para renombrar o borrar rivales sin partidos.
+
+- **Capa de Dominio:**
+  - Constantes `MAX_JUGADORES_PARTIDO = 12`, `MIN_JUGADORES_PARTIDO = 5` e `ID_CLUB_NUEVO = 0` (id
+    provisorio del rival que todavía no existe). Excepción nueva `ClubEnUsoError`.
+  - `PartidoRepositorio.save_with_boxscore(..., club_rival_nuevo)`: con `partido.idPartido` hace UPDATE
+    y reemplaza sus filas; métodos nuevos `eliminar` y `cuartos_por_partido`.
+  - `ClubRepositorio`: `listar_sin_usuario`, `actualizar`, `eliminar`, `tiene_partidos`, `tiene_usuarios`.
+- **Capa de Aplicación:**
+  - `CargarPartidoUseCase.ejecutar(partido, boxscore_propio, rival, nombre_rival_nuevo=None)`: valida
+    el máximo de 12 por equipo y que no haya empate; con `nombre_rival_nuevo` el rival viene con
+    `ID_CLUB_NUEVO` y el repositorio lo crea en la misma transacción; con `PartidoDTO.idPartido`, edita.
+  - Casos de uso nuevos: `ObtenerPartidoUseCase`, `EliminarPartidoUseCase`, `ListarClubesRivalesUseCase`,
+    `RenombrarClubUseCase` (`RenombrarClubDTO`) y `EliminarClubUseCase`.
+- **Capa de Infraestructura:**
+  - **Base de datos:** sin cambios de esquema. Editar hace UPDATE de `partido` y vuelve a insertar sus
+    filas; eliminar borra a mano `jugadorPartido` (es `ON DELETE RESTRICT`), `partidoCuarto` y
+    `estadisticaEquipoPartido`, y después el partido.
+  - **Rutas:** `/partidos/editar/{id}` (ruta con id: `separar_ruta`, con club activo) y `/guia` (con o
+    sin sesión).
+  - **Componentes:** `PlanillaBoxscore.cargar_jugadores` conserva lo cargado de cada jugador;
+    `poner_valores` en la planilla y en `FilaTotalesEquipo`; `BloquePuntosPorCuarto.cargar_cuartos`;
+    `crear_boton_guia` abajo del menú lateral.
+  - **Pantallas:**
+    - `CargaPartidoScreen` — convocados con contador «Convocados: n/12», avisos con «¿Guardar igual?»
+      (menos de 5 jugadores, partido repetido) y modo edición (título «Editar partido», botón
+      «Guardar cambios»; avisa si un jugador del partido ya no está en la lista).
+    - `PartidosScreen` — «Editar partido» y «Eliminar partido» en el detalle.
+    - `InscripcionesScreen` — casilla «Agregar todo el plantel a la lista».
+    - `ClubesScreen` — sección «Clubes rivales» (renombrar en un diálogo, eliminar con confirmación).
+    - `GuiaScreen` — el manual de uso; `LoginScreen` suma el link «¿Cómo se usa?».
+- **Criterios de Aceptación:**
+  - **AC1 — Editar:** desde el detalle se abre el partido con todo lo cargado; guardar lo reemplaza sin
+    crear otro.
+  - **AC2 — Eliminar:** pide confirmación y borra el partido con su boxscore, cuartos y totales.
+  - **AC3 — Convocados:** no se pueden marcar más de 12; la planilla muestra solo los marcados.
+  - **AC4 — Avisos:** con menos de 5 jugadores o un partido repetido, se pregunta antes de guardar.
+  - **AC5 — Sin empates:** un empate no se guarda y se explica por qué.
+  - **AC6 — Rival atómico:** si el partido no se guarda, el rival nuevo no queda en la base.
+  - **AC7 — Rivales:** se renombran; se eliminan solo si no tienen partidos.
+  - **AC8 — Guía:** se abre desde el menú (con sesión) y desde el login (sin sesión).
+- **Testing Mínimo:**
+  - _Unitarias:_ empate, más de 12, rival nuevo (id provisorio y nombre juntos), edición con
+    `idPartido`, obtener/eliminar partido, renombrar/eliminar/listar rivales; convocados, avisos, error
+    único y edición en la pantalla de carga; editar/eliminar en partidos; plantel al inscribirse;
+    clubes rivales; rutas con id y guía; botón Guía.
+  - _Integración:_ rival nuevo con el partido y su rollback, edición que reemplaza filas y conserva el
+    id, edición de un partido inexistente, eliminación, métodos nuevos del repositorio de clubes.
+  - _Manual guiado:_ simulación del flujo del entrenador (guía sin sesión → club → 14 jugadores →
+    inscripción con plantel → partido con convocados → duplicado y empate → editar → eliminar →
+    renombrar rival → guía con sesión).
 
 #### US-110 — Monitoreo y Trazabilidad Operativa
 
