@@ -14,6 +14,7 @@ import flet as ft
 
 import config.rutas as r
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
+from aplicacion.casos_uso.agregar_jugadores_lista import AgregarJugadoresAListaBuenaFeUseCase
 from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.cargar_partido import CargarPartidoUseCase
@@ -23,26 +24,34 @@ from aplicacion.casos_uso.crear_competencia import CrearCompetenciaUseCase
 from aplicacion.casos_uso.desvincular_jugador_club import DesvincularJugadorDeClubUseCase
 from aplicacion.casos_uso.editar_jugador import EditarJugadorUseCase
 from aplicacion.casos_uso.eliminar_categoria import EliminarCategoriaUseCase
+from aplicacion.casos_uso.eliminar_club import EliminarClubUseCase
 from aplicacion.casos_uso.eliminar_competencia import EliminarCompetenciaUseCase
 from aplicacion.casos_uso.eliminar_inscripcion import EliminarInscripcionUseCase
 from aplicacion.casos_uso.eliminar_jugador import EliminarJugadorUseCase
+from aplicacion.casos_uso.eliminar_partido import EliminarPartidoUseCase
 from aplicacion.casos_uso.habilitar_categoria_competencia import HabilitarCategoriaEnCompetenciaUseCase
 from aplicacion.casos_uso.inscribir_club_competencia import InscribirClubEnCompetenciaUseCase
 from aplicacion.casos_uso.listar_categorias import ListarCategoriasUseCase
 from aplicacion.casos_uso.listar_categorias_competencia import ListarCategoriasDeCompetenciaUseCase
 from aplicacion.casos_uso.listar_clubes import ListarClubesUseCase
+from aplicacion.casos_uso.listar_clubes_rivales import ListarClubesRivalesUseCase
 from aplicacion.casos_uso.listar_clubes_usr import ListarClubesUsuarioUseCase
 from aplicacion.casos_uso.listar_competencias import ListarCompetenciasUseCase
 from aplicacion.casos_uso.listar_inscripciones_club import ListarInscripcionesClubUseCase
 from aplicacion.casos_uso.listar_jugador_club import ListarJugadoresClubUseCase
+from aplicacion.casos_uso.listar_jugadores_todos import ListarJugadoresTodosUseCase
+from aplicacion.casos_uso.listar_lideres_club import ListarLideresClubUseCase
 from aplicacion.casos_uso.listar_lista_buena_fe import ListarListaBuenaFeUseCase
 from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
+from aplicacion.casos_uso.obtener_partido import ObtenerPartidoUseCase
+from aplicacion.casos_uso.obtener_totales_partido import ObtenerTotalesPartidoUseCase
 from aplicacion.casos_uso.partidos_por_club import ListarPartidosPorClubUseCase
 from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeCompetenciaUseCase
 from aplicacion.casos_uso.quitar_jugador_lista import QuitarJugadorDeListaBuenaFeUseCase
 from aplicacion.casos_uso.registrar_entrenador import RegistrarEntrenadorUseCase
 from aplicacion.casos_uso.registrar_jugador import RegistrarJugadorUseCase
+from aplicacion.casos_uso.renombrar_club import RenombrarClubUseCase
 from aplicacion.casos_uso.restaurar_sesion import RestaurarSesionUseCase
 from aplicacion.casos_uso.vaciar_lista_buena_fe import VaciarListaBuenaFeUseCase
 from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
@@ -60,8 +69,11 @@ from infraestructura.repositorios.sqlite_usuario_repositorio import SqliteUsuari
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
 from infraestructura.ui.flet.estilo import aplicar_tema
 from infraestructura.ui.flet.screens.carga_partido_screen import crear_carga_partido_view
+from infraestructura.ui.flet.screens.categorias_screen import crear_categorias_view
 from infraestructura.ui.flet.screens.clubes_screen import crear_clubes_view
 from infraestructura.ui.flet.screens.competencias_screen import crear_competencias_view
+from infraestructura.ui.flet.screens.detalle_partido_screen import crear_detalle_partido_view
+from infraestructura.ui.flet.screens.guia_screen import crear_guia_view
 from infraestructura.ui.flet.screens.inicio_screen import crear_inicio_view
 from infraestructura.ui.flet.screens.inscripciones_screen import crear_inscripciones_view
 from infraestructura.ui.flet.screens.jugadores_screen import crear_jugadores_view
@@ -77,14 +89,19 @@ RUTA_REGISTRO = "/registro"
 RUTA_INICIO = "/inicio"
 RUTA_CLUBES = "/clubes"
 RUTA_COMPETENCIAS = "/competencias"
+RUTA_CATEGORIAS = "/categorias"
 RUTA_INSCRIPCIONES = "/inscripciones"
 RUTA_LISTAS = "/listas"
 RUTA_JUGADORES = "/jugadores"
 RUTA_PARTIDOS = "/partidos"
 RUTA_CARGAR_PARTIDO = "/partidos/cargar"
+RUTA_EDITAR_PARTIDO = "/partidos/editar"  # lleva el id al final: "/partidos/editar/5"
+RUTA_DETALLE_PARTIDO = "/partidos/ver"  # lleva el id al final: "/partidos/ver/5"
+RUTA_GUIA = "/guia"  # se puede abrir con o sin sesion
 RUTAS_PUBLICAS = {RUTA_LOGIN, RUTA_REGISTRO}
 RUTAS_CON_CLUB = {
     RUTA_COMPETENCIAS,
+    RUTA_CATEGORIAS,
     RUTA_INSCRIPCIONES,
     RUTA_LISTAS,
     RUTA_JUGADORES,
@@ -92,6 +109,7 @@ RUTAS_CON_CLUB = {
     RUTA_CARGAR_PARTIDO,
 }
 RUTAS_INTERNAS = {RUTA_INICIO, RUTA_CLUBES, *RUTAS_CON_CLUB}
+RUTAS_CON_ID = {RUTA_EDITAR_PARTIDO, RUTA_DETALLE_PARTIDO}  # internas, con club activo y con un id al final
 AVISO_REQUIERE_CLUB = "Elegí o creá un club activo para trabajar en esa sección."
 
 
@@ -122,6 +140,7 @@ class Dependencias:
     listar_inscripciones_uc: ListarInscripcionesClubUseCase
     eliminar_inscripcion_uc: EliminarInscripcionUseCase
     agregar_jugador_lista_uc: AgregarJugadorAListaBuenaFeUseCase
+    agregar_jugadores_lista_uc: AgregarJugadoresAListaBuenaFeUseCase
     quitar_jugador_lista_uc: QuitarJugadorDeListaBuenaFeUseCase
     vaciar_lista_uc: VaciarListaBuenaFeUseCase
     listar_lista_uc: ListarListaBuenaFeUseCase
@@ -130,11 +149,19 @@ class Dependencias:
     vincular_jugador_uc: VincularJugadorAClubUseCase
     desvincular_jugador_uc: DesvincularJugadorDeClubUseCase
     buscar_jugadores_uc: BuscarJugadoresPorNombreUseCase
+    listar_jugadores_todos_uc: ListarJugadoresTodosUseCase
     editar_jugador_uc: EditarJugadorUseCase
     eliminar_jugador_uc: EliminarJugadorUseCase
     listar_partidos_uc: ListarPartidosPorClubUseCase
     obtener_boxscore_uc: ObtenerBoxscorePartidoUseCase
+    obtener_totales_uc: ObtenerTotalesPartidoUseCase
+    listar_lideres_uc: ListarLideresClubUseCase
     cargar_partido_uc: CargarPartidoUseCase
+    obtener_partido_uc: ObtenerPartidoUseCase
+    eliminar_partido_uc: EliminarPartidoUseCase
+    listar_clubes_rivales_uc: ListarClubesRivalesUseCase
+    renombrar_club_uc: RenombrarClubUseCase
+    eliminar_club_uc: EliminarClubUseCase
 
 
 def construir_dependencias(
@@ -163,6 +190,7 @@ def construir_dependencias(
     repo_partido = SqlitePartidoRepositorio(conexion)
     sesion = SessionManager(almacen)
     cambiar_club_uc = CambiarClubActivoUseCase(repo_club)
+    agregar_jugador_lista_uc = AgregarJugadorAListaBuenaFeUseCase(repo_competencia, repo_jugador)
     # RestaurarSesionUseCase no va en Dependencias: lo usa el arranque, no una pantalla.
     RestaurarSesionUseCase(almacen, repo_usuario, cambiar_club_uc, sesion).ejecutar()
     return Dependencias(
@@ -185,7 +213,8 @@ def construir_dependencias(
         inscribir_club_uc=InscribirClubEnCompetenciaUseCase(repo_competencia, repo_club),
         listar_inscripciones_uc=ListarInscripcionesClubUseCase(repo_competencia),
         eliminar_inscripcion_uc=EliminarInscripcionUseCase(repo_competencia),
-        agregar_jugador_lista_uc=AgregarJugadorAListaBuenaFeUseCase(repo_competencia, repo_jugador),
+        agregar_jugador_lista_uc=agregar_jugador_lista_uc,
+        agregar_jugadores_lista_uc=AgregarJugadoresAListaBuenaFeUseCase(agregar_jugador_lista_uc),
         quitar_jugador_lista_uc=QuitarJugadorDeListaBuenaFeUseCase(repo_competencia),
         vaciar_lista_uc=VaciarListaBuenaFeUseCase(repo_competencia),
         listar_lista_uc=ListarListaBuenaFeUseCase(repo_competencia, repo_jugador),
@@ -194,12 +223,36 @@ def construir_dependencias(
         vincular_jugador_uc=VincularJugadorAClubUseCase(repo_jugador, repo_club),
         desvincular_jugador_uc=DesvincularJugadorDeClubUseCase(repo_jugador),
         buscar_jugadores_uc=BuscarJugadoresPorNombreUseCase(repo_jugador),
+        listar_jugadores_todos_uc=ListarJugadoresTodosUseCase(repo_jugador),
         editar_jugador_uc=EditarJugadorUseCase(repo_jugador),
         eliminar_jugador_uc=EliminarJugadorUseCase(repo_jugador),
         listar_partidos_uc=ListarPartidosPorClubUseCase(repo_partido),
         obtener_boxscore_uc=ObtenerBoxscorePartidoUseCase(repo_partido),
-        cargar_partido_uc=CargarPartidoUseCase(repo_partido, repo_competencia),
+        obtener_totales_uc=ObtenerTotalesPartidoUseCase(repo_partido),
+        listar_lideres_uc=ListarLideresClubUseCase(repo_partido),
+        cargar_partido_uc=CargarPartidoUseCase(repo_partido, repo_competencia, repo_jugador),
+        obtener_partido_uc=ObtenerPartidoUseCase(repo_partido),
+        eliminar_partido_uc=EliminarPartidoUseCase(repo_partido),
+        listar_clubes_rivales_uc=ListarClubesRivalesUseCase(repo_club),
+        renombrar_club_uc=RenombrarClubUseCase(repo_club),
+        eliminar_club_uc=EliminarClubUseCase(repo_club),
     )
+
+
+def separar_ruta(ruta: str) -> tuple[str, int | None]:
+    """
+    Separa el id del final de una ruta con parametro: "/partidos/editar/5" -> ("/partidos/editar", 5).
+
+    Args:
+        ruta (str): Ruta pedida.
+
+    Returns:
+        tuple[str, int | None]: La ruta base y el id; la ruta tal cual y None si no es una ruta con id.
+    """
+    base, _, ultimo = ruta.rpartition("/")
+    if base in RUTAS_CON_ID and ultimo.isdigit():
+        return base, int(ultimo)
+    return ruta, None
 
 
 def requiere_club_activo(ruta: str, tiene_club: bool) -> str:
@@ -213,7 +266,8 @@ def requiere_club_activo(ruta: str, tiene_club: bool) -> str:
     Returns:
         str: La misma ruta si puede entrar, o "/clubes" si falta elegir club.
     """
-    if ruta in RUTAS_CON_CLUB and not tiene_club:
+    base, _ = separar_ruta(ruta)
+    if (base in RUTAS_CON_CLUB or base in RUTAS_CON_ID) and not tiene_club:
         return RUTA_CLUBES
     return ruta
 
@@ -224,7 +278,7 @@ def resolver_ruta(ruta: str, autenticado: bool, tiene_club: bool = True) -> str:
 
     Sin sesion solo se puede estar en las rutas publicas; con sesion, en las internas (un usuario
     logueado no vuelve a ver el login). Las rutas operativas sin club activo pasan por `requiere_club_activo`.
-    Una ruta desconocida va a la pantalla de entrada de cada caso.
+    Una ruta desconocida va a la pantalla de entrada de cada caso. La guia ("/guia") se abre siempre.
 
     Args:
         ruta (str): Ruta pedida (`page.route`).
@@ -234,8 +288,11 @@ def resolver_ruta(ruta: str, autenticado: bool, tiene_club: bool = True) -> str:
     Returns:
         str: La ruta a la que hay que ir (la misma si se puede entrar).
     """
+    if ruta == RUTA_GUIA:
+        return ruta
     if autenticado:
-        destino = ruta if ruta in RUTAS_INTERNAS else RUTA_INICIO
+        _, id_ruta = separar_ruta(ruta)
+        destino = ruta if ruta in RUTAS_INTERNAS or id_ruta is not None else RUTA_INICIO
         return requiere_club_activo(destino, tiene_club)
     return ruta if ruta in RUTAS_PUBLICAS else RUTA_LOGIN
 
@@ -259,8 +316,30 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.crear_club_uc,
             deps.listar_clubes_uc,
             deps.cambiar_club_uc,
+            deps.listar_clubes_rivales_uc,
+            deps.renombrar_club_uc,
+            deps.eliminar_club_uc,
+            deps.listar_inscripciones_uc,
+            deps.listar_jugadores_club_uc,
             deps.sesion,
             aviso=aviso,
+        )
+
+    def _construir_carga_partido(id_partido: int | None) -> ft.View:
+        return crear_carga_partido_view(
+            page,
+            deps.cargar_partido_uc,
+            deps.listar_competencias_uc,
+            deps.listar_categorias_uc,
+            deps.listar_clubes_todos_uc,
+            deps.listar_inscripciones_uc,
+            deps.listar_lista_uc,
+            deps.listar_partidos_uc,
+            deps.obtener_partido_uc,
+            deps.obtener_boxscore_uc,
+            deps.obtener_totales_uc,
+            deps.sesion,
+            id_partido,
         )
 
     # Tabla de rutas: cada lambda construye su pantalla recien al navegar (asi vuelve con los campos vacios).
@@ -268,18 +347,23 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
     rutas: dict[str, Callable[[], ft.View]] = {
         RUTA_LOGIN: lambda: crear_login_view(page, deps.login_uc, deps.sesion),
         RUTA_REGISTRO: lambda: crear_registro_view(page, deps.registrar_uc, deps.sesion),
-        RUTA_INICIO: lambda: crear_inicio_view(page, deps.sesion),
+        RUTA_INICIO: lambda: crear_inicio_view(page, deps.sesion, deps.listar_partidos_uc, deps.listar_lideres_uc),
         RUTA_CLUBES: _construir_clubes,
         RUTA_COMPETENCIAS: lambda: crear_competencias_view(
             page,
             deps.crear_competencia_uc,
             deps.listar_competencias_uc,
-            deps.crear_categoria_uc,
             deps.listar_categorias_uc,
             deps.habilitar_categoria_uc,
             deps.listar_categorias_comp_uc,
             deps.quitar_categoria_uc,
             deps.eliminar_competencia_uc,
+            deps.sesion,
+        ),
+        RUTA_CATEGORIAS: lambda: crear_categorias_view(
+            page,
+            deps.crear_categoria_uc,
+            deps.listar_categorias_uc,
             deps.eliminar_categoria_uc,
             deps.sesion,
         ),
@@ -291,6 +375,9 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.listar_categorias_uc,
             deps.listar_categorias_comp_uc,
             deps.eliminar_inscripcion_uc,
+            deps.listar_jugadores_club_uc,
+            deps.agregar_jugadores_lista_uc,
+            deps.listar_lista_uc,
             deps.sesion,
         ),
         RUTA_LISTAS: lambda: crear_lista_buena_fe_view(
@@ -300,7 +387,7 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.listar_categorias_uc,
             deps.listar_lista_uc,
             deps.listar_jugadores_club_uc,
-            deps.agregar_jugador_lista_uc,
+            deps.agregar_jugadores_lista_uc,
             deps.quitar_jugador_lista_uc,
             deps.vaciar_lista_uc,
             deps.eliminar_inscripcion_uc,
@@ -315,26 +402,32 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             deps.buscar_jugadores_uc,
             deps.editar_jugador_uc,
             deps.eliminar_jugador_uc,
+            deps.listar_jugadores_todos_uc,
             deps.sesion,
         ),
         RUTA_PARTIDOS: lambda: crear_partidos_view(
             page,
             deps.listar_partidos_uc,
-            deps.obtener_boxscore_uc,
             deps.listar_inscripciones_uc,
             deps.listar_competencias_uc,
             deps.listar_categorias_uc,
             deps.sesion,
         ),
-        RUTA_CARGAR_PARTIDO: lambda: crear_carga_partido_view(
+        RUTA_CARGAR_PARTIDO: lambda: _construir_carga_partido(None),
+        RUTA_GUIA: lambda: crear_guia_view(page, deps.sesion),
+    }
+    # Rutas con un id al final: reciben el id ya separado ("/partidos/editar/5" -> 5)
+    rutas_con_id: dict[str, Callable[[int], ft.View]] = {
+        RUTA_EDITAR_PARTIDO: _construir_carga_partido,
+        RUTA_DETALLE_PARTIDO: lambda id_partido: crear_detalle_partido_view(
             page,
-            deps.cargar_partido_uc,
-            deps.listar_competencias_uc,
-            deps.listar_categorias_comp_uc,
-            deps.listar_clubes_todos_uc,
-            deps.listar_inscripciones_uc,
-            deps.listar_lista_uc,
+            deps.listar_partidos_uc,
+            deps.obtener_partido_uc,
+            deps.obtener_boxscore_uc,
+            deps.obtener_totales_uc,
+            deps.eliminar_partido_uc,
             deps.sesion,
+            id_partido,
         ),
     }
 
@@ -351,7 +444,8 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
             page.navigate(destino)
             return
         page.views.clear()
-        page.views.append(rutas[destino]())
+        base, id_ruta = separar_ruta(destino)
+        page.views.append(rutas_con_id[base](id_ruta) if id_ruta is not None else rutas[destino]())
         page.update()
 
     page.on_route_change = al_cambiar_ruta
