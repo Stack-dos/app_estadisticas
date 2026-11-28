@@ -15,6 +15,7 @@ import flet as ft
 import config.rutas as r
 from aplicacion.casos_uso.agregar_jugador_lista import AgregarJugadorAListaBuenaFeUseCase
 from aplicacion.casos_uso.agregar_jugadores_lista import AgregarJugadoresAListaBuenaFeUseCase
+from aplicacion.casos_uso.buscar_actualizacion import BuscarActualizacionUseCase
 from aplicacion.casos_uso.buscar_jugadores_por_nombre import BuscarJugadoresPorNombreUseCase
 from aplicacion.casos_uso.cambiar_club_activo import CambiarClubActivoUseCase
 from aplicacion.casos_uso.cargar_partido import CargarPartidoUseCase
@@ -46,6 +47,7 @@ from aplicacion.casos_uso.login_local import LoginLocalUseCase
 from aplicacion.casos_uso.obtener_boxscore_partido import ObtenerBoxscorePartidoUseCase
 from aplicacion.casos_uso.obtener_partido import ObtenerPartidoUseCase
 from aplicacion.casos_uso.obtener_totales_partido import ObtenerTotalesPartidoUseCase
+from aplicacion.casos_uso.omitir_version import OmitirVersionUseCase
 from aplicacion.casos_uso.partidos_por_club import ListarPartidosPorClubUseCase
 from aplicacion.casos_uso.quitar_categoria_competencia import QuitarCategoriaDeCompetenciaUseCase
 from aplicacion.casos_uso.quitar_jugador_lista import QuitarJugadorDeListaBuenaFeUseCase
@@ -57,10 +59,13 @@ from aplicacion.casos_uso.vaciar_lista_buena_fe import VaciarListaBuenaFeUseCase
 from aplicacion.casos_uso.vincular_jugador_club import VincularJugadorAClubUseCase
 from aplicacion.servicios.sesion_almacen import SesionAlmacen
 from aplicacion.servicios.session_manager import SessionManager
+from config.version import VERSION
 from dominio.servicios.password_hasher import PasswordHasher
+from infraestructura.github_releases_fuente import GithubReleasesFuente
 from infraestructura.logger import get_logger
 from infraestructura.observabilidad import nueva_accion
 from infraestructura.persistencia.database_manager import SQLiteManager
+from infraestructura.persistencia.json_estado_aviso_almacen import JsonEstadoAvisoAlmacen
 from infraestructura.persistencia.json_sesion_almacen import JsonSesionAlmacen
 from infraestructura.repositorios.sqlite_club_repositorio import SqliteClubRepositorio
 from infraestructura.repositorios.sqlite_competencia_repositorio import SqliteCompetenciaRepositorio
@@ -68,6 +73,7 @@ from infraestructura.repositorios.sqlite_jugador_repositorio import SqliteJugado
 from infraestructura.repositorios.sqlite_partido_repositorio import SqlitePartidoRepositorio
 from infraestructura.repositorios.sqlite_usuario_repositorio import SqliteUsuarioRepositorio
 from infraestructura.security.password_hasher import Pbkdf2PasswordHasher
+from infraestructura.ui.flet.components.aviso_version import buscar_version_en_segundo_plano
 from infraestructura.ui.flet.estilo import aplicar_tema
 from infraestructura.ui.flet.screens.carga_partido_screen import crear_carga_partido_view
 from infraestructura.ui.flet.screens.categorias_screen import crear_categorias_view
@@ -112,6 +118,8 @@ RUTAS_CON_CLUB = {
 RUTAS_INTERNAS = {RUTA_INICIO, RUTA_CLUBES, *RUTAS_CON_CLUB}
 RUTAS_CON_ID = {RUTA_EDITAR_PARTIDO, RUTA_DETALLE_PARTIDO}  # internas, con club activo y con un id al final
 AVISO_REQUIERE_CLUB = "Elegí o creá un club activo para trabajar en esa sección."
+# Con STATSPRO_SIN_AVISO_VERSION=1 la app no consulta GitHub al arrancar (privacidad; RUNBOOK)
+VAR_SIN_AVISO_VERSION = "STATSPRO_SIN_AVISO_VERSION"
 
 
 @dataclass
@@ -298,13 +306,35 @@ def resolver_ruta(ruta: str, autenticado: bool, tiene_club: bool = True) -> str:
     return ruta if ruta in RUTAS_PUBLICAS else RUTA_LOGIN
 
 
-def _main(page: ft.Page, deps: Dependencias) -> None:
+def armar_aviso_version(ruta_estado: Path) -> Callable[[ft.Page], None] | None:
+    """
+    Arma la busqueda de version nueva del arranque, o None si el usuario la desactivo.
+
+    No va en `Dependencias`: no es de ninguna pantalla, corre una vez al abrir la ventana.
+
+    Args:
+        ruta_estado (Path): Archivo donde se recuerda el ultimo chequeo y la version omitida.
+
+    Returns:
+        Callable[[ft.Page], None] | None: Recibe la ventana y lanza la busqueda en segundo plano.
+    """
+    if os.environ.get(VAR_SIN_AVISO_VERSION) == "1":
+        logger.info(f"Aviso de version nueva desactivado ({VAR_SIN_AVISO_VERSION}=1)")
+        return None
+    almacen = JsonEstadoAvisoAlmacen(ruta_estado)
+    buscar_uc = BuscarActualizacionUseCase(GithubReleasesFuente(), almacen, VERSION)
+    omitir_uc = OmitirVersionUseCase(almacen)
+    return lambda page: buscar_version_en_segundo_plano(page, buscar_uc, omitir_uc)
+
+
+def _main(page: ft.Page, deps: Dependencias, aviso_version: Callable[[ft.Page], None] | None = None) -> None:
     """
     Arma la ventana. No se llama a mano: la llama Flet una vez, cuando la ventana está lista.
 
     Args:
         page (ft.Page): La ventana que entrega Flet.
         deps (Dependencias): Casos de uso y sesion armados por `ejecutar()`.
+        aviso_version (Callable[[ft.Page], None] | None): Busqueda de version nueva; None si esta desactivada.
     """
     aplicar_tema(page)  # tema, letra y tamaño de la ventana (US-111)
     aviso_club_pendiente: list[str | None] = [None]
@@ -457,6 +487,8 @@ def _main(page: ft.Page, deps: Dependencias) -> None:
 
     page.on_route_change = al_cambiar_ruta
     al_cambiar_ruta()  # dibuja la primera pantalla (al arrancar, page.route es "/")
+    if aviso_version is not None:
+        aviso_version(page)  # despues de dibujar: la consulta a GitHub nunca demora la primera pantalla
 
 
 def ejecutar() -> None:
@@ -475,7 +507,8 @@ def ejecutar() -> None:
             db.inicializar_schema()
             deps = construir_dependencias(conexion, Pbkdf2PasswordHasher(), JsonSesionAlmacen(Path(r.SESSION_FILE)))
         # assets_dir absoluta: relativa, Flet la buscaria desde donde se lanzo la app y no encontraria el logo
-        ft.run(lambda page: _main(page, deps), assets_dir=r.ASSETS_DIR)
+        aviso_version = armar_aviso_version(Path(r.AVISO_VERSION_FILE))
+        ft.run(lambda page: _main(page, deps, aviso_version), assets_dir=r.ASSETS_DIR)
     finally:
         db.close_connection()
         logger.info("Interfaz grafica cerrada")
