@@ -1,18 +1,10 @@
-# Configuracion de git-cliff (US-109, AC10): arma CHANGELOG.md a partir de los Conventional Commits.
-# Uso (en el PR develop -> main, junto con el cambio de version; ver RUNBOOK):
-#   uvx git-cliff@2.14.2 --tag v0.1.0 -o CHANGELOG.md
-# El archivo se regenera entero cada vez: no se edita a mano (si un texto sale mal, se corrige el titulo del PR).
+# Configuracion de git-cliff (US-109, AC10): lista los Conventional Commits desde la ultima version.
+# CHANGELOG.md se escribe a mano, contando las funciones nuevas (desde la v1.0.0); esta lista es solo el
+# borrador para escribirlo y se imprime en pantalla, sin tocar el archivo (ver RUNBOOK, seccion 11):
+#   make changelog VERSION=X.Y.Z    (sin make: uvx git-cliff@2.14.2 --unreleased --tag vX.Y.Z)
 
 [changelog]
-header = """
-# Changelog
-
-Todos los cambios importantes de StatsPro, por versión.
-
-El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y las versiones siguen
-[Versionado Semántico](https://semver.org/lang/es/). Este archivo se genera con
-[git-cliff](https://git-cliff.org/) a partir de los mensajes de commit: no se edita a mano.
-"""
+header = ""
 # Las secciones se ordenan por el comentario <!-- N --> (git-cliff ordena los grupos alfabeticamente);
 # striptags lo saca antes de escribir el titulo.
 body = """
@@ -41,7 +33,7 @@ conventional_commits = true
 filter_unconventional = true
 # El "(#12)" que GitHub agrega al titulo del squash pasa a ser un link al PR
 commit_preprocessors = [
-    { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/nicopinera/app_estadisticas/pull/${1}))" },
+    { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/Stack-dos/app_estadisticas/pull/${1}))" },
 ]
 # Solo entra lo que le importa a quien usa la app; el primero que coincide gana.
 # Fuera: docs, test, ci, build (incluye los "build(deps)" de Dependabot), chore y style.

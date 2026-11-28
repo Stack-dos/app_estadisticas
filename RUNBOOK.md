@@ -246,7 +246,7 @@ uv run pytest tests/benchmarks -m benchmark --benchmark-only -k partido   # solo
 # Vulnerabilidades conocidas en las dependencias: ver el comando de la sección 8
 ```
 
-Estos mismos chequeos se ejecutan automáticamente en GitHub (`.github/workflows/MainAction.yml`) en cada Pull Request y en cada `push` a `main` o `develop`: lint, tipos, tests en Linux, Windows y Docker,
+Estos mismos chequeos se ejecutan automáticamente en GitHub (`.github/workflows/MainAction.yml`) en cada Pull Request y en cada `push` a `main`: lint, tipos, tests en Linux, Windows y Docker,
 auditoría de dependencias (`pip-audit`) y revisión de los propios workflows (`actionlint`). Los tests de Linux se repiten con **Python 3.12, 3.13 y 3.14**; Windows y Docker corren una sola vez (3.13) y mypy una sola vez (contra la 3.12). El lint incluye `ruff format --check`, y los jobs de tests prueban antes que la app importe sin errores (`python -c "import main"`, sin abrir ninguna ventana).
 Un job final, `ci-ok`, queda en rojo si cualquiera de los anteriores falló: es el que se marca como obligatorio en GitHub para que un PR con el CI en rojo no se pueda mergear.
 Aparte, `.github/workflows/titulo-pr.yml` exige que el **título del PR** siga Conventional Commits (`feat: ...`, `fix(gui): ...`,
@@ -269,17 +269,16 @@ En Linux la cobertura mínima es **85 %** y el reporte HTML queda para descargar
   épica, la US y el hito (milestone) de la HU. La HU se busca por `Closes #N` en el cuerpo o, si no está, por el número de la
   rama (`feature/us107-...` → la issue `[US-107] ...`).
 
-El delta se calcula contra la última corrida de un push a la rama base: por eso `MainAction` también corre en los push a las
-ramas de integración (`feature/epica*`, `feature/hito*`). Si la base nunca corrió (o sus artifacts vencieron, a los 90 días), el
+El delta se calcula contra la última corrida de un push a la rama base (`main`). Si la base nunca corrió (o sus artifacts vencieron, a los 90 días), el
 resumen lo dice y muestra la cobertura sin delta.
 
 ### Reglas del repositorio en GitHub
 
 Configuradas a mano en GitHub (Settings), no en un archivo del repo (US-109):
 
-- **Ruleset `main y develop`:** no se puede hacer push directo ni force push, ni borrar las ramas; todo entra por PR. Para mergear,
-  `ci-ok` y `titulo-pr` tienen que estar en verde. Métodos de merge: _squash_ (PR de trabajo, el mensaje es el título del PR) y
-  _merge commit_ (PR de promoción `develop → main`); _rebase_ está desactivado.
+- **Ruleset de `main`:** no se puede hacer push directo ni force push, ni borrar la rama; todo entra por PR. Para mergear,
+  `ci-ok` y `titulo-pr` tienen que estar en verde. Métodos de merge: _squash_ (PR de historia y de release, el mensaje es el título
+  del PR) y _merge commit_ (hotfix, sección 11); _rebase_ está desactivado. Hasta la v1.0.0 también protegía `develop`.
 - **CodeQL** (_default setup_, Python y GitHub Actions): analiza cada PR, cada push a `main` y una vez por semana. Los hallazgos están
   en _Security → Code scanning_.
 
@@ -360,7 +359,7 @@ El resultado esperado es `No known vulnerabilities found`. Después de agregar o
 
 El estado del proyecto por historia de usuario está en el [PRD](docs/plan_desarrollo_detallado.md). Hoy, desde la aplicación:
 
-- **La sesión recordada no vence** (v0.1): con "Recordarme", cualquiera que use tu cuenta del sistema operativo abre la app sin contraseña. La expiración llega con la US-403.
+- **La sesión recordada no vence** (v1.0): con "Recordarme", cualquiera que use tu cuenta del sistema operativo abre la app sin contraseña. La expiración llega con la US-403.
 - **No se pueden cargar partidos entre dos clubes ajenos** (decidido en la US-114): van a entrar por la importación de planillas (US-201) y la carga masiva (US-207).
 - **No se puede renombrar ni borrar un club propio** desde la app (los rivales sí, en "Mis clubes → Clubes rivales").
 
@@ -393,29 +392,60 @@ Ninguno necesita Python. Los tres guardan los datos en `~/.statspro/` (sección 
 
 | PR | Cómo se mergea | Por qué |
 | --- | --- | --- |
-| `feature/usXXX` → su épica o `develop` | **Squash** | Junta los commits de trabajo en uno; el título del PR es el mensaje, y de ahí sale una línea del changelog |
-| Promoción (épica → hito → `develop` → `main`) | **Merge commit** | Conserva un commit por historia: con squash, a `main` llegaría un solo commit por hito |
-| `hotfix/...` → `main` | **Squash** | Una corrección, un commit |
+| `feature/usNNN-...` → `main` | **Squash** | Junta los commits de trabajo en uno; el título del PR es el mensaje |
+| `release/vX.Y.Z` → `main` | **Squash** | Solo trae el cambio de versión y el changelog |
+| `hotfix/...` → `main` | **Merge commit** | El tag del patch queda en la rama del hotfix; con squash, ese commit no llegaría a `main` |
 
-El título del PR tiene que seguir Conventional Commits (lo controla `titulo-pr`, sección 6). _Rebase_ está desactivado.
+El título del PR tiene que seguir Conventional Commits (lo controla `titulo-pr`, sección 6). _Rebase_ está desactivado. Qué número
+lleva cada versión (MAJOR al cerrar un hito, MINOR al cerrar una épica, PATCH para correcciones) está en la sección 15 del PRD.
+
+### El changelog
+
+`CHANGELOG.md` **se escribe a mano**: cuenta, para quien usa la app, qué puede hacer de nuevo, no la lista de commits. Su sección
+`## [X.Y.Z]` es la que el workflow publica como notas de la versión, así que tiene que existir antes del tag.
+
+- Una sección por versión, arriba la más nueva, con el título `## [X.Y.Z] - AAAA-MM-DD` (el workflow la busca así).
+- Adentro, un párrafo corto de qué trae la versión y un `###` por cada área que cambió ("Cargar un partido", "El plantel"...),
+  contado desde el uso: "ahora podés...", no "se agregó el caso de uso...". Al final, "Lo que todavía no hace" si cambió.
+- Al final, **"Quiénes la hicieron"**: nombre y usuario de GitHub (como link, sin `@`, para no mandar notificaciones) de cada
+  persona que hizo un commit o un PR en la versión. Se sacan con `git shortlog -sn vANTERIOR..HEAD` y la lista de PR mergeados;
+  los bots (Dependabot, Copilot) no van. Nunca emails.
+- Fuera: refactors, tests, CI y documentación, que no le cambian nada a quien usa la app. Una corrección sí va, contada como lo que
+  ya no falla.
+- **Borrador:** `make changelog VERSION=X.Y.Z` (sin `make`: `uvx git-cliff@2.14.2 --unreleased --tag vX.Y.Z`) imprime en pantalla
+  los `feat`, `fix` y `refactor` desde la última versión, sin tocar el archivo. Sirve para no olvidarse de nada; no se copia tal cual.
 
 ### Paso a paso
 
-1. **PR `develop → main`** con dos cambios más:
-   - `version = "X.Y.Z"` en `pyproject.toml` y `VERSION = "X.Y.Z"` en `src/config/version.py` (la que usa la app para saber
-     si hay una versión nueva; la app empaquetada no puede leer `pyproject.toml`);
-   - el changelog regenerado: `make changelog VERSION=X.Y.Z` (sin `make`: `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`).
+1. **Rama `release/vX.Y.Z`** desde `main` actualizado, con tres cambios:
+   - `version = "X.Y.Z"` en `pyproject.toml` (y `uv lock`, que la copia a `uv.lock`);
+   - `VERSION = "X.Y.Z"` en `src/config/version.py` (la que usa la app para saber si hay una versión nueva; la app empaquetada no
+     puede leer `pyproject.toml`);
+   - la sección nueva de `CHANGELOG.md` (ver arriba).
 
-   Leé la sección nueva del `CHANGELOG.md`. El archivo **no se edita a mano**: se regenera entero en cada versión y se perdería el
-   cambio. Si una línea sobra (por ejemplo, un commit con el tipo equivocado), se saca agregando el hash del commit a un archivo
-   `.cliffignore` en la raíz y se vuelve a generar. El CI tiene que pasar entero; se mergea con **merge commit**.
+   PR a `main` titulado `chore(release): vX.Y.Z`. El CI tiene que pasar entero; se mergea con **squash**.
 2. **Probar con un pre-release:** sobre `main` actualizado, `git tag vX.Y.Z-rc.1 && git push origin vX.Y.Z-rc.1`. En unos 30 minutos
-   aparece en _Releases_ un _pre-release_ con los tres archivos. Probarlos en una máquina sin Python (por ejemplo Windows Sandbox): la
-   app abre, se registra un usuario y se crea un club. Si algo falla, se corrige con un PR y se prueba con `-rc.2`.
+   aparece en _Releases_ un _pre-release_ con los tres archivos y las notas de la versión. Probarlos en una máquina sin Python (por
+   ejemplo Windows Sandbox): la app abre, se registra un usuario y se crea un club. En `~/.statspro/logs/app.log`, la línea del aviso
+   de versión tiene que decir que **no hay versión nueva** o mostrar la que hay; un `URLError` con `CERTIFICATE_VERIFY_FAILED` quiere
+   decir que el Python empaquetado no encuentra los certificados y el aviso no va a funcionar. Si algo falla, se corrige con un PR y se
+   prueba con `-rc.2`.
 3. **Publicar:** `git checkout main && git pull`, `git tag vX.Y.Z && git push origin vX.Y.Z`.
 4. **Verificar** en _Releases_: la versión, sus notas (la sección del changelog) y los tres archivos.
 5. **Limpiar los pre-release:** borrarlos en _Releases_ (ícono de basura) y borrar sus tags:
    `git push --delete origin vX.Y.Z-rc.1 && git tag -d vX.Y.Z-rc.1`.
+
+### La v1.0.0 (una sola vez): de `develop` a `main`
+
+Hasta el cierre del Hito 1 se trabajó en `develop`. La v1.0.0 es la única versión que sale por ese camino; después, `develop`
+desaparece y todo sigue el paso a paso de arriba.
+
+1. En `develop`: versión 1.0.0 en `pyproject.toml`, `uv.lock` y `src/config/version.py` (ya está) y la sección `## [1.0.0]` del
+   changelog. Commit `chore(release): v1.0.0` y push.
+2. PR `develop → main`, mergeado con **merge commit** (para que a `main` llegue un commit por historia, no uno solo).
+3. Pasos 2 a 5 de arriba, con `v1.0.0-rc.1` y `v1.0.0`. Borrar también los tags viejos de prueba (`v0.1.0-rc.*`) y sus pre-release.
+4. Borrar `develop`: primero sacarla del ruleset (Settings → Rules, que hoy no deja borrarla) y después
+   `git push origin --delete develop && git branch -d develop`.
 
 ### Si el workflow falla
 
@@ -426,6 +456,6 @@ El título del PR tiene que seguir Conventional Commits (lo controla `titulo-pr`
 | `version` | El tag no coincide con `version` de `pyproject.toml` o con `VERSION` de `src/config/version.py` | Borrar el tag (`git push --delete origin vX.Y.Z && git tag -d vX.Y.Z`), corregir con un PR y volver a taggear |
 | `tests-linux` / `tests-windows` | Un test que falla con Python 3.14 (el que va adentro del paquete) | Corregir con un PR; nuevo `-rc` |
 | `build-windows` / `build-linux` | `flet build`, Inno Setup o el `.deb` | Leer el log del paso que falló; corregir con un PR; nuevo `-rc` |
-| `publicar` | Falta la sección `## [X.Y.Z]` en `CHANGELOG.md` | No se corrió `make changelog`: PR con el changelog, borrar el tag y volver a taggear |
+| `publicar` | Falta la sección `## [X.Y.Z]` en `CHANGELOG.md` | PR con la sección del changelog, borrar el tag y volver a taggear |
 
 Un tag que **ya publicó** una versión no se reusa: si hay que corregirla, sale la siguiente (`vX.Y.Z+1`, ver "Hotfix" en el PRD).

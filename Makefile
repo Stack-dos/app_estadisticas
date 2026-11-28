@@ -28,6 +28,7 @@ docker_test:
 static_check:
 	uv run mypy src/ --strict --explicit-package-bases
 
-# CHANGELOG.md desde los commits (US-109). Uso, en el PR develop -> main: make changelog VERSION=0.1.0
+# Borrador del CHANGELOG.md: los commits desde la ultima version, en pantalla (el archivo se escribe a mano).
+# Uso, en la rama release/vX.Y.Z: make changelog VERSION=X.Y.Z
 changelog:
-	uvx git-cliff@2.14.2 --tag v$(VERSION) -o CHANGELOG.md
+	uvx git-cliff@2.14.2 --unreleased --tag v$(VERSION)

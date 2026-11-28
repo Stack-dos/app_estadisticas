@@ -211,7 +211,7 @@ jobs:
             if [ "$PRERELEASE" = "true" ]; then
               echo "Pre-release de prueba de la versión $BASE: todavía no tiene su sección en el CHANGELOG." > notas.md
             else
-              echo "::error::CHANGELOG.md no tiene la sección ## [$BASE] (falta correr: make changelog VERSION=$BASE)"
+              echo "::error::CHANGELOG.md no tiene la sección ## [$BASE] (se escribe a mano: ver RUNBOOK, seccion 11)"
               exit 1
             fi
           fi

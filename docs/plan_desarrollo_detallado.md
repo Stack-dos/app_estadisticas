@@ -1497,7 +1497,7 @@ ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev`). El `.exe` pr
     4. crea el GitHub Release con los binarios y, como notas, la sección de esa versión del `CHANGELOG.md`.
        Un tag con sufijo (`v0.1.0-rc.1`) crea un _pre-release_: sirve para probar el workflow sin publicar una versión de verdad. Permisos: `contents: write` solo en el job que publica.
        ✅ Implementado (2026-11-09): los tests corren en Linux y en Windows con **Python 3.14**, el que `flet build` mete en el paquete. En un pre-release se compara la versión sin el sufijo (`v0.1.0-rc.1` ↔ `0.1.0`). Las notas salen de la sección `## [X.Y.Z]` del `CHANGELOG.md` (un pre-release usa la de su versión final si ya está; si no, un texto de prueba); una versión final sin su sección falla sin publicar. Nombres: `StatsPro-X.Y.Z-windows-x64-instalador.exe`, `StatsPro-X.Y.Z-windows-x64-portable.zip` y `statspro_X.Y.Z_amd64.deb` (en Debian el `-rc.1` pasa a `~rc.1`, para que la versión final quede por encima). Desinstalar no borra `~/.statspro/`.
-  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`make changelog VERSION=X.Y.Z`, que corre `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR de release (`chore(release): vX.Y.Z`, sección 15), junto con el cambio de versión. ✅ (2026-11-09) Secciones en castellano: `feat` → Agregado; `refactor`, `perf` y `revert` → Cambiado; `fix` → Corregido; `fix(seguridad)` → Seguridad. Quedan afuera `docs`, `test`, `ci`, `build` (incluye Dependabot), `chore`, `style` y los commits que no siguen Conventional Commits. Los _pre-release_ (`-rc.N`) no abren sección propia: sus commits quedan en la versión final. El archivo se regenera entero: no se edita a mano.
+  - **AC10 — Changelog (antes AC5 de la US-404):** `CHANGELOG.md` en formato _Keep a Changelog_, generado con git-cliff (`make changelog VERSION=X.Y.Z`, que corre `uvx git-cliff@2.14.2 --tag vX.Y.Z -o CHANGELOG.md`) a partir de los Conventional Commits, con la configuración en `cliff.toml`. Se genera en el PR de release (`chore(release): vX.Y.Z`, sección 15), junto con el cambio de versión. ✅ (2026-11-09) Secciones en castellano: `feat` → Agregado; `refactor`, `perf` y `revert` → Cambiado; `fix` → Corregido; `fix(seguridad)` → Seguridad. Quedan afuera `docs`, `test`, `ci`, `build` (incluye Dependabot), `chore`, `style` y los commits que no siguen Conventional Commits. Los _pre-release_ (`-rc.N`) no abren sección propia: sus commits quedan en la versión final. El archivo se regenera entero: no se edita a mano. _Cambio (2026-11-28), al publicar la v1.0.0:_ el `CHANGELOG.md` pasa a **escribirse a mano**, contando las funciones nuevas para quien usa la app, en vez de listar commits; `make changelog` ahora solo imprime el borrador (`uvx git-cliff@2.14.2 --unreleased --tag vX.Y.Z`, sin `-o`). Ver «Formato del `CHANGELOG.md`» en la sección 15.
   - **AC11 — Título del PR:** un job falla si el título del PR no sigue Conventional Commits (`amannn/action-semantic-pull-request`). Con _squash_, el título del PR es el mensaje del commit que llega a la rama, y de ahí sale el changelog. El repo se configura para que el _squash_ use siempre el título del PR. Va en un workflow aparte (`titulo-pr.yml`) porque necesita el evento `edited`: corregir el título vuelve a correr el chequeo sin relanzar los tests; por eso es un _required status check_ propio, además de `ci-ok`. También valida el mensaje del commit en los PR de un solo commit (`validateSingleCommit`), porque ahí GitHub propone ese mensaje en vez del título.
   - **AC12 — Workflows revisados:** actionlint en pre-commit, en `make run_linter_ruf` y en el job `lint` (detecta, por ejemplo, una expresión mal escrita como `${{ github.evnt_name }}`, y con shellcheck, que viene en `ubuntu-latest`, errores en los scripts de los `run:`). Su versión sale de `uv.lock` (paquete `actionlint-py` del grupo `dev`), igual que ruff. Los inputs de un `with:` los valida solo para las acciones que conoce: con versiones más nuevas que su catálogo (por ejemplo `actions/checkout@v7`) no los revisa.
   - **AC13 — SAST ✅ (2026-11-09):** reglas `S` (Bandit) de ruff activadas en `pyproject.toml`, con excepciones justificadas para `tests/` (`assert`, contraseñas de prueba); y CodeQL con la _default setup_ (Settings → Code security; gratis porque el repo es público).
@@ -2955,12 +2955,12 @@ que todavía no se publicaron. Un patch armado desde `main` publicaría una épi
 número de corrección.
 
 **Por qué el hotfix vuelve con _merge commit_:** el tag del patch queda en la rama del hotfix. Con
-_squash_, ese commit no llegaría a `main`, y git-cliff (que arma el changelog recorriendo los tags
-alcanzables desde `main`) no vería el patch.
+_squash_, ese commit no llegaría a `main`, y git-cliff (que arma el borrador del changelog
+recorriendo los tags alcanzables desde `main`) volvería a listar el patch en la versión siguiente.
 
 **El _squash_ en las PR de trabajo** junta los commits de trabajo ("wip", "fix typo") en uno solo,
 con el título del PR como mensaje (por eso el título sigue Conventional Commits, AC11 de la US-109).
-Así a `main` llega un commit por PR, y git-cliff arma el changelog con un renglón por cada uno.
+Así a `main` llega un commit por PR, y el borrador de git-cliff tiene un renglón por cada uno.
 
 ### Dependabot
 
@@ -2977,16 +2977,16 @@ distintos en una sola PR. Las alertas de seguridad llegan en PR aparte, porque n
 ### Release de una épica (o de un hito)
 
 1. **Cuando se mergea la última historia de la épica:** rama `release/vX.Y.Z` desde `main`. Subir
-   `version` en `pyproject.toml` y regenerar el changelog con `make changelog VERSION=X.Y.Z`;
-   revisar el texto generado (no se edita a mano: un commit que sobra se saca con `.cliffignore`,
-   ver la sección 11 del RUNBOOK). PR `chore(release): vX.Y.Z` con el CI entero en verde; _squash_.
+   la versión en `pyproject.toml` (y `uv lock`) y en `src/config/version.py`, y escribir la sección
+   de la versión en `CHANGELOG.md` (con el borrador de `make changelog VERSION=X.Y.Z`; ver la
+   sección 11 del RUNBOOK). PR `chore(release): vX.Y.Z` con el CI entero en verde; _squash_.
 2. **(Recomendado) Probar el release:** `git tag vX.Y.Z-rc.1` sobre ese commit de `main` y
    `git push origin vX.Y.Z-rc.1`: `release.yml` arma un _pre-release_. Probar los binarios en una
    máquina sin Python (AC14 de la US-109). Si algo falla, se corrige con una PR y se repite con
    `-rc.2`.
 3. **Taggear:** `git checkout main && git pull`, `git tag vX.Y.Z`, `git push origin vX.Y.Z`.
 4. **Automático (`release.yml`, US-109):** tests → verifica que el tag coincida con
-   `pyproject.toml` → compila con `flet build` → crea el GitHub Release con los binarios y la
+   `pyproject.toml` y `src/config/version.py` → compila con `flet build` → crea el GitHub Release con los binarios y la
    sección del changelog como notas.
 5. **Verificar** en GitHub el tag, las notas y los binarios.
 6. **Si cierra un hito:** antes del paso 1, el **checklist de estabilización**: rendimiento (los
@@ -2999,26 +2999,32 @@ distintos en una sola PR. Las alertas de seguridad llegan en PR aparte, porque n
 1. `git checkout -b hotfix/descripcion-breve vX.Y.Z` (el último tag publicado).
 2. Aplicar la corrección mínima con un test de regresión que falla sin el fix (o _cherry-pick_ del
    commit de Dependabot).
-3. En la misma rama, subir el PATCH en `pyproject.toml` y regenerar el changelog
-   (`make changelog VERSION=X.Y.Z+1`).
+3. En la misma rama, subir el PATCH en `pyproject.toml` (y `uv lock`) y en `src/config/version.py`,
+   y escribir su sección en `CHANGELOG.md`: qué dejó de fallar, o qué dependencia se actualizó y
+   por qué.
 4. Abrir la PR `hotfix/... → main` para que la revise el otro integrante y corra el CI.
 5. Con la PR aprobada: `git tag vX.Y.Z+1` sobre el último commit de la rama y `git push origin
    vX.Y.Z+1`; `release.yml` publica el patch.
 6. Mergear la PR con **_merge commit_**. Si choca en `pyproject.toml` o en `CHANGELOG.md`, se queda
-   con la versión del hotfix y se regenera el changelog.
+   con la versión del hotfix y en `CHANGELOG.md` con las dos secciones.
 
 ### Formato del `CHANGELOG.md`
 
-Estándar **Keep a Changelog** (keepachangelog.com): una sección `[X.Y.Z] - YYYY-MM-DD` por release,
-con subsecciones en castellano (Agregado, Cambiado, Corregido, Seguridad). Lo genera git-cliff a
-partir de los commits (`feat:` → Agregado, `fix:` → Corregido, etc., configurado en `cliff.toml`):
-no se edita a mano, se regenera entero en cada versión y solo se revisa el texto antes del release.
+**Se escribe a mano** (decidido el 2026-11-28, al publicar la v1.0.0; antes lo generaba git-cliff
+entero). Lo lee quien usa la app, en _Releases_ y en el aviso de versión nueva: tiene que contar qué
+puede hacer de nuevo, no qué commits entraron. Una lista de commits no le dice nada a un entrenador
+("Añadir DTO para renombrar un club rival").
 
-> **Ojo con los patch de dependencias:** hoy `cliff.toml` deja afuera los commits `chore` y `build`,
-> que incluyen los de Dependabot (`chore(deps)`). Un patch que solo trae dependencias no tendría
-> sección en el changelog, y `release.yml` falla sin publicar si la versión no tiene su sección.
-> Antes del primer patch de dependencias hay que sumar a `cliff.toml` una sección "Dependencias" para
-> `chore(deps)`.
+- Una sección `## [X.Y.Z] - AAAA-MM-DD` por versión, la más nueva arriba. `release.yml` publica esa
+  sección como notas y falla sin publicar si no está.
+- Adentro: un párrafo de qué trae la versión y un `###` por área ("Cargar un partido", "El
+  plantel"), en segunda persona y desde el uso. Al final, "Lo que todavía no hace", si cambió, y
+  "Quiénes la hicieron": nombre y usuario de GitHub de cada persona con commits o PR en la versión
+  (`git shortlog -sn vANTERIOR..HEAD`), sin bots ni emails.
+- Refactors, tests, CI y documentación no van. Una corrección va contada como lo que ya no falla;
+  un patch de dependencias, con qué se actualizó y por qué importa.
+- **Borrador:** `make changelog VERSION=X.Y.Z` imprime los `feat`, `fix` y `refactor` desde la
+  última versión (configuración en `cliff.toml`), sin tocar el archivo.
 
 ### Transición al flujo nuevo (fuera de este PRD, pendiente)
 
@@ -3030,8 +3036,9 @@ Este PRD ya describe el flujo nuevo. Para que el repositorio coincida falta:
   `branches`.
 - Ruleset de GitHub "main y develop" → solo `main`; _squash_ y _merge commit_ habilitados (el
   segundo, para los hotfix).
-- `RUNBOOK.md` (ramas, ruleset y release) y el comentario de `Makefile` sobre `develop -> main`.
-- `cliff.toml`: la sección "Dependencias" del punto anterior.
+- ~~`RUNBOOK.md` (ramas, ruleset y release) y el comentario de `Makefile` sobre `develop -> main`.~~
+  Hecho (2026-11-28), junto con el changelog escrito a mano (ya no hace falta la sección
+  "Dependencias" en `cliff.toml`).
 - Milestones `M1 - v1.0.0` … `M4 - v4.0.0`, y una issue por cada historia nueva de los Hitos 2 a 4
   (las divididas se cierran apuntando a sus reemplazos).
 
