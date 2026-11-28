@@ -32,6 +32,8 @@ class ListarPartidosPorClubUseCase:
                 clubLocal=p.clubLocal,
                 clubVisitante=p.clubVisitante,
                 categoria=p.categoria,
+                puntosLocal=p.puntosLocal,
+                puntosVisitante=p.puntosVisitante,
             )
             for p in self.repo.resumen_por_club(idClub)
         ]
