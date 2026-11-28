@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Instalar uv
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.4.0
 
       - name: Exportar dependencias fijadas (uv.lock) a un archivo de requisitos
         run: uv export --locked --no-emit-project --no-hashes -o requirements-audit.txt
@@ -145,7 +145,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Instalar uv y Python 3.13
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           python-version: "3.13"
           enable-cache: true
@@ -192,7 +192,7 @@ jobs:
           fetch-depth: 0
 
       - name: Instalar uv y Python 3.13
-        uses: astral-sh/setup-uv@v10.1.0
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           python-version: "3.13"
           enable-cache: true
