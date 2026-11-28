@@ -20,8 +20,9 @@ def test_base_logs_y_sesion_viven_en_la_carpeta_de_datos():
     assert Path(r.LOG_DIR) == DATOS / "logs"
     assert Path(r.APP_LOG_FILE) == DATOS / "logs" / "app.log"
     assert Path(r.SESSION_FILE) == DATOS / "session.json"
+    assert Path(r.AVISO_VERSION_FILE) == DATOS / "aviso_version.json"
 
 
 def test_nada_de_lo_que_la_app_escribe_queda_junto_al_codigo():
-    for ruta in (r.DB_FILE, r.LOG_DIR, r.SESSION_FILE):
+    for ruta in (r.DB_FILE, r.LOG_DIR, r.SESSION_FILE, r.AVISO_VERSION_FILE):
         assert not Path(ruta).is_relative_to(CARPETA_DEL_CODIGO)

@@ -368,3 +368,12 @@ def test_la_guia_dibuja_el_manual(page, deps, con_sesion):
     vista = page.views[0]
     assert vista.route == "/guia"
     assert any(isinstance(c, ft.Markdown) and "Cómo se usa" in c.value for c in controles(vista))
+
+
+def test_la_busqueda_de_version_nueva_arranca_despues_de_dibujar_la_primera_pantalla(page, deps):
+    orden = []
+    page.navigate.side_effect = lambda ruta: orden.append("dibujar")
+
+    _main(page, deps, aviso_version=lambda p: orden.append("aviso"))
+
+    assert orden == ["dibujar", "aviso"]
