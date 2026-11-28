@@ -1,8 +1,14 @@
 import logging
 import os
+import sys
 from logging.handlers import RotatingFileHandler
 
 import config.rutas as r
+from infraestructura.observabilidad import FiltroContexto, FiltroSecretos, FormateadorJson
+
+# US-110: donde y desde que nivel se loguea, sin tocar codigo (en desarrollo: STATSPRO_LOG_SINK=consola).
+VAR_SINK = "STATSPRO_LOG_SINK"
+VAR_NIVEL = "STATSPRO_LOG_NIVEL"
 
 
 def crear_carpeta_logs() -> None:
@@ -17,16 +23,42 @@ def crear_carpeta_logs() -> None:
     os.makedirs(r.LOG_DIR, exist_ok=True)
 
 
+def crear_handler(sink: str, nivel: str) -> logging.Handler:
+    """Arma el handler del sink pedido, con formato JSON, contexto y redaccion de secretos (US-110).
+
+    - ``archivo`` (default): :class:`~logging.handlers.RotatingFileHandler` en ``logs/app.log``; rota a
+      los 10 MB y conserva 5 respaldos (``app.log.1`` … ``app.log.5``).
+    - ``consola``: ``stderr``, para mirar los logs en vivo mientras se desarrolla.
+
+    Un sink o un nivel desconocido no rompen el arranque: se usa el default (``archivo`` / ``INFO``).
+
+    Args:
+        sink (str): ``archivo`` o ``consola``.
+        nivel (str): Nombre del nivel minimo (``DEBUG``, ``INFO``, ``WARNING``...).
+
+    Returns:
+        logging.Handler: El handler listo para agregar al logger raiz.
+    """
+    handler: logging.Handler
+    if sink.lower() == "consola":
+        handler = logging.StreamHandler(sys.stderr)
+    else:
+        crear_carpeta_logs()
+        # A diferencia del FileHandler simple, este no llena el disco.
+        handler = RotatingFileHandler(r.APP_LOG_FILE, maxBytes=10_000_000, backupCount=5, encoding="utf-8")
+    handler.setLevel(logging.getLevelNamesMapping().get(nivel.upper(), logging.INFO))
+    # Los filtros van en el handler: los de un logger no ven los registros que propagan sus hijos.
+    handler.addFilter(FiltroContexto())
+    handler.addFilter(FiltroSecretos())
+    handler.setFormatter(FormateadorJson())
+    return handler
+
+
 def configuracion_log() -> logging.Logger:
     """Configura el logger raíz de la aplicación.
 
-    Instala un :class:`~logging.handlers.RotatingFileHandler` sobre el logger
-    raíz con las siguientes características:
-
-    - Nivel de registro: ``DEBUG`` para el logger, ``INFO`` para el handler.
-    - Rotación automática al alcanzar 10 MB por archivo.
-    - Conserva hasta 5 archivos de respaldo (``app.log.1`` … ``app.log.5``).
-    - Formato: ``asctime - name - levelname - message``.
+    El logger raíz queda en ``DEBUG`` y le agrega el handler de :func:`crear_handler`, con el sink
+    y el nivel que digan ``STATSPRO_LOG_SINK`` y ``STATSPRO_LOG_NIVEL`` (default: archivo, INFO).
 
     Si el logger raíz ya tiene handlers configurados no agrega duplicados y
     retorna directamente.
@@ -34,7 +66,6 @@ def configuracion_log() -> logging.Logger:
     Returns:
         logging.Logger: instancia del logger raíz ya configurado.
     """
-    crear_carpeta_logs()
     # Al no pasarle nombre configura el logger raiz,
     # que es el padre de todos los loggers.
     # Esto hace que cualquier logger que se cree en
@@ -42,23 +73,12 @@ def configuracion_log() -> logging.Logger:
     logger = logging.getLogger()
 
     # Esto para evitar que hayan handlers duplicados
-    # si se llama varias veces a get_logger()
+    # si se llama varias veces a get_logger(). En los tests pytest ya puso los suyos: no se toca.
     if logger.handlers:
         return logger
 
     logger.setLevel(logging.DEBUG)
-
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-
-    # A diferencia del FileHandler simple, este no llena el disco.
-    # Cuando el archivo app.log llega a 10MB, se cierra.
-    # backupCount=5; El sistema renombra el viejo a app.log.1, app.log.2. y así hasta 5
-    # Cuando llega al 6 borra el mas viejo
-    app_handler = RotatingFileHandler(r.APP_LOG_FILE, maxBytes=10_000_000, backupCount=5, encoding="utf-8")
-    app_handler.setLevel(logging.INFO)
-    app_handler.setFormatter(formatter)
-
-    logger.addHandler(app_handler)
+    logger.addHandler(crear_handler(os.environ.get(VAR_SINK, "archivo"), os.environ.get(VAR_NIVEL, "INFO")))
 
     return logger
 
